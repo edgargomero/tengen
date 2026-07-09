@@ -44,6 +44,7 @@ Cada archivo vendorizado en `packages/engine/src/vendor/web-katrain/` proviene d
    git diff 7a0a487..origin/main -- src/engine/katago/fastBoard.ts   # y por cada archivo de la tabla
    ```
 2. **Por cada archivo de la tabla de arriba:** si upstream lo tocó, re-copiar la versión nueva a `packages/engine/src/vendor/web-katrain/`, re-poner la cabecera, y **re-aplicar los "Cambios de tengen"** de su fila (son pocos y localizados). Si upstream NO lo tocó, no hay nada que hacer.
+   - Nota: `tests/board.test.ts` y `tests/ladderArea.test.ts` citan en comentarios números de línea aproximados (`~NNNN`) de `fastBoard.ts` como documentación (no se asertan); si `fastBoard.ts` cambia de tamaño en un re-sync, esos números derivan — actualizarlos si confunden, pero no bloquean. El test de Task 3 además depende del string literal `'Illegal suicide move'` (ver fila de `fastBoard.ts`).
 3. **Actualizar el pin** en este documento (tabla de pins + cabeceras de los archivos) al nuevo commit.
 4. **Correr los gates:**
    ```bash
