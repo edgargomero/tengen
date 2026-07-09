@@ -4,13 +4,11 @@
  * Cambios de tengen y procedimiento de re-sync: docs/research/fase-engine/adaptaciones-upstream.md
  */
 
-import * as tf from '@tensorflow/tfjs';
-import type { BoardState, FloatArray, GameRules, Move, Player, RegionOfInterest } from '../../types';
-import { getAnimationNow } from '../../utils/animationFrame';
 import { postprocessKataGoV8 } from './evalV8';
-import type { KataGoModelV8Tf } from './modelV8';
+import type { NNEvaluator } from '../../nn/evaluator';
+import { fillFeaturesV7NCHW } from '../../encoding/featuresV7';
+import type { GameState } from '../../encoding/gameState';
 import { expectedWhiteScoreValue, getSqrtBoardArea } from './scoreValue';
-import { ENGINE_MAX_TIME_MS, ENGINE_MAX_VISITS } from './limits';
 import {
   BLACK,
   WHITE,
@@ -24,9 +22,6 @@ import {
   opponentOf,
   playMove,
   undoMove,
-  computeLadderFeaturesV7KataGoInto,
-  computeLadderedStonesV7KataGoInto,
-  computeAreaMapV7KataGoInto,
   computeLibertyMap,
   computeLibertyMapInto,
   updateLibertyMapForSeeds,
@@ -34,17 +29,25 @@ import {
   type StoneColor,
   type UndoSnapshot,
 } from './fastBoard';
-import { fillInputsV7Fast, type RecentMove } from './featuresV7Fast';
-import { POLICY_OPTIMISM, ROOT_POLICY_OPTIMISM } from './searchParams';
+import { type RecentMove } from './featuresV7Fast';
+
+// Definiciones locales mínimas que en upstream (web-katrain) vienen de `../../types` y de utilidades.
+// tengen las resuelve localmente (mismo patrón que `featuresV7Fast.ts`). OJO: el `Move` del vendor es
+// `{x,y,player}` (row-major), distinto del `Move` público de tengen `{color,vertex}`.
+type Player = 'black' | 'white';
+type GameRules = 'japanese' | 'chinese' | 'korean';
+type BoardState = ('black' | 'white' | null)[][]; // índice [y][x], null = vacío
+type FloatArray = Float32Array | Float64Array;
+type RegionOfInterest = { xMin: number; xMax: number; yMin: number; yMax: number };
+type Move = { x: number; y: number; player: Player };
+
+// Stubs inline de lo que en upstream son `../../utils/animationFrame` y `./limits` (mínimos; un
+// módulo compartido puede sustituirlos sin cambiar la lógica). Ver ledger / adaptaciones-upstream.
+const getAnimationNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const ENGINE_MAX_VISITS = 1_000_000;
+const ENGINE_MAX_TIME_MS = 600_000;
 
 export type OwnershipMode = 'none' | 'root' | 'tree';
-
-type PolicyValueOutput = ReturnType<KataGoModelV8Tf['forwardPolicyValue']>;
-type PolicyValueOwnershipOutput = ReturnType<KataGoModelV8Tf['forward']>;
-
-const hasOwnership = (out: PolicyValueOutput | PolicyValueOwnershipOutput): out is PolicyValueOwnershipOutput => {
-  return 'ownership' in out;
-};
 
 type Edge = {
   move: number; // 0..360 or PASS_MOVE
@@ -248,7 +251,7 @@ function expandNode(args: {
         }
         continue;
       }
-      if (c === pla && libs[n] > 1) {
+      if (c === pla && libs[n]! > 1) {
         connectsToSafeGroup = true;
         break;
       }
@@ -272,7 +275,7 @@ function expandNode(args: {
   const passPriorRaw = Math.exp(passLogitScaled - maxLogit);
   sum += passPriorRaw;
   const invSum = 1.0 / sum;
-  for (let i = 0; i < moveCount; i++) priorsScratch[i] *= invSum;
+  for (let i = 0; i < moveCount; i++) priorsScratch[i] = priorsScratch[i]! * invSum;
   const passPrior = passPriorRaw * invSum;
 
   if (args.policyOut) {
@@ -330,7 +333,7 @@ function expandNode(args: {
 }
 
 async function buildRootEval(args: {
-  model: KataGoModelV8Tf;
+  evaluator: NNEvaluator;
   ownershipMode: OwnershipMode;
   rules: GameRules;
   nnRandomize: boolean;
@@ -363,12 +366,11 @@ async function buildRootEval(args: {
 }> {
   const includeOwnership = args.ownershipMode !== 'none';
   const rootEval = await evaluateRootEval({
-    model: args.model,
+    evaluator: args.evaluator,
     includeOwnership,
     rules: args.rules,
     nnRandomize: args.nnRandomize,
     rootSymmetrySamples: args.rootSymmetrySamples,
-    policyOptimism: ROOT_POLICY_OPTIMISM,
     komi: args.komi,
     state: {
       stones: args.rootStones,
@@ -736,14 +738,6 @@ function computeWeightedRootStats(args: { children: ChildWeightStats[]; rootSelf
   };
 }
 
-function hasLadderCandidates(libertyMap: Uint8Array): boolean {
-  for (let i = 0; i < libertyMap.length; i++) {
-    const v = libertyMap[i]!;
-    if (v === 1 || v === 2) return true;
-  }
-  return false;
-}
-
 function buildLibertySeeds(args: {
   move: number;
   captureStack: number[];
@@ -779,8 +773,8 @@ function averageTreeOwnership(node: Node): { ownership: Float32Array; ownershipS
   const accumulate = (map: Float32Array, prop: number) => {
     for (let i = 0; i < BOARD_AREA; i++) {
       const v = map[i]!;
-      out[i] += prop * v;
-      outSq[i] += prop * v * v;
+      out[i] = out[i]! + prop * v;
+      outSq[i] = outSq[i]! + prop * v * v;
     }
   };
 
@@ -1131,10 +1125,10 @@ function averageRootEvals(evals: NeuralEval[]): NeuralEval {
 
     for (let p = 0; p < BOARD_AREA; p++) {
       const symPos = sym === 0 ? p : symPosMap[symOff + p]!;
-      policyProbSums[p] += Math.exp(ev.policy[symPos]! - maxLogit) * probScale;
+      policyProbSums[p] = policyProbSums[p]! + Math.exp(ev.policy[symPos]! - maxLogit) * probScale;
       if (ownershipSums) {
         if (!ev.ownership) throw new Error('Missing ownership output');
-        ownershipSums[p] += ev.ownership[symPos]! * inv;
+        ownershipSums[p] = ownershipSums[p]! + ev.ownership[symPos]! * inv;
       }
     }
 
@@ -1165,18 +1159,16 @@ function averageRootEvals(evals: NeuralEval[]): NeuralEval {
     blackScoreStdev: Math.sqrt(Math.max(0, blackScoreMeanSq - blackScoreMean * blackScoreMean)),
     blackNoResultProb,
     libertyMap: new Uint8Array(first.libertyMap),
-    areaMap: new Uint8Array(first.areaMap),
     ownership,
   };
 }
 
 async function evaluateRootEval(args: {
-  model: KataGoModelV8Tf;
+  evaluator: NNEvaluator;
   includeOwnership?: boolean;
   rules: GameRules;
   nnRandomize: boolean;
   rootSymmetrySamples?: number;
-  policyOptimism: number;
   komi: number;
   state: EvalState;
 }): Promise<NeuralEval> {
@@ -1184,11 +1176,10 @@ async function evaluateRootEval(args: {
   if (rootSymmetrySamples <= 1) {
     return (
       await evaluateBatch({
-        model: args.model,
+        evaluator: args.evaluator,
         includeOwnership: args.includeOwnership,
         rules: args.rules,
         nnRandomize: args.nnRandomize,
-        policyOptimism: args.policyOptimism,
         komi: args.komi,
         states: [args.state],
       })
@@ -1202,62 +1193,47 @@ async function evaluateRootEval(args: {
 
   return averageRootEvals(
     await evaluateBatch({
-      model: args.model,
+      evaluator: args.evaluator,
       includeOwnership: args.includeOwnership,
       rules: args.rules,
       nnRandomize: false,
-      policyOptimism: args.policyOptimism,
       komi: args.komi,
       states,
     })
   );
 }
 
+// El encoder V7 de tengen (`fillFeaturesV7NCHW`) computa internamente libertades/área/escaleras, así
+// que el scratch de la costura ya no lleva mapas de área ni de escaleras (los tenía el path NHWC).
 type EvalBatchScratch = {
-  spatialBatch: Float32Array;
-  globalBatch: Float32Array;
-  libertyMapScratch: Uint8Array;
-  areaMapScratch: Uint8Array | null;
-  ladderedStonesScratch: Uint8Array;
-  ladderWorkingMovesScratch: Uint8Array;
-  prevLadderedStonesScratch: Uint8Array;
-  prevPrevLadderedStonesScratch: Uint8Array;
-  symmetries: Uint8Array;
-  spatialScratch: Float32Array;
-  globalScratch: Float32Array;
-  policyScratch: Float32Array;
-  passScratch: Float32Array;
+  spatialBatch: Float32Array; // batch·BOARD_AREA·22, NCHW `c·N² + y·N + x` por elemento del batch
+  globalBatch: Float32Array; // batch·19
+  libertyMapScratch: Uint8Array; // batch·BOARD_AREA (para `NeuralEval.libertyMap` → expandNode)
+  symmetries: Uint8Array; // batch
+  binScratch: Float32Array; // BOARD_AREA·22, encoding identidad de un estado (antes de simetría)
+  globalScratch: Float32Array; // 19
 };
 
-let EMPTY_AREA_MAP = new Uint8Array(BOARD_AREA);
-
-let evalScratchNoArea: EvalBatchScratch | null = null;
-let evalScratchWithArea: EvalBatchScratch | null = null;
+let evalScratch: EvalBatchScratch | null = null;
 let evalScratchBoardArea = BOARD_AREA;
 
-function getEvalScratch(args: { batch: number; includeAreaFeature: boolean }): EvalBatchScratch {
-  const { batch, includeAreaFeature } = args;
+function getEvalScratch(args: { batch: number }): EvalBatchScratch {
+  const { batch } = args;
   if (evalScratchBoardArea !== BOARD_AREA) {
-    evalScratchNoArea = null;
-    evalScratchWithArea = null;
+    evalScratch = null;
     evalScratchBoardArea = BOARD_AREA;
-    EMPTY_AREA_MAP = new Uint8Array(BOARD_AREA);
   }
   const neededSpatial = batch * BOARD_AREA * 22;
   const neededGlobal = batch * 19;
   const neededMaps = batch * BOARD_AREA;
-  const neededPolicy = batch * BOARD_AREA;
 
-  const existing = includeAreaFeature ? evalScratchWithArea : evalScratchNoArea;
+  const existing = evalScratch;
   if (
     existing &&
     existing.spatialBatch.length >= neededSpatial &&
     existing.globalBatch.length >= neededGlobal &&
     existing.libertyMapScratch.length >= neededMaps &&
-    existing.symmetries.length >= batch &&
-    existing.policyScratch.length >= neededPolicy &&
-    existing.passScratch.length >= batch &&
-    (!includeAreaFeature || (existing.areaMapScratch && existing.areaMapScratch.length >= neededMaps))
+    existing.symmetries.length >= batch
   ) {
     return existing;
   }
@@ -1266,20 +1242,12 @@ function getEvalScratch(args: { batch: number; includeAreaFeature: boolean }): E
     spatialBatch: new Float32Array(neededSpatial),
     globalBatch: new Float32Array(neededGlobal),
     libertyMapScratch: new Uint8Array(neededMaps),
-    areaMapScratch: includeAreaFeature ? new Uint8Array(neededMaps) : null,
-    ladderedStonesScratch: new Uint8Array(BOARD_AREA),
-    ladderWorkingMovesScratch: new Uint8Array(BOARD_AREA),
-    prevLadderedStonesScratch: new Uint8Array(BOARD_AREA),
-    prevPrevLadderedStonesScratch: new Uint8Array(BOARD_AREA),
     symmetries: new Uint8Array(batch),
-    spatialScratch: new Float32Array(BOARD_AREA * 22),
+    binScratch: new Float32Array(BOARD_AREA * 22),
     globalScratch: new Float32Array(19),
-    policyScratch: new Float32Array(neededPolicy),
-    passScratch: new Float32Array(batch),
   };
 
-  if (includeAreaFeature) evalScratchWithArea = scratch;
-  else evalScratchNoArea = scratch;
+  evalScratch = scratch;
   return scratch;
 }
 
@@ -1310,117 +1278,62 @@ type NeuralEval = {
   blackScoreStdev: number;
   blackNoResultProb: number;
   libertyMap: Uint8Array;
-  areaMap: Uint8Array;
   ownership?: Float32Array; // len 361, raw logits (player-to-move perspective, symmetry space if symmetry != 0)
 };
 
+// COSTURA NEURONAL (tengen). Reemplaza el path TF.js de web-katrain (`tf.tensor4d`/`model.forward()`/
+// `.data()`/`.dispose()` + mezcla policy-optimism) por: construir `bin` NCHW + `global` con el encoder
+// V7 de Task 5 (`fillFeaturesV7NCHW`), llamar al `NNEvaluator` inyectado y consumir el `RawEval` crudo
+// (policy head-0 pura, sin leer canal +1; value/score post-procesados por `postprocessKataGoV8` de
+// Task 7 con multiplicadores por defecto 20/20/20). Ver `decisiones-adaptacion.md §1–§4`.
 async function evaluateBatch(args: {
-  model: KataGoModelV8Tf;
+  evaluator: NNEvaluator;
   includeOwnership?: boolean;
   rules: GameRules;
   nnRandomize: boolean;
-  policyOptimism: number;
   komi: number;
   states: EvalState[];
 }): Promise<NeuralEval[]> {
-  const { model, states } = args;
+  const { evaluator, states } = args;
   const includeOwnership = args.includeOwnership === true;
   const rules = args.rules;
   const nnRandomize = args.nnRandomize;
-  const policyOptimism = Math.max(0, Math.min(args.policyOptimism, 1));
-  const includeAreaFeature = rules === 'chinese';
   const batch = states.length;
-  const scratch = getEvalScratch({ batch, includeAreaFeature });
-  const spatialBatch = scratch.spatialBatch.subarray(0, batch * BOARD_AREA * 22);
+  const scratch = getEvalScratch({ batch });
+  const binBatch = scratch.spatialBatch.subarray(0, batch * BOARD_AREA * 22);
   const globalBatch = scratch.globalBatch.subarray(0, batch * 19);
   const libertyMapScratch = scratch.libertyMapScratch.subarray(0, batch * BOARD_AREA);
-  const areaMapScratch = includeAreaFeature ? scratch.areaMapScratch!.subarray(0, batch * BOARD_AREA) : null;
   const symmetries = scratch.symmetries.subarray(0, batch);
-  const spatialScratch = scratch.spatialScratch;
+  const binScratch = scratch.binScratch;
   const globalScratch = scratch.globalScratch;
+  // GameState.rules ⊂ {chinese, japanese}; el vendor puede recibir 'korean' (no emitido por tengen),
+  // que se trata como no-chino (sin planos de área), equivalente a territory scoring.
+  const gsRules: 'chinese' | 'japanese' = rules === 'chinese' ? 'chinese' : 'japanese';
 
   for (let i = 0; i < batch; i++) {
     const state = states[i]!;
     const libertyMap = libertyMapScratch.subarray(i * BOARD_AREA, (i + 1) * BOARD_AREA);
     if (state.libertyMap) libertyMap.set(state.libertyMap);
     else computeLibertyMapInto(state.stones, libertyMap);
-    const areaMap = includeAreaFeature
-      ? computeAreaMapV7KataGoInto(state.stones, areaMapScratch!.subarray(i * BOARD_AREA, (i + 1) * BOARD_AREA))
-      : EMPTY_AREA_MAP;
-    if (hasLadderCandidates(libertyMap)) {
-      computeLadderFeaturesV7KataGoInto({
-        stones: state.stones,
-        koPoint: state.koPoint,
-        currentPlayer: playerToColor(state.currentPlayer),
-        outLadderedStones: scratch.ladderedStonesScratch,
-        outLadderWorkingMoves: scratch.ladderWorkingMovesScratch,
-      });
-    } else {
-      scratch.ladderedStonesScratch.fill(0);
-      scratch.ladderWorkingMovesScratch.fill(0);
-    }
 
-    const recentMoves = state.recentMoves;
-    const lastRecentMove = recentMoves.length > 0 ? recentMoves[recentMoves.length - 1] : null;
-    const passWouldEndGame = lastRecentMove?.move === PASS_MOVE;
-    const suppressHistory = state.conservativePassAndIsRoot === true && passWouldEndGame;
-
-    const pla = state.currentPlayer;
-    const opp = pla === 'black' ? 'white' : 'black';
-    const expectedPlayers: Player[] = [opp, pla, opp, pla, opp];
-
-    let numTurnsOfHistoryIncluded = 0;
-    if (!suppressHistory) {
-      for (let h = 0; h < 5; h++) {
-        const m = recentMoves[recentMoves.length - 1 - h];
-        if (!m) break;
-        if (m.player !== expectedPlayers[h]) break;
-        numTurnsOfHistoryIncluded++;
-      }
-    }
-
-    const prevLadderStones = numTurnsOfHistoryIncluded < 1 ? state.stones : state.prevStones;
-    const prevLadderKoPoint = numTurnsOfHistoryIncluded < 1 ? state.koPoint : state.prevKoPoint;
-    const prevPrevLadderStones = numTurnsOfHistoryIncluded < 2 ? prevLadderStones : state.prevPrevStones;
-    const prevPrevLadderKoPoint = numTurnsOfHistoryIncluded < 2 ? prevLadderKoPoint : state.prevPrevKoPoint;
-
-    const prevLibertyMap = prevLadderStones === state.stones ? libertyMap : state.prevLibertyMap;
-    if (prevLibertyMap && !hasLadderCandidates(prevLibertyMap)) {
-      scratch.prevLadderedStonesScratch.fill(0);
-    } else {
-      computeLadderedStonesV7KataGoInto({
-        stones: prevLadderStones,
-        koPoint: prevLadderKoPoint,
-        outLadderedStones: scratch.prevLadderedStonesScratch,
-      });
-    }
-    const prevPrevLibertyMap =
-      prevPrevLadderStones === prevLadderStones ? prevLibertyMap : state.prevPrevLibertyMap;
-    if (prevPrevLibertyMap && !hasLadderCandidates(prevPrevLibertyMap)) {
-      scratch.prevPrevLadderedStonesScratch.fill(0);
-    } else {
-      computeLadderedStonesV7KataGoInto({
-        stones: prevPrevLadderStones,
-        koPoint: prevPrevLadderKoPoint,
-        outLadderedStones: scratch.prevPrevLadderedStonesScratch,
-      });
-    }
-
-    fillInputsV7Fast({
+    // Puente EvalState → GameState → encoder V7 NCHW (identidad, simetría 0). El encoder computa
+    // internamente libertades/área/escaleras (planos 3-5/14-19) desde `stones`/`prevStones`.
+    // TODO(perf): reutilizar scratch; hoy fillFeaturesV7NCHW asigna varios mapas por elemento del batch.
+    const gameState: GameState = {
+      boardSize: BOARD_SIZE,
       stones: state.stones,
       koPoint: state.koPoint,
       currentPlayer: state.currentPlayer,
-      recentMoves,
+      recentMoves: state.recentMoves,
+      prevStones: state.prevStones,
+      prevPrevStones: state.prevPrevStones,
       komi: state.komi ?? args.komi,
-      rules,
+      rules: gsRules,
+    };
+    fillFeaturesV7NCHW({
+      state: gameState,
       conservativePassAndIsRoot: state.conservativePassAndIsRoot,
-      libertyMap,
-      areaMap: includeAreaFeature ? areaMap : undefined,
-      ladderedStones: scratch.ladderedStonesScratch,
-      ladderWorkingMoves: scratch.ladderWorkingMovesScratch,
-      prevLadderedStones: scratch.prevLadderedStonesScratch,
-      prevPrevLadderedStones: scratch.prevPrevLadderedStonesScratch,
-      outSpatial: spatialScratch,
+      outSpatial: binScratch,
       outGlobal: globalScratch,
     });
 
@@ -1434,17 +1347,16 @@ async function evaluateBatch(args: {
     symmetries[i] = sym;
     const spatialOffset = i * BOARD_AREA * 22;
     if (sym === 0) {
-      spatialBatch.set(spatialScratch, spatialOffset);
+      binBatch.set(binScratch, spatialOffset);
     } else {
+      // Transforma el encoding identidad a la simetría `sym` en layout NCHW (`c·N² + pos`).
       const symOff = sym * BOARD_AREA;
       const symPosMap = getSymPosMap();
-      const src = spatialScratch;
-      for (let pos = 0; pos < BOARD_AREA; pos++) {
-        const dstPos = symPosMap[symOff + pos]!;
-        const srcBase = pos * 22;
-        const dstBase = spatialOffset + dstPos * 22;
-        for (let c = 0; c < 22; c++) {
-          spatialBatch[dstBase + c] = src[srcBase + c]!;
+      for (let c = 0; c < 22; c++) {
+        const cBase = c * BOARD_AREA;
+        for (let pos = 0; pos < BOARD_AREA; pos++) {
+          const dstPos = symPosMap[symOff + pos]!;
+          binBatch[spatialOffset + cBase + dstPos] = binScratch[cBase + pos]!;
         }
       }
     }
@@ -1452,59 +1364,29 @@ async function evaluateBatch(args: {
     globalBatch.set(globalScratch, i * 19);
   }
 
-  const spatialTensor = tf.tensor4d(spatialBatch, [batch, BOARD_SIZE, BOARD_SIZE, 22]);
-  const globalTensor = tf.tensor2d(globalBatch, [batch, 19]);
-  const out = includeOwnership ? model.forward(spatialTensor, globalTensor) : model.forwardPolicyValue(spatialTensor, globalTensor);
+  // TODO(task-9): construir meta_input[192] cuando `evaluator.hasMeta` (Human SL). Task 8 usa mock/b18
+  // (hasMeta=false), así que meta=null es correcto para este gate.
+  const raw = await evaluator.evaluate({
+    bin: binBatch,
+    global: globalBatch,
+    meta: null,
+    batch,
+    includeOwnership,
+  });
 
-  const ownershipPromise = includeOwnership && hasOwnership(out) ? out.ownership.data() : Promise.resolve(null);
-  const [policyArr, passArr, valueArr, scoreArr, ownershipArr] = await Promise.all([
-    out.policy.data(),
-    out.policyPass.data(),
-    out.value.data(),
-    out.scoreValue.data(),
-    ownershipPromise,
-  ]);
-
-  spatialTensor.dispose();
-  globalTensor.dispose();
-  out.policy.dispose();
-  out.policyPass.dispose();
-  out.value.dispose();
-  out.scoreValue.dispose();
-  if (hasOwnership(out)) out.ownership.dispose();
-
-  const policyChannels = model.policyOutChannels;
-  const usePolicyOptimism = policyChannels === 2 || (policyChannels === 4 && model.modelVersion >= 16);
-  const mix = usePolicyOptimism ? policyOptimism : 0;
-  let policyLogits = policyArr as Float32Array;
-  let passLogits = passArr as Float32Array;
-
-  if (policyChannels > 1) {
-    const mixedPolicy = scratch.policyScratch.subarray(0, batch * BOARD_AREA);
-    const mixedPass = scratch.passScratch.subarray(0, batch);
-    for (let i = 0; i < batch; i++) {
-      const baseOff = i * BOARD_AREA * policyChannels;
-      const outOff = i * BOARD_AREA;
-      for (let p = 0; p < BOARD_AREA; p++) {
-        const src = baseOff + p * policyChannels;
-        const base = policyArr[src]!;
-        const opt = policyArr[src + 1]!;
-        mixedPolicy[outOff + p] = base + (opt - base) * mix;
-      }
-      const passBase = passArr[i * policyChannels]!;
-      const passOpt = passArr[i * policyChannels + 1]!;
-      mixedPass[i] = passBase + (passOpt - passBase) * mix;
-    }
-    policyLogits = mixedPolicy;
-    passLogits = mixedPass;
-  }
+  const policyLogits = raw.policy;
+  const passLogits = raw.policyPass;
+  const valueArr = raw.value;
+  const scoreArr = raw.scoreValue;
+  const ownershipArr = raw.ownership;
 
   const results: NeuralEval[] = [];
   for (let i = 0; i < batch; i++) {
     const pOff = i * BOARD_AREA;
     const sym = symmetries[i]!;
     const policy = policyLogits.subarray(pOff, pOff + BOARD_AREA);
-    const ownership = includeOwnership ? (ownershipArr as Float32Array).subarray(pOff, pOff + BOARD_AREA) : undefined;
+    const ownership =
+      includeOwnership && ownershipArr ? ownershipArr.subarray(pOff, pOff + BOARD_AREA) : undefined;
 
     const passLogit = passLogits[i]!;
     const vOff = i * 3;
@@ -1513,7 +1395,6 @@ async function evaluateBatch(args: {
       nextPlayer: states[i]!.currentPlayer,
       valueLogits: valueArr.subarray(vOff, vOff + 3),
       scoreValue: scoreArr.subarray(sOff, sOff + 4),
-      postProcessParams: model.postProcessParams,
     });
 
     results.push({
@@ -1526,7 +1407,6 @@ async function evaluateBatch(args: {
       blackScoreStdev: evaled.blackScoreStdev,
       blackNoResultProb: evaled.blackNoResultProb,
       libertyMap: libertyMapScratch.subarray(i * BOARD_AREA, (i + 1) * BOARD_AREA),
-      areaMap: includeAreaFeature ? areaMapScratch!.subarray(i * BOARD_AREA, (i + 1) * BOARD_AREA) : EMPTY_AREA_MAP,
       ownership,
     });
   }
@@ -1535,7 +1415,7 @@ async function evaluateBatch(args: {
 }
 
 export class MctsSearch {
-  readonly model: KataGoModelV8Tf;
+  readonly evaluator: NNEvaluator;
   readonly ownershipMode: OwnershipMode;
   readonly maxChildren: number;
   private currentPlayer: Player;
@@ -1578,7 +1458,7 @@ export class MctsSearch {
   private treeOwnershipCache: { visits: number; ownership: Float32Array; ownershipStdev: Float32Array; timestamp: number } | null = null;
 
   private constructor(args: {
-    model: KataGoModelV8Tf;
+    evaluator: NNEvaluator;
     ownershipMode: OwnershipMode;
     maxChildren: number;
     currentPlayer: Player;
@@ -1607,7 +1487,7 @@ export class MctsSearch {
     rootSelfScoreMeanSq: number;
     rootSelfUtility: number;
   }) {
-    this.model = args.model;
+    this.evaluator = args.evaluator;
     this.ownershipMode = args.ownershipMode;
     this.maxChildren = args.maxChildren;
     this.currentPlayer = args.currentPlayer;
@@ -1640,7 +1520,7 @@ export class MctsSearch {
   }
 
   static async create(args: {
-    model: KataGoModelV8Tf;
+    evaluator: NNEvaluator;
     board: BoardState;
     previousBoard?: BoardState;
     previousPreviousBoard?: BoardState;
@@ -1656,7 +1536,9 @@ export class MctsSearch {
     rootSymmetrySamples?: number;
     regionOfInterest?: RegionOfInterest | null;
   }): Promise<MctsSearch> {
-    const outputScaleMultiplier = args.model.postProcessParams?.outputScaleMultiplier ?? 1.0;
+    // NNEvaluator no expone postProcessParams; el multiplicador de salida es 1.0 (postprocessKataGoV8
+    // usa sus multiplicadores por defecto 20/20/20 — correctos para b18c384nbt y humanv0).
+    const outputScaleMultiplier = 1.0;
     const rootSymmetrySamples = clampRootSymmetrySamples(args.rootSymmetrySamples);
     const rootStones = boardStateToStones(args.board);
     const rootKoPoint = computeKoPointFromPrevious({ board: args.board, previousBoard: args.previousBoard, moveHistory: args.moveHistory });
@@ -1686,7 +1568,7 @@ export class MctsSearch {
       rootUtility,
       recentScoreCenter,
     } = await buildRootEval({
-      model: args.model,
+      evaluator: args.evaluator,
       ownershipMode: args.ownershipMode,
       rules: args.rules,
       nnRandomize: args.nnRandomize,
@@ -1720,7 +1602,7 @@ export class MctsSearch {
       rootPrevStones === rootStones ? rootLibertyMap : computeLibertyMapInto(rootPrevStones, new Uint8Array(BOARD_AREA));
 
     return new MctsSearch({
-      model: args.model,
+      evaluator: args.evaluator,
       ownershipMode: args.ownershipMode,
       maxChildren: args.maxChildren,
       currentPlayer: args.currentPlayer,
@@ -1797,7 +1679,7 @@ export class MctsSearch {
       rootUtility,
       recentScoreCenter,
     } = await buildRootEval({
-      model: this.model,
+      evaluator: this.evaluator,
       ownershipMode: this.ownershipMode,
       rules: args.rules,
       nnRandomize: this.nnRandomize,
@@ -2087,11 +1969,10 @@ export class MctsSearch {
 
       const includeOwnership = this.ownershipMode === 'tree';
       const evals = await evaluateBatch({
-        model: this.model,
+        evaluator: this.evaluator,
         includeOwnership,
         rules: this.rules,
         nnRandomize: this.nnRandomize,
-        policyOptimism: POLICY_OPTIMISM,
         komi: this.komi,
         states: jobs,
       });
@@ -2356,7 +2237,7 @@ export class MctsSearch {
 }
 
 export async function analyzeMcts(args: {
-  model: KataGoModelV8Tf;
+  evaluator: NNEvaluator;
   board: BoardState;
   previousBoard?: BoardState;
   previousPreviousBoard?: BoardState;
@@ -2374,6 +2255,7 @@ export async function analyzeMcts(args: {
   maxChildren?: number;
   rootSymmetrySamples?: number;
   regionOfInterest?: RegionOfInterest | null;
+  preferLargeBatch?: boolean; // reemplaza la detección `tf.getBackend()==='webgpu'` de upstream
 }): Promise<{
   rootWinRate: number;
   rootScoreLead: number;
@@ -2399,17 +2281,18 @@ export async function analyzeMcts(args: {
     pv: string[];
   }>;
 }> {
-  const outputScaleMultiplier = args.model.postProcessParams?.outputScaleMultiplier ?? 1.0;
+  const outputScaleMultiplier = 1.0;
+  const preferLargeBatch = args.preferLargeBatch === true;
   const maxVisits = Math.max(16, Math.min(args.visits ?? 256, ENGINE_MAX_VISITS));
   const maxTimeMs = Math.max(25, Math.min(args.maxTimeMs ?? 800, ENGINE_MAX_TIME_MS));
-  const batchSize = Math.max(1, Math.min(args.batchSize ?? (tf.getBackend() === 'webgpu' ? 16 : 4), 64));
+  const batchSize = Math.max(1, Math.min(args.batchSize ?? (preferLargeBatch ? 16 : 4), 64));
   const maxChildren = Math.max(4, Math.min(args.maxChildren ?? 64, 361));
   const topK = Math.max(1, Math.min(args.topK ?? 10, 50));
   const analysisPvLen = Math.max(0, Math.min(args.analysisPvLen ?? 15, 60));
   const wideRootNoise = Math.max(0, Math.min(args.wideRootNoise ?? 0.04, 5));
   const rules: GameRules = args.rules ?? 'japanese';
   const nnRandomize = args.nnRandomize !== false;
-  const rootSymmetrySamples = clampRootSymmetrySamples(args.rootSymmetrySamples ?? (tf.getBackend() === 'webgpu' && nnRandomize ? NUM_SYMMETRIES : 1));
+  const rootSymmetrySamples = clampRootSymmetrySamples(args.rootSymmetrySamples ?? (preferLargeBatch && nnRandomize ? NUM_SYMMETRIES : 1));
   const pvDepth = 1 + analysisPvLen;
   const rand = new Rand();
 
@@ -2433,12 +2316,11 @@ export async function analyzeMcts(args: {
   const rootNode = new Node(playerToColor(args.currentPlayer));
 
   const rootEval = await evaluateRootEval({
-    model: args.model,
+    evaluator: args.evaluator,
     includeOwnership: true,
     rules,
     nnRandomize,
     rootSymmetrySamples,
-    policyOptimism: ROOT_POLICY_OPTIMISM,
     komi: args.komi,
     state: {
       stones: rootPos.stones,
@@ -2638,11 +2520,10 @@ export async function analyzeMcts(args: {
     if (jobs.length === 0) break;
 
     const evals = await evaluateBatch({
-      model: args.model,
+      evaluator: args.evaluator,
       includeOwnership: true,
       rules,
       nnRandomize,
-      policyOptimism: POLICY_OPTIMISM,
       komi: args.komi,
       states: jobs,
     });
