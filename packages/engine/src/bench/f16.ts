@@ -23,7 +23,7 @@ export function f32ToF16(src: Float32Array): Uint16Array {
         } else {
           // subnormal: mantisa con bit implícito, desplazada
           const m = (mant | 0x800000) >> (1 - e)
-          half = sign | ((m + 0x1000 + ((m >> 13) & 1)) >> 13)
+          half = sign | ((m + 0x0fff + ((m >> 13) & 1)) >> 13)
         }
       } else {
         // normal, con redondeo al par en el bit 13

@@ -20,4 +20,11 @@ describe('f32ToF16', () => {
     const out = f32ToF16(new Float32Array([1.0004]))
     expect(out[0]).toBe(0x3c00)
   })
+  it('redondea subnormales al par', () => {
+    // 2^-25 es el punto medio exacto entre 0x0000 y 0x0001 → al par: 0x0000
+    // 2^-24 es exactamente el subnormal mínimo 0x0001
+    const out = f32ToF16(new Float32Array([2 ** -25, 2 ** -24]))
+    expect(out[0]).toBe(0x0000)
+    expect(out[1]).toBe(0x0001)
+  })
 })
