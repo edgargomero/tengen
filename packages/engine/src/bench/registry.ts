@@ -10,8 +10,9 @@ export type ModelSpec = {
 const KAYA = 'https://huggingface.co/kaya-go/kaya/resolve/main/kata1-b28c512nbt-s12043015936-d5616446734'
 
 /** Catálogo de la fase 0. bytes verificados el 2026-07-08
- *  (docs/research/fase0/inventario-onnx.md). bytes=0 → se genera con
- *  la conversión local (Task 7/8) y no lo toca download-models.sh. */
+ *  (docs/research/fase0/inventario-onnx.md). url='' → conversión local
+ *  (Task 7/8), no la toca download-models.sh; bytes son reales una vez
+ *  convertido (0 hasta entonces). */
 export const MODELS: ModelSpec[] = [
   {
     id: 'b28c512nbt-kaya.fp16.onnx',
@@ -48,10 +49,18 @@ export const MODELS: ModelSpec[] = [
   {
     id: 'b18c384nbt-kata1.fp16.onnx',
     url: '',
-    bytes: 0,
+    bytes: 58207341,
     dtype: 'float16',
     inputNames: { bin: 'bin_input', global: 'global_input' },
     notes: 'conversión propia con katago-onnx (Task 7) desde kata1-b18c384nbt-s9996604416',
+  },
+  {
+    id: 'b18c384nbt-kata1.fp32.onnx',
+    url: '',
+    bytes: 115800125,
+    dtype: 'float32',
+    inputNames: { bin: 'bin_input', global: 'global_input' },
+    notes: 'conversión propia fp32 (fallback GPUs sin shader-f16)',
   },
   {
     id: 'b18c384nbt-humanv0.fp16.onnx',
