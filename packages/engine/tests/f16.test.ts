@@ -26,5 +26,8 @@ describe('f32ToF16', () => {
     const out = f32ToF16(new Float32Array([2 ** -25, 2 ** -24]))
     expect(out[0]).toBe(0x0000)
     expect(out[1]).toBe(0x0001)
+    // apenas por encima del punto medio 2^-25: los sticky bits deben forzar redondeo hacia arriba
+    const above = f32ToF16(new Float32Array([2.9805864443233077e-8]))
+    expect(above[0]).toBe(0x0001)
   })
 })

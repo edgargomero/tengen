@@ -21,8 +21,10 @@ export function f32ToF16(src: Float32Array): Uint16Array {
         if (e < -10) {
           half = sign // underflow → ±0
         } else {
-          // subnormal: mantisa con bit implícito, desplazada
-          const m = (mant | 0x800000) >> (1 - e)
+          // subnormal: mantisa con bit implícito, desplazada, preservando sticky bits
+          const shift = 1 - e
+          const full = mant | 0x800000
+          const m = (full >> shift) | ((full & ((1 << shift) - 1)) ? 1 : 0)
           half = sign | ((m + 0x0fff + ((m >> 13) & 1)) >> 13)
         }
       } else {
