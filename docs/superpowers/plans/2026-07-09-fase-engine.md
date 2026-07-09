@@ -691,7 +691,7 @@ describe('metaV1', () => {
 
 - [ ] **Step 3: Implementar metaV1**
 
-Portar `fillMetadataRow` de `fuentes.md §2` / `sgfmetadata.cpp`: `[0,1]=1` (ambos humanos), `[74]=0.5`, termómetro `[6..39]`/`[40..73]` (primeros `min(invRank,34)` a 1), one-hot time-control byo-yomi (`[79]=1`), `[82..85]` de tiempos (`mainTime=1200`, `period=30`, `byoYomiPeriods=5`), `[86]=0.5·ln(area/361)`, fecha `[87..150]` (32 pares cos/sin con `period=7·factor^k`, `factor=80000^(1/31)`, días desde 1970-01-01 hasta 2016-09-01 = 17075), source KGS `[151+2]=1`. Resto 0.
+Portar `fillMetadataRow` de `fuentes.md §2` / `sgfmetadata.cpp`: `[0,1]=1` (ambos humanos), `[74]=0.5`, termómetro `[6..39]`/`[40..73]` (primeros `min(invRank,34)` a 1), one-hot time-control byo-yomi (`[79]=1`), `[82..85]` de tiempos (`mainTime=1200`, `period=30`, `byoYomiPeriods=5`), `[86]=0.5·ln(area/361)`, fecha `[87..150]` (32 pares cos/sin con `period=7·factor^k`, `factor=80000^(1/31)`, días desde 1970-01-01 hasta 2016-09-01 = 17045), source KGS `[151+2]=1`. Resto 0.
 
 - [ ] **Step 4: Verificar que pasa**
 
