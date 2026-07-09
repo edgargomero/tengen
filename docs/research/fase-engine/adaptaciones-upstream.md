@@ -67,4 +67,6 @@ Leer en este orden:
 6. **Este documento** — qué se adaptó de upstream y cómo re-aplicarlo.
 7. **`.superpowers/sdd/progress.md`** (git-ignored) — el ledger: qué tasks están completos (con sus commits) y cuál es el siguiente. **Tras cualquier reinicio, confiar en el ledger + `git log` sobre la memoria.** Reanudar en el primer task no marcado como completo.
 
-Estado de ejecución y siguiente paso viven siempre en el ledger. La rama de trabajo es `fase-engine`.
+**Estado de ejecución y siguiente paso viven SOLO en el ledger** (`.superpowers/sdd/progress.md`); ningún otro documento debe hardcodear "qué task va" o "próxima acción" — se quedaría obsoleto y desviaría (esa duplicación ya causó una divergencia y se eliminó). La rama de trabajo es `fase-engine`.
+
+**Cómo continuar la ejecución:** el plan se ejecuta con la skill `superpowers:subagent-driven-development` (un subagente implementador por task desde su brief `scripts/task-brief`, revisión por task con `scripts/review-package`, fixer para findings Critical/Important, ledger actualizado por task). Modelos: transcripción→`haiku`, integración→`sonnet`, adaptación de vendored grande / review final→el más capaz. Reanudar en el primer task del ledger no marcado como `complete`.
