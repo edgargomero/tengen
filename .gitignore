@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+*.local
+.DS_Store
+
+# Logs de KataGo local (benchmarks/pruebas)
+gtp_logs/
+
+# Redes neuronales (van en R2, no en git)
+*.bin.gz
+*.onnx

@@ -106,6 +106,26 @@ Conversión con el pipeline open-source `katago-onnx`. Las redes se versionan en
 
 Antes de construir UI: script que carga los ONNX (b10, b18, humanv0) en onnxruntime-web/WebGPU y mide inferencias/s en el hardware de Edgar. Único dato que la investigación no pudo cerrar con fuentes públicas (benchmarks existentes son de gama alta, sin réplica). El resultado calibra niveles y expectativas de análisis. Si b18 rindiera <2 inf/s en hardware típico, el plan B es b10/b15 como red principal (decisión documentada, no re-arquitectura).
 
+Punto de referencia ya medido (durante la investigación se compiló y benchmarkeó KataGo v1.16.5 backend Eigen **en CPU** en el Mac M1 de Edgar, reproducido por un segundo agente): b18 = 2.3-4.6 visitas/s, b10c128 = 78-176 v/s, b6c96 = 249-382 v/s; RSS 713/170/96 MiB; carga de b18 (98 MB) ≈ 2 s. La fase 0 mide la vía WebGPU del navegador, que debería superar estas cifras de CPU.
+
+## Monitoreo de releases upstream
+
+El producto se apoya en repos open source activos; sus releases deben vigilarse (requisito explícito de Edgar):
+
+| Dependencia | Qué vigilar | Por qué |
+|---|---|---|
+| `lightvector/KataGo` | releases (formato de redes, model version) + redes nuevas en katagotraining.org | redes mejores → producto más fuerte gratis; cambios de input encoding rompen el engine |
+| `kaya-go/kaya` | releases + su repo de ONNX en Hugging Face | referencia de factibilidad; publica ONNX de redes KataGo ya convertidos |
+| `web-katrain` | releases | referencia MIT del MCTS/encoding |
+| `katago-onnx` | releases | pipeline de conversión de redes |
+| `onnxruntime-web` | releases (npm) | el runtime de inferencia; regresiones/mejoras WebGPU |
+| `@sabaki/shudan`, `@sabaki/sgf`, `@sabaki/go-board` | releases (npm) | componentes núcleo de la UI |
+| `better-auth`, `hono` | releases (npm) + avisos de seguridad | superficie de auth |
+
+Mecanismo en dos capas:
+1. **npm:** Renovate (o Dependabot) en el repo — PRs automáticos por versión nueva.
+2. **No-npm (KataGo, redes, kaya, katago-onnx):** watcher programado que consulta los feeds `releases.atom` de GitHub (+ índice de katagotraining.org) y notifica novedades — implementable como cron trigger del mismo Worker con aviso por email, o como routine programada de Claude Code. Se concreta en el plan de implementación.
+
 ## Testing
 
 - **Vitest:** reglas de juego, parse/serialize SGF, encoding de inputs de la red (contra vectores de referencia generados con KataGo de escritorio).
