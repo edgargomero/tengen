@@ -11,3 +11,5 @@ gtp_logs/
 # Redes neuronales (van en R2, no en git)
 *.bin.gz
 *.onnx
+
+packages/engine/public/wasm/
