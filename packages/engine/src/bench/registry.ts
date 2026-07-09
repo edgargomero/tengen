@@ -65,7 +65,7 @@ export const MODELS: ModelSpec[] = [
   {
     id: 'b18c384nbt-humanv0.fp16.onnx',
     url: '',
-    bytes: 0,
+    bytes: 54294241,
     dtype: 'float16',
     inputNames: { bin: 'bin_input', global: 'global_input', meta: 'meta_input' },
     notes: 'conversión propia parcheada (Task 8); tercer input meta [1,192]',
