@@ -4,9 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es tengen
 
-App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. El proyecto está en fase de diseño/arranque: todavía no hay código, solo especificación e investigación.
+App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. Estado: **fase 0 completa** (monorepo + harness de benchmark + redes convertidas + gate decidido); la siguiente fase es el engine (MCTS + encoding).
 
-**Lee primero la spec:** `docs/superpowers/specs/2026-07-08-tengen-design.md`. La investigación que respalda cada decisión (con cifras verificadas) está en `docs/research/`.
+**Lee primero la spec:** `docs/superpowers/specs/2026-07-08-tengen-design.md`. La investigación que respalda cada decisión (con cifras verificadas) está en `docs/research/`; los resultados medidos de fase 0 y el veredicto de licencias de pesos están en `docs/research/fase0/resultados.md`.
+
+## Comandos
+
+- `npm test` — Vitest de todos los workspaces (`npm test -w @tengen/engine` para uno).
+- `npx -w @tengen/engine tsc --noEmit` — typecheck (strict + noUncheckedIndexedAccess).
+- `packages/engine/scripts/download-models.sh` — descarga los ONNX publicados a `packages/engine/models/` (gitignored) validando bytes.
+- `npm run bench` — harness de benchmark en Chrome (`bench.html` vía Vite; requiere modelos descargados). El dev server sirve `/models/` y `/ort-dist/` (runtime de onnxruntime-web) vía middlewares propios en `vite.config.ts` — Vite no puede servir imports de módulo desde `public/`, y el worker de ORT exige header COEP: no "simplificar" eso.
+- Conversión de redes (herramienta local, no del producto): clon de kaya-go/katago-onnx en `~/dev/vendor/katago-onnx` (`pixi install`); Human SL requiere `packages/engine/scripts/convert-humanv0.py` (AGPL, solo uso local).
+
+## Datos medidos que gobiernan decisiones (fase 0, Chrome/WebGPU, Apple M1)
+
+b18 fp16 = 2.79 inf/s (batch 1) / 4.64 (batch 8); Human SL igual; b28 = 1.31 (descartada como principal); WebGPU ≈ 2.2× WASM. Gate ≥2 inf/s PASADO → **b18c384nbt fp16 es la red principal** (58 MB) + Human SL fp16 (54 MB). Formato a servir: fp16 (misma velocidad que fp32, mitad de peso).
 
 ## Decisiones ya tomadas — no re-litigar
 

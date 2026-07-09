@@ -1,3 +1,7 @@
+# AVISO DE LICENCIA: este archivo es una adaptación de código de kaya-go/katago-onnx
+# (AGPL-3.0) y queda licenciado AGPL-3.0. Es una herramienta LOCAL de desarrollo:
+# no forma parte del producto tengen ni de sus distribuciones/deploys.
+#
 # Adaptación de convert_katago_torch_to_onnx (src/katago_onnx/convert.py) para redes HumanSL.
 # Motivo del parche: Model.forward hace `assert input_meta is not None` si hay metadata_encoder
 # (src/katago/train/model_pytorch.py) y convert.py solo pasa 2 inputs.

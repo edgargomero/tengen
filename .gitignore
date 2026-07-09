@@ -8,6 +8,8 @@ dist/
 # Logs de KataGo local (benchmarks/pruebas)
 gtp_logs/
 
-# Redes neuronales (van en R2, no en git)
+# Redes neuronales (van en R2, no en git) — incluye descargas parciales
 *.bin.gz
 *.onnx
+*.onnx.part
+packages/engine/models/
