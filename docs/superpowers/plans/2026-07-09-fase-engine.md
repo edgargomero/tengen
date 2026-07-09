@@ -11,6 +11,14 @@
 ## Global Constraints
 
 - **Licencias.** web-katrain (commit `7a0a487`, en `~/dev/vendor/web-katrain`) es **MIT: adaptable CON atribución** — cada archivo vendorizado lleva cabecera de origen + entrada en `packages/engine/THIRD-PARTY-LICENSES`. **Kaya (kaya-go/kaya) es AGPL-3.0: prohibido copiar una sola línea.** `scripts/convert-humanv0.py` es AGPL (uso local, ya marcado).
+- **Adaptabilidad upstream + reanudable por LLM (obligatorio).** El proyecto debe quedar escrito para que un LLM pueda retomarlo y re-aplicar nuestras adaptaciones cuando salga una release nueva de web-katrain/KataGo. Concretamente: (a) toda tarea que vendorice o adapte un archivo de terceros **añade/actualiza su fila en `docs/research/fase-engine/adaptaciones-upstream.md`** (origen exacto, commit fijado, cambios de tengen, notas de re-sync) en el mismo commit; (b) cada archivo vendorizado lleva la cabecera con el formato de abajo, apuntando a ese log; (c) los cambios sobre upstream se mantienen **mínimos y localizados** (no reformatear ni reordenar el archivo original); (d) el estado de ejecución vive en el ledger `.superpowers/sdd/progress.md`. Formato de cabecera de todo archivo vendorizado:
+  ```ts
+  /*
+   * Adaptado de web-katrain (https://github.com/Sir-Teo/web-katrain), commit 7a0a487, licencia MIT.
+   * Origen: src/engine/katago/<archivo>. Licencia completa en packages/engine/THIRD-PARTY-LICENSES.
+   * Cambios de tengen y procedimiento de re-sync: docs/research/fase-engine/adaptaciones-upstream.md
+   */
+  ```
 - **Modelos nunca en git** (`.gitignore` bloquea `*.onnx`/`*.bin.gz`); viven en `packages/engine/models/` (gitignored). Fixtures de referencia (`tests/fixtures/**`) SÍ se commitean (son JSON pequeños derivados, no pesos).
 - **No romper el bench.** `npm run bench` debe seguir funcionando; el nuevo código va en `src/` como hermano de `src/bench/`. **No cambiar la versión de onnxruntime-web** (^1.24.3) sin re-medir la fase 0.
 - **tsconfig:** `strict`, `noUncheckedIndexedAccess`, `moduleResolution: bundler`, `target/lib ES2022 + DOM`, `types: []` (sin `@types/node`/`@webgpu/types` globales; tipos GPU inline como en el bench). `npx -w @tengen/engine tsc --noEmit` verde siempre.

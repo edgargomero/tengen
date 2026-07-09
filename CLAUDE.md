@@ -37,7 +37,7 @@ b18 fp16 = 2.79 inf/s (batch 1) / 4.64 (batch 8); Human SL igual; b28 = 1.31 (de
 
 ## Requisito permanente: monitoreo de releases upstream
 
-El producto depende de repos externos (KataGo, katago-onnx, onnxruntime-web, `@sabaki/*`, better-auth). Todo cambio de diseño debe mantener la sección "Monitoreo de releases upstream" de la spec; al montar CI, incluir Renovate + watcher de `releases.atom` para lo no-npm.
+El producto depende de repos externos (KataGo, katago-onnx, onnxruntime-web, `@sabaki/*`, better-auth) y, desde la fase engine, **adapta código de web-katrain (MIT)**. Todo cambio de diseño debe mantener la sección "Monitoreo de releases upstream" de la spec; al montar CI, incluir Renovate + watcher de `releases.atom` para lo no-npm (incluido `Sir-Teo/web-katrain` y `lightvector/KataGo`). **Cuando salga una release de web-katrain o KataGo, la re-adaptación NO es a ojo:** seguir el runbook de `docs/research/fase-engine/adaptaciones-upstream.md` (log de cambios por archivo + pasos de re-sync + gate `npm run -w @tengen/engine test:nn`). Ese documento es también la guía de "cómo retomar el proyecto" para un LLM sin contexto: toda adaptación de terceros se registra ahí en el mismo commit.
 
 ## Estructura planificada (según spec)
 
