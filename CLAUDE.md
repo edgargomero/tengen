@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es tengen
 
-App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. Estado: **fase 0 completa** (monorepo + harness de benchmark + redes convertidas + gate decidido); la siguiente fase es el engine (MCTS + encoding).
+App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. Estado: **fase engine en curso** (fase 0 completa y mergeada; monorepo + harness de benchmark + redes convertidas + gate decidido). La fase engine (encoding V7 + MCTS + Web Worker) tiene **plan escrito, aún sin ejecutar**.
 
-**Lee primero la spec:** `docs/superpowers/specs/2026-07-08-tengen-design.md`. La investigación que respalda cada decisión (con cifras verificadas) está en `docs/research/`; los resultados medidos de fase 0 y el veredicto de licencias de pesos están en `docs/research/fase0/resultados.md`.
+**Lee primero la spec:** `docs/superpowers/specs/2026-07-08-tengen-design.md`. La investigación que respalda cada decisión (con cifras verificadas) está en `docs/research/`; los resultados medidos de fase 0 y el veredicto de licencias de pesos están en `docs/research/fase0/resultados.md`. **Para la fase engine:** el plan es `docs/superpowers/plans/2026-07-09-fase-engine.md`; los datos duros (encoding, MCTS, postproceso, contrato de `kata-raw-nn`) están en `docs/research/fase-engine/fuentes.md` y las decisiones de adaptación de web-katrain en `docs/research/fase-engine/decisiones-adaptacion.md`.
 
 ## Comandos
 
@@ -15,6 +15,7 @@ App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataG
 - `packages/engine/scripts/download-models.sh` — descarga los ONNX publicados a `packages/engine/models/` (gitignored) validando bytes.
 - `npm run bench` — harness de benchmark en Chrome (`bench.html` vía Vite; requiere modelos descargados). El dev server sirve `/models/` y `/ort-dist/` (runtime de onnxruntime-web) vía middlewares propios en `vite.config.ts` — Vite no puede servir imports de módulo desde `public/`, y el worker de ORT exige header COEP: no "simplificar" eso.
 - Conversión de redes (herramienta local, no del producto): clon de kaya-go/katago-onnx en `~/dev/vendor/katago-onnx` (`pixi install`); Human SL requiere `packages/engine/scripts/convert-humanv0.py` (AGPL, solo uso local).
+- Vectores de referencia del engine (herramienta local, no del producto): `packages/engine/scripts/setup-katago.sh` instala **KataGo desktop 1.16.5** (`brew install katago`) + descarga los `.bin.gz` oficiales, y `gen-reference.mjs` genera los fixtures `kata-raw-nn` (JSON committeado en `tests/fixtures/reference/`) contra los que se testea el encoding. `numSearchThreads=1`, `SYMMETRY=0` para determinismo.
 
 ## Datos medidos que gobiernan decisiones (fase 0, Chrome/WebGPU, Apple M1)
 
@@ -31,8 +32,8 @@ b18 fp16 = 2.79 inf/s (batch 1) / 4.64 (batch 8); Human SL igual; b28 = 1.31 (de
 
 ## Restricción de licencias (crítico)
 
-- **Kaya (github.com/kaya-go/kaya) es AGPL-3.0: prohibido copiar su código.** Sirve solo como prueba de factibilidad y referencia de arquitectura a distancia.
-- **web-katrain es MIT:** referencia segura para MCTS y encoding de inputs.
+- **Kaya (github.com/kaya-go/kaya) es AGPL-3.0: prohibido copiar su código.** Sirve solo como prueba de factibilidad y referencia de arquitectura a distancia. Su encoding es incompleto (sin escaleras/Benson/reglas), así que ni siquiera sería útil copiarlo.
+- **web-katrain (Sir-Teo/web-katrain, MIT, commit `7a0a487`) es la base de adaptación de la fase engine**, clonado en `~/dev/vendor/web-katrain`. **Sí tiene el encoding V7 completo** (`fastBoard.ts` = board + escaleras + Benson; `featuresV7Fast.ts` = 22 planos; `analyzeMcts.ts` = MCTS PUCT; `evalV8.ts`/`scoreValue.ts` = postproceso). La estrategia es **adaptar con atribución MIT** (cabecera por archivo + `packages/engine/THIRD-PARTY-LICENSES`), no reimplementar. Lo único que web-katrain **no** tiene y es 100% nuestro: evaluador ONNX (ellos usan TensorFlow.js), `meta_input[192]` de Human SL, interfaz `Engine` + Web Worker + OPFS. (Nota: la afirmación previa de que web-katrain no implementaba el encoding completo era un error de investigación, ya corregido en `docs/research/fase-engine/fuentes.md §1.5`.)
 
 ## Requisito permanente: monitoreo de releases upstream
 
