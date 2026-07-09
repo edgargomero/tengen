@@ -1,7 +1,7 @@
 /*
- * Adaptado de web-katrain (https://github.com/Sir-Teo/web-katrain), commit 7a0a487.
- * Licencia MIT — ver packages/engine/THIRD-PARTY-LICENSES.
- * Cambios de tengen documentados en docs/research/fase-engine/decisiones-adaptacion.md.
+ * Adaptado de web-katrain (https://github.com/Sir-Teo/web-katrain), commit 7a0a487, licencia MIT.
+ * Origen: src/engine/katago/fastBoard.ts. Licencia completa en packages/engine/THIRD-PARTY-LICENSES.
+ * Cambios de tengen y procedimiento de re-sync: docs/research/fase-engine/adaptaciones-upstream.md
  */
 
 export let BOARD_SIZE = 19;
