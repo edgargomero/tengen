@@ -75,6 +75,11 @@ export default defineConfig({
           const contentType = ORT_DIST_CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream'
           res.setHeader('Content-Type', contentType)
           res.setHeader('Content-Length', String(st.size))
+          // ORT multihilo carga este .mjs como script de un dedicated worker;
+          // bajo crossOriginIsolated el worker hereda COEP y su script debe
+          // llegar con este header o Chrome lo bloquea (ERR_BLOCKED_BY_RESPONSE).
+          // Los headers de `server.headers` no aplican a middlewares propios.
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           if (req.method === 'HEAD') {
             res.end()
             return
