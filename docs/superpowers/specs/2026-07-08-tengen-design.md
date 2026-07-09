@@ -143,6 +143,6 @@ Mecanismo en dos capas:
 ## Preguntas abiertas (se resuelven en fase 0 / implementación)
 
 1. inf/s reales por red en hardware típico (fase 0).
-2. ¿ONNX ya convertidos disponibles públicamente (Kaya publica los suyos) o convertimos con katago-onnx?
+2. ~~¿ONNX ya convertidos disponibles públicamente o convertimos con katago-onnx?~~ **Respondida (2026-07-08, ver `docs/research/fase0/`):** los ONNX de Kaya en HF son MIT (solo b28); b18 y Human SL se convierten con katago-onnx (herramienta AGPL de uso local; Human SL requiere parche `meta_input`); b10 no tiene vía verificada (checkpoint TensorFlow) y solo se aborda si el gate de fase 0 lo exige.
 3. Latencia percibida del review progresivo: ¿bastan "jugadas clave" a 50 visitas?
 4. Dominio final del producto (se decide al desplegar).
