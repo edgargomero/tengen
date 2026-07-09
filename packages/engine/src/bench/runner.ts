@@ -32,33 +32,43 @@ declare global {
   }
 }
 
-let ortConfigured = false
+// Cacheado tras la primera llamada: pedir un adapter GPU nuevo en cada
+// invocación es costoso y el resultado no cambia durante la vida de la página.
+let cachedOrt: { adapter: MinimalGpuAdapter | null; info: string } | undefined
 async function configureOrt(): Promise<string> {
+  if (cachedOrt) return cachedOrt.info
   const adapter = navigator.gpu
     ? await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
     : null
-  if (!ortConfigured) {
-    ort.env.wasm.wasmPaths = '/wasm/'
-    ort.env.wasm.simd = true
-    ort.env.wasm.numThreads = self.crossOriginIsolated
-      ? Math.min(8, navigator.hardwareConcurrency || 4)
-      : 1
-    if (adapter) ort.env.webgpu.adapter = adapter
-    ortConfigured = true
-  }
+  ort.env.wasm.wasmPaths = '/wasm/'
+  ort.env.wasm.simd = true
+  ort.env.wasm.numThreads = self.crossOriginIsolated
+    ? Math.min(8, navigator.hardwareConcurrency || 4)
+    : 1
+  if (adapter) ort.env.webgpu.adapter = adapter
   const info = adapter?.info
-  return info ? `${info.vendor} ${info.architecture} (f16: ${adapter!.features.has('shader-f16')})` : 'sin WebGPU'
+  const infoStr = info
+    ? `${info.vendor} ${info.architecture} (f16: ${adapter!.features.has('shader-f16')})`
+    : 'sin WebGPU'
+  cachedOrt = { adapter, info: infoStr }
+  return infoStr
 }
 
 function buildFeeds(model: ModelSpec, session: ort.InferenceSession, batch: number, size: number) {
   const { bin, global } = emptyBoardInputs(size, 7.5, batch)
   const names =
     model.inputNames === 'introspect'
-      ? {
-          bin: session.inputNames.find((n) => n.includes('bin'))!,
-          global: session.inputNames.find((n) => n.includes('global'))!,
-          meta: session.inputNames.find((n) => n.includes('meta')),
-        }
+      ? (() => {
+          const binName = session.inputNames.find((n) => n.includes('bin'))
+          const globalName = session.inputNames.find((n) => n.includes('global'))
+          if (!binName || !globalName)
+            throw new Error(`inputs no reconocidos: ${session.inputNames.join(',')}`)
+          return {
+            bin: binName,
+            global: globalName,
+            meta: session.inputNames.find((n) => n.includes('meta')),
+          }
+        })()
       : model.inputNames
   const feeds: Record<string, ort.Tensor> = {}
   if (model.dtype === 'float16') {
@@ -96,6 +106,10 @@ function sanityCheck(model: ModelSpec, out: ort.InferenceSession.OnnxValueMapTyp
     if (argmax === passIdx) issues.push('argmax=PASS en tablero vacío (sospechoso)')
   }
   if (value instanceof Float32Array && ![...value.slice(0, 3)].every(finite)) issues.push('value con NaN/Inf')
+  // fp16: mismo criterio "no todo ceros" que policy — los 3 primeros elementos
+  // son los logits win/loss/noresult del batch 0.
+  if (value instanceof Uint16Array && [...value.slice(0, 3)].every((v) => v === 0))
+    issues.push('value todo ceros (fp16)')
   return issues
 }
 
@@ -108,18 +122,21 @@ export async function runBench(
     executionProviders: [opts.ep],
     graphOptimizationLevel: 'all',
   })
-  const feeds = buildFeeds(model, session, opts.batch, opts.size)
-  let sanity: string[] = []
-  for (let i = 0; i < opts.warmup; i++) {
-    const out = await session.run(feeds)
-    if (i === 0) sanity = sanityCheck(model, out, opts.size)
+  try {
+    const feeds = buildFeeds(model, session, opts.batch, opts.size)
+    let sanity: string[] = []
+    for (let i = 0; i < opts.warmup; i++) {
+      const out = await session.run(feeds)
+      if (i === 0) sanity = sanityCheck(model, out, opts.size)
+    }
+    const timings: number[] = []
+    for (let i = 0; i < opts.runs; i++) {
+      const t0 = performance.now()
+      await session.run(feeds)
+      timings.push(performance.now() - t0)
+    }
+    return { model: model.id, ep: opts.ep, batch: opts.batch, stats: summarize(timings, opts.batch), sanity, adapter }
+  } finally {
+    await session.release()
   }
-  const timings: number[] = []
-  for (let i = 0; i < opts.runs; i++) {
-    const t0 = performance.now()
-    await session.run(feeds)
-    timings.push(performance.now() - t0)
-  }
-  await session.release()
-  return { model: model.id, ep: opts.ep, batch: opts.batch, stats: summarize(timings, opts.batch), sanity, adapter }
 }
