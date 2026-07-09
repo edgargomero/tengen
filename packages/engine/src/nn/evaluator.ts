@@ -93,9 +93,9 @@ export class OnnxEvaluator implements NNEvaluator {
    */
   static async create(
     source: string | ArrayBuffer,
-    opts: { boardSize: number; ep?: 'webgpu' | 'wasm' },
+    opts: { boardSize: number; ep?: 'webgpu' | 'wasm'; wasmPaths?: string },
   ): Promise<OnnxEvaluator> {
-    const session = await createOnnxSession(source, { ep: opts.ep })
+    const session = await createOnnxSession(source, { ep: opts.ep, wasmPaths: opts.wasmPaths })
     const inputNames = resolveInputNames(session)
     const outputNames = resolveOutputNames(session)
     const binMeta = session.inputMetadata.find((m) => m.name === inputNames.bin)
@@ -151,6 +151,17 @@ export class OnnxEvaluator implements NNEvaluator {
     const numHeads = policyTensor.dims[1]
     if (numHeads === undefined) {
       throw new Error(`OnnxEvaluator.evaluate: output "policy" con dims inesperados: [${policyTensor.dims.join(',')}]`)
+    }
+    // Guard: si `boardSize` del evaluador no coincide con el tablero real del modelo (el ONNX declara
+    // H/W dinámicos, no introspectables — lo fija el caller), indexar más allá de `policyData` daría
+    // `undefined`→`NaN` en silencio. Fallar fuerte es preferible a corromper cada evaluación. En la
+    // forma documentada `[b, numHeads, área+1]` esta cota se cumple con igualdad (nunca falso positivo).
+    const policyNeeded = batch * numHeads * (area + 1)
+    if (policyData.length < policyNeeded) {
+      throw new Error(
+        `OnnxEvaluator.evaluate: policy tiene ${policyData.length} valores, se esperaban ≥ ${policyNeeded} ` +
+          `(boardSize=${n}, numHeads=${numHeads}) — ¿boardSize del evaluador ≠ tablero del modelo?`,
+      )
     }
     const policy = new Float32Array(batch * area)
     const policyPass = new Float32Array(batch)

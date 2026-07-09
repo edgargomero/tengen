@@ -28,13 +28,18 @@ declare global {
 // Cacheado tras la primera llamada: pedir un adapter GPU nuevo en cada sesión es costoso y `ort.env.*`
 // es configuración de proceso, no cambia entre sesiones/evaluadores.
 let ortConfigured = false
-async function configureOrt(): Promise<void> {
+async function configureOrt(opts?: { wasmPaths?: string }): Promise<void> {
+  // `wasmPaths` difiere por entorno: en browser es `/ort-dist/` (servido por el middleware de Vite,
+  // ver `vite.config.ts`); en Node (Task 10, ORT-en-Node con `ep:'wasm'`) hay que apuntar a la ruta
+  // local de los binarios wasm. Se aplica en CADA llamada (idempotente y barato) para que un caller
+  // Node pueda fijar su ruta aunque el flag de cache ya esté activo; el resto de la config (adapter
+  // GPU, que es lo costoso) sí se cachea. Sin override → default browser.
+  ort.env.wasm.wasmPaths = opts?.wasmPaths ?? '/ort-dist/'
   if (ortConfigured) return
   const adapter =
     typeof navigator !== 'undefined' && navigator.gpu
       ? await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
       : null
-  ort.env.wasm.wasmPaths = '/ort-dist/'
   ort.env.wasm.simd = true
   ort.env.wasm.numThreads =
     typeof self !== 'undefined' && self.crossOriginIsolated
@@ -51,9 +56,9 @@ async function configureOrt(): Promise<void> {
  */
 export async function createOnnxSession(
   source: string | ArrayBuffer,
-  opts?: { ep?: 'webgpu' | 'wasm' },
+  opts?: { ep?: 'webgpu' | 'wasm'; wasmPaths?: string },
 ): Promise<ort.InferenceSession> {
-  await configureOrt()
+  await configureOrt({ wasmPaths: opts?.wasmPaths })
   const options: ort.InferenceSession.SessionOptions = {
     executionProviders: [opts?.ep ?? 'webgpu'],
     graphOptimizationLevel: 'all',
