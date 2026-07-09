@@ -11,8 +11,10 @@ web-katrain y se distribuyen bajo la licencia MIT original del proyecto:
   - analyzeMcts.ts
 
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
-adaptación introducidos por tengen se documentan en
-`docs/research/fase-engine/decisiones-adaptacion.md`.
+adaptación introducidos por tengen y el procedimiento de re-sync ante
+releases de upstream se documentan en
+`docs/research/fase-engine/adaptaciones-upstream.md` (la estrategia de
+adaptación está en `docs/research/fase-engine/decisiones-adaptacion.md`).
 
 Texto de la licencia MIT de web-katrain:
 -----------------------------------------
