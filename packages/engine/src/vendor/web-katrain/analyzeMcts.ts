@@ -459,7 +459,7 @@ const NO_RESULT_UTILITY_FOR_WHITE: number = 0.0;
 
 function computeRecentScoreCenter(expectedWhiteScore: number): number {
   let recentScoreCenter = expectedWhiteScore * (1.0 - DYNAMIC_SCORE_CENTER_ZERO_WEIGHT);
-  const cap = getSqrtBoardArea() * DYNAMIC_SCORE_CENTER_SCALE;
+  const cap = getSqrtBoardArea(BOARD_AREA) * DYNAMIC_SCORE_CENTER_SCALE;
   if (recentScoreCenter > expectedWhiteScore + cap) recentScoreCenter = expectedWhiteScore + cap;
   if (recentScoreCenter < expectedWhiteScore - cap) recentScoreCenter = expectedWhiteScore - cap;
   return recentScoreCenter;
@@ -472,7 +472,7 @@ function computeBlackUtilityFromEval(args: {
   blackScoreStdev: number;
   recentScoreCenter: number; // white score center
 }): number {
-  const sqrtBoardArea = getSqrtBoardArea();
+  const sqrtBoardArea = getSqrtBoardArea(BOARD_AREA);
   const blackLossProb = 1.0 - args.blackWinProb - args.blackNoResultProb;
   const whiteWinLossValue = blackLossProb - args.blackWinProb;
   const whiteScoreMean = -args.blackScoreMean;
@@ -484,6 +484,7 @@ function computeBlackUtilityFromEval(args: {
     center: 0.0,
     scale: 2.0,
     sqrtBoardArea,
+    boardSize: BOARD_SIZE,
   });
 
   const dynamicScoreValue =
@@ -495,6 +496,7 @@ function computeBlackUtilityFromEval(args: {
           center: args.recentScoreCenter,
           scale: DYNAMIC_SCORE_CENTER_SCALE,
           sqrtBoardArea,
+          boardSize: BOARD_SIZE,
         });
 
   const whiteUtility =

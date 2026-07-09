@@ -4,8 +4,6 @@
  * Cambios de tengen y procedimiento de re-sync: docs/research/fase-engine/adaptaciones-upstream.md
  */
 
-import { BOARD_AREA, BOARD_SIZE } from './fastBoard';
-
 const TWO_OVER_PI = 2 / Math.PI;
 const EXTRA_SCORE_DISTR_RADIUS = 60;
 
@@ -21,8 +19,7 @@ function whiteScoreValueOfScoreSmoothNoDrawAdjust(finalWhiteMinusBlackScore: num
   return Math.atan(adjustedScore / (scale * sqrtBoardArea)) * TWO_OVER_PI;
 }
 
-function initScoreValueTables(): void {
-  const boardSize = BOARD_SIZE;
+function initScoreValueTables(boardSize: number): void {
   if (expectedSVTable && svTableBoardSize === boardSize) return;
 
   svTableBoardSize = boardSize;
@@ -82,8 +79,9 @@ export function expectedWhiteScoreValue(args: {
   center: number;
   scale: number;
   sqrtBoardArea: number;
+  boardSize: number;
 }): number {
-  initScoreValueTables();
+  initScoreValueTables(args.boardSize);
   if (!expectedSVTable) throw new Error('ScoreValue tables not initialized');
 
   const scaleFactor = svTableBoardSize / (args.scale * args.sqrtBoardArea);
@@ -134,4 +132,4 @@ export function getScoreStdev(scoreMean: number, scoreMeanSq: number): number {
   return Math.sqrt(variance);
 }
 
-export const getSqrtBoardArea = (): number => Math.sqrt(BOARD_AREA);
+export const getSqrtBoardArea = (boardArea: number): number => Math.sqrt(boardArea);
