@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "bench": "bash scripts/copy-ort-wasm.sh && vite --open /bench.html"
+    "bench": "vite --open /bench.html"
   },
   "dependencies": {
     "onnxruntime-web": "^1.24.3"

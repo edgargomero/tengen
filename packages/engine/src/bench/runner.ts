@@ -40,7 +40,7 @@ async function configureOrt(): Promise<string> {
   const adapter = navigator.gpu
     ? await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
     : null
-  ort.env.wasm.wasmPaths = '/wasm/'
+  ort.env.wasm.wasmPaths = '/ort-dist/'
   ort.env.wasm.simd = true
   ort.env.wasm.numThreads = self.crossOriginIsolated
     ? Math.min(8, navigator.hardwareConcurrency || 4)
