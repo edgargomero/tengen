@@ -8,7 +8,7 @@ describe('MODELS', () => {
     for (const id of ids) expect(id.endsWith('.onnx')).toBe(true)
   })
   it('URLs https válidas en los descargables', () => {
-    for (const m of MODELS.filter((m) => m.bytes > 0)) {
+    for (const m of MODELS.filter((m) => m.url !== '')) {
       expect(m.url.startsWith('https://')).toBe(true)
     }
   })
