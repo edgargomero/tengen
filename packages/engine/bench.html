@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>tengen · bench fase 0</title>
+<style>
+  body { font: 14px/1.4 system-ui; margin: 2rem; max-width: 72rem; }
+  table { border-collapse: collapse; margin-top: 1rem; }
+  td, th { border: 1px solid #ccc; padding: 4px 10px; text-align: right; }
+  td:first-child, th:first-child { text-align: left; }
+  #log { white-space: pre-wrap; color: #666; margin-top: 1rem; }
+</style>
+<h1>tengen — benchmark fase 0</h1>
+<p id="env"></p>
+<button id="run">Correr matriz completa</button>
+<button id="export" disabled>Exportar JSON</button>
+<table id="results">
+  <thead><tr><th>modelo</th><th>EP</th><th>batch</th><th>mediana ms</th><th>p10</th><th>p90</th><th>inf/s</th><th>sanity</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div id="log"></div>
+<script type="module" src="/src/bench/main.ts"></script>

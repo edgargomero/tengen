@@ -231,9 +231,11 @@ export function f32ToF16(src: Float32Array): Uint16Array {
         if (e < -10) {
           half = sign // underflow → ±0
         } else {
-          // subnormal: mantisa con bit implícito, desplazada
-          const m = (mant | 0x800000) >> (1 - e)
-          half = sign | ((m + 0x1000 + ((m >> 13) & 1)) >> 13)
+          // subnormal: mantisa con bit implícito, desplazada, preservando sticky bits
+          const shift = 1 - e
+          const full = mant | 0x800000
+          const m = (full >> shift) | ((full & ((1 << shift) - 1)) ? 1 : 0)
+          half = sign | ((m + 0x0fff + ((m >> 13) & 1)) >> 13)
         }
       } else {
         // normal, con redondeo al par en el bit 13
@@ -284,8 +286,9 @@ describe('summarize', () => {
     const s = summarize([100, 110, 90, 105, 95], 1)
     expect(s.runs).toBe(5)
     expect(s.medianMs).toBe(100)
-    expect(s.p10Ms).toBe(90)
-    expect(s.p90Ms).toBe(110)
+    // percentiles con interpolación lineal: idx p10 = 0.4 → 90+0.4·5; idx p90 = 3.6 → 105+0.6·5
+    expect(s.p10Ms).toBeCloseTo(92, 6)
+    expect(s.p90Ms).toBeCloseTo(108, 6)
     expect(s.infPerSec).toBeCloseTo(10, 5)
   })
   it('escala inf/s por el batch', () => {
