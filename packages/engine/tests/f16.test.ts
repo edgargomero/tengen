@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { f32ToF16 } from '../src/bench/f16'
+import { f32ToF16, f16ToF32 } from '../src/f16'
 
 describe('f32ToF16', () => {
   it('convierte valores exactos conocidos', () => {
@@ -29,5 +29,21 @@ describe('f32ToF16', () => {
     // apenas por encima del punto medio 2^-25: los sticky bits deben forzar redondeo hacia arriba
     const above = f32ToF16(new Float32Array([2.9805864443233077e-8]))
     expect(above[0]).toBe(0x0001)
+  })
+})
+
+describe('f16ToF32', () => {
+  it('decodifica valores exactos', () => {
+    const out = f16ToF32(new Uint16Array([0x0000, 0x3c00, 0xbc00, 0x3800, 0x4000, 0xb600]))
+    expect(Array.from(out)).toEqual([0, 1, -1, 0.5, 2, -0.375])
+  })
+  it('round-trip de valores representables en half', () => {
+    const vals = new Float32Array([0, 1, -1, 0.5, -0.375, 2, 7.5, -12.5, 0.25])
+    const back = f16ToF32(f32ToF16(vals))
+    for (let i = 0; i < vals.length; i++) expect(back[i]).toBeCloseTo(vals[i]!, 3)
+  })
+  it('decodifica ±Inf y NaN', () => {
+    const out = f16ToF32(new Uint16Array([0x7c00, 0xfc00, 0x7e00]))
+    expect(out[0]).toBe(Infinity); expect(out[1]).toBe(-Infinity); expect(Number.isNaN(out[2]!)).toBe(true)
   })
 })

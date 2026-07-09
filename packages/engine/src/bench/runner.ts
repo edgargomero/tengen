@@ -1,6 +1,6 @@
 import * as ort from 'onnxruntime-web'
 import { emptyBoardInputs } from './emptyBoard'
-import { f32ToF16 } from './f16'
+import { f32ToF16 } from '../f16'
 import type { ModelSpec } from './registry'
 import { summarize, type BenchStats } from './stats'
 

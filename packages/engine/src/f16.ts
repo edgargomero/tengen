@@ -37,3 +37,18 @@ export function f32ToF16(src: Float32Array): Uint16Array {
   }
   return out
 }
+
+/** Decodifica float16 (IEEE-754 half, Uint16Array de ORT) a float32. */
+export function f16ToF32(src: Uint16Array): Float32Array {
+  const out = new Float32Array(src.length)
+  for (let i = 0; i < src.length; i++) {
+    const h = src[i]!
+    const sign = (h & 0x8000) ? -1 : 1
+    const exp = (h >> 10) & 0x1f
+    const mant = h & 0x3ff
+    if (exp === 0) out[i] = sign * Math.pow(2, -14) * (mant / 1024)
+    else if (exp === 0x1f) out[i] = mant ? NaN : sign * Infinity
+    else out[i] = sign * Math.pow(2, exp - 15) * (1 + mant / 1024)
+  }
+  return out
+}
