@@ -46,4 +46,9 @@ describe('f16ToF32', () => {
     const out = f16ToF32(new Uint16Array([0x7c00, 0xfc00, 0x7e00]))
     expect(out[0]).toBe(Infinity); expect(out[1]).toBe(-Infinity); expect(Number.isNaN(out[2]!)).toBe(true)
   })
+  it('decodifica subnormales no triviales', () => {
+    const out = f16ToF32(new Uint16Array([0x0001, 0x0200]))
+    expect(out[0]).toBeCloseTo(5.960464477539063e-8, 12)
+    expect(out[1]).toBeCloseTo(3.0517578125e-5, 10)
+  })
 })
