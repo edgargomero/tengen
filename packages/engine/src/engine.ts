@@ -150,7 +150,17 @@ export class LocalEngine implements Engine {
     })
   }
 
-  analyze(pos: Position, opts: { visits: number }, onUpdate: (a: Analysis) => void): CancelFn {
+  // Extensión de Task 13 (retrocompatible): `hooks` opcionales para señalar completado natural y
+  // error. Añadir parámetros OPCIONALES mantiene `implements Engine` (el método de la interfaz es
+  // `(pos,opts,onUpdate)=>CancelFn`; un impl con params opcionales extra es asignable). Los callers de
+  // Task 12 (sin hooks) conservan el comportamiento previo: `analyze` seguía tragando errores en
+  // silencio y no señalaba fin, y sin ese contrato el Worker no podría emitir `{final:true}`/`error`.
+  analyze(
+    pos: Position,
+    opts: { visits: number },
+    onUpdate: (a: Analysis) => void,
+    hooks?: { onDone?: (a: Analysis) => void; onError?: (e: unknown) => void },
+  ): CancelFn {
     this.cancelled = false
     const cancel: CancelFn = () => {
       this.cancelled = true
@@ -163,6 +173,7 @@ export class LocalEngine implements Engine {
         const search = await createSearch({ evaluator, state })
         const CHUNK = 32
         let target = 0
+        let last: Analysis | undefined
         while (target < opts.visits && !this.cancelled) {
           target = Math.min(target + CHUNK, opts.visits)
           await search.run({
@@ -172,11 +183,16 @@ export class LocalEngine implements Engine {
             shouldAbort: () => this.cancelled,
           })
           if (this.cancelled) break
-          onUpdate(mapAnalysis(search.getAnalysis({ topK: 30, analysisPvLen: 10 }), N))
+          last = mapAnalysis(search.getAnalysis({ topK: 30, analysisPvLen: 10 }), N)
+          onUpdate(last)
         }
-      } catch {
-        // No dejar rechazar una promesa flotante (rompe vitest). En Task 13 el Worker convierte esto
-        // en un mensaje 'error'; aquí basta con no propagar.
+        // `onDone` señala SÓLO el completado natural (target ≥ visits, sin cancelar). La cancelación NO
+        // dispara ningún hook (el Worker resuelve la cancelación client-side; no emite mensaje).
+        if (!this.cancelled && last !== undefined) hooks?.onDone?.(last)
+      } catch (e) {
+        // Sin hooks (callers de Task 12): traga en silencio para no rechazar una promesa flotante
+        // (rompe vitest). Con hook, el Worker traduce el error a un mensaje 'error'.
+        hooks?.onError?.(e)
       }
     })()
     return cancel

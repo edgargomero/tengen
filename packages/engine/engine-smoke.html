@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>tengen · smoke WorkerEngine</title>
+<style>
+  body { font: 14px/1.4 system-ui; margin: 2rem; max-width: 48rem; }
+  #log { white-space: pre-wrap; color: #333; margin-top: 1rem; border: 1px solid #ccc; padding: 1rem; min-height: 4rem; }
+  button { font: inherit; padding: 4px 12px; }
+</style>
+<h1>tengen — smoke Worker (manual)</h1>
+<p>
+  Verificación MANUAL (no automatizada). Requiere modelo descargado en <code>models/</code> y
+  Chrome/Edge con WebGPU. Crea el Worker real, inicializa <code>b18</code> en 9×9 y pide una jugada
+  kata en el tablero vacío.
+</p>
+<button id="run">Correr smoke</button>
+<div id="log"></div>
+<script type="module" src="/src/worker/smoke-main.ts"></script>
