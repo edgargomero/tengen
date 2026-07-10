@@ -1,4 +1,6 @@
 export * from './types'
 export { LocalEngine } from './engine'
 export { WorkerEngine, type WorkerLike } from './worker/client'
+export { createWorkerHandler, type PostFn } from './worker/handler'
+export { OnnxEvaluator, type NNEvaluator } from './nn/evaluator'
 export type { WorkerRequest, WorkerResponse } from './worker/protocol'

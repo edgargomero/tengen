@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LocalEngine } from '../src/engine'
 import { WorkerEngine, type WorkerLike } from '../src/worker/client'
-import { createWorkerHandler, type PostFn } from '../src/worker/engine.worker'
+import { createWorkerHandler, type PostFn } from '../src/worker/handler'
 import type { WorkerRequest } from '../src/worker/protocol'
 import type { NNEvaluator, RawEval } from '../src/nn/evaluator'
 import type { Analysis, BoardSize, NetworkId, Position } from '../src/types'
