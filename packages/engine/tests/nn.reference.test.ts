@@ -61,25 +61,35 @@ function gtpToVertex(gtp: string, n: number): { x: number; y: number } {
   return { x: GTP_COLS.indexOf(col.toUpperCase()), y: n - rank }
 }
 
-/** Softmax de KataGo sobre las casillas legales (`legal[i]===false` → ilegal, `NaN` en el
- *  resultado). Hace falta porque el modelo devuelve logits crudos y el fixture trae
- *  probabilidades post-softmax. */
-function softmaxLegal(logits: ArrayLike<number>, legal: boolean[], n: number): Float32Array {
-  let max = -Infinity
+/** Softmax de KataGo sobre las casillas legales MÁS el pase, como UNA sola distribución (comparten
+ *  el mismo `max`/`sum`) — así es como KataGo normaliza la policy (tablero + pase juntos). Hace falta
+ *  porque el modelo devuelve logits crudos y el fixture trae probabilidades post-softmax (incluido
+ *  `policyPass`). Devuelve las probabilidades del tablero (`NaN` en ilegales) y la del pase.
+ *
+ *  Incluir el pase en la MISMA normalización es lo que hace que `passProb` dependa de verdad de
+ *  `raw.policyPass`: si se normalizara solo sobre el tablero, `Σ=1` por construcción y `passProb`
+ *  saldría ~0 sin tocar el logit de pase — una aserción vacía (hallazgo del review de Task 10). */
+function softmaxLegalWithPass(
+  logits: ArrayLike<number>,
+  passLogit: number,
+  legal: boolean[],
+  n: number,
+): { board: Float32Array; pass: number } {
+  let max = passLogit
   for (let i = 0; i < n * n; i++) if (legal[i] && logits[i]! > max) max = logits[i]!
-  const out = new Float32Array(n * n)
-  let sum = 0
+  const board = new Float32Array(n * n)
+  let sum = Math.exp(passLogit - max)
   for (let i = 0; i < n * n; i++) {
     if (legal[i]) {
       const e = Math.exp(logits[i]! - max)
-      out[i] = e
+      board[i] = e
       sum += e
     } else {
-      out[i] = NaN
+      board[i] = NaN
     }
   }
-  for (let i = 0; i < n * n; i++) if (legal[i]) out[i] = out[i]! / sum
-  return out
+  for (let i = 0; i < n * n; i++) if (legal[i]) board[i] = board[i]! / sum
+  return { board, pass: Math.exp(passLogit - max) / sum }
 }
 
 /** Índice legal de mayor valor. El argmax es invariante al softmax (monótono), así que sirve
@@ -213,16 +223,17 @@ describe('referencia end-to-end vs kata-raw-nn (encoder V7 + ONNX fp32, Node)', 
         expect(Math.abs(whiteWin - fx.whiteWin)).toBeLessThan(winTol)
         expect(Math.abs(whiteLead - fx.whiteLead)).toBeLessThan(leadTol)
 
-        // --- policy: distribución (softmax sobre legales) y pase ---
+        // --- policy: distribución (softmax conjunto tablero+pase sobre legales) y pase ---
         const legal = fixtureLegalMask(fx)
-        const smax = softmaxLegal(raw.policy, legal, n)
+        const { board: smax, pass: passProb } = softmaxLegalWithPass(raw.policy, raw.policyPass[0]!, legal, n)
         let maxProbDiff = 0
         for (let i = 0; i < n * n; i++) {
           if (legal[i]) maxProbDiff = Math.max(maxProbDiff, Math.abs(smax[i]! - fx.policy[i]!))
         }
         expect(maxProbDiff).toBeLessThan(0.06)
 
-        const passProb = 1 - Array.from(smax).reduce((a, b) => a + (Number.isNaN(b) ? 0 : b), 0)
+        // `passProb` deriva del logit real `raw.policyPass[0]` (softmax conjunto) → ejercita la salida
+        // de pase del evaluador contra el ground truth de KataGo (el único punto de la suite que lo hace).
         expect(Math.abs(passProb - fx.policyPass)).toBeLessThan(0.01)
 
         // --- argmax: gate suave (todos) + gate fuerte de orientación (asimétricos) ---
