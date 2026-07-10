@@ -68,6 +68,18 @@ describe('persistence — casos de fallo (nunca lanza, devuelve null)', () => {
     storage.map.set('tengen:game:v1', JSON.stringify({ foo: 'bar' }))
     expect(loadGame(storage)).toBeNull()
   })
+
+  it('storage.getItem lanza (modo privado / storage bloqueado) → null, no propaga', () => {
+    const storage: StorageLike = {
+      getItem: () => {
+        throw new DOMException('storage blocked', 'SecurityError')
+      },
+      setItem: () => {},
+      removeItem: () => {},
+    }
+    expect(() => loadGame(storage)).not.toThrow()
+    expect(loadGame(storage)).toBeNull()
+  })
 })
 
 describe('persistence — clearGame', () => {

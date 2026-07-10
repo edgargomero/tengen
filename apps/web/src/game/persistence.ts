@@ -46,9 +46,11 @@ export function saveGame(storage: StorageLike, tree: GameTree): void {
  * raíz (el árbol sigue siendo válido).
  */
 export function loadGame(storage: StorageLike): GameTree | null {
-  const raw = storage.getItem(STORAGE_KEY)
-  if (raw === null) return null
   try {
+    // getItem DENTRO del try: en modo privado / storage bloqueado, `storage.getItem` puede lanzar
+    // (p.ej. SecurityError). Ese fallo debe resolverse igual que un JSON corrupto: `null`.
+    const raw = storage.getItem(STORAGE_KEY)
+    if (raw === null) return null
     const parsed: unknown = JSON.parse(raw)
     if (!isPersistedGame(parsed)) return null
     const tree = importSgf(parsed.sgf)
