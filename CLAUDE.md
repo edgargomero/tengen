@@ -19,7 +19,9 @@ App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataG
 
 ## Datos medidos que gobiernan decisiones (fase 0, Chrome/WebGPU, Apple M1)
 
-b18 fp16 = 2.79 inf/s (batch 1) / 4.64 (batch 8); Human SL igual; b28 = 1.31 (descartada como principal); WebGPU ≈ 2.2× WASM. Gate ≥2 inf/s PASADO → **b18c384nbt fp16 es la red principal** (58 MB) + Human SL fp16 (54 MB). Formato a servir: fp16 (misma velocidad que fp32, mitad de peso).
+b18 fp16 = 2.79 inf/s (batch 1) / 4.64 (batch 8); Human SL igual; b28 = 1.31 (descartada como principal); WebGPU ≈ 2.2× WASM. Gate ≥2 inf/s PASADO → **b18c384nbt es la red principal** + Human SL humanv0. **Formato a servir: fp32** (b18 kata 115 MB).
+
+> ⚠️ **CORRECCIÓN 2026-07-10 (revoca "servir fp16"):** el ONNX **fp16** convertido produce policy **NaN** en inferencia → el motor juega la esquina 1-1 degenerada. Verificado en AMBOS EP (wasm y WebGPU): b18 fp16 → `{x:0,y:0}`; b18 **fp32 → jugada central correcta** (`{x:3,y:5}`, coincide con la referencia KataGo desktop y entre wasm/WebGPU). El pipeline del motor es correcto; el fallo es exclusivo del fp16. `test:nn` (10/10) solo cubre el **fp32**, por eso nunca lo detectó. La velocidad fp16/fp32 medida es igual → el bloqueo es de **correctitud**, no de peso; el beneficio de tamaño del fp16 no compensa policy NaN. **fp16 queda como optimización futura** (root-cause: overflow fp16 del trunk vs bug de conversión katago-onnx). Pendiente: generar `b18c384nbt-humanv0.fp32.onnx` (hoy solo existe el fp16, presuntamente igual de roto — Human SL no juega bien hasta convertirlo). Diagnóstico completo en el ledger `.superpowers/sdd/progress.md`.
 
 ## Decisiones ya tomadas — no re-litigar
 
