@@ -1,26 +1,32 @@
-// Factory de evaluador de Fase 0: mapea NetworkId → /models/<archivo>.onnx (servido por el middleware
-// serve-models del dev server, que apunta a packages/engine/models/) y construye un OnnxEvaluator WebGPU.
-// TRIVIAL a propósito: Fase 1 reemplaza esto por caché OPFS + descarga R2 con progreso.
+// Factory de evaluador de apps/web (contexto WORKER). Lee el ONNX YA CACHEADO en OPFS por el hilo
+// principal (ModelGate → ensureModel) y construye un OnnxEvaluator WebGPU desde el ArrayBuffer.
+//
+// HARD CONSTRAINT (Fase 1): en el worker NO existe `localStorage` → PROHIBIDO tocar `isComplete`/
+// `markComplete`/`localStorage`. Este factory usa SOLO `readArrayBuffer` (OPFS puro) + el size-check
+// contra el manifest. La completitud (marcador) es responsabilidad del hilo principal antes de init.
 import { OnnxEvaluator } from '@tengen/engine'
 import type { BoardSize, NetworkId, NNEvaluator } from '@tengen/engine'
-
-// Nombres de archivo bajo /models/ (dev: packages/engine/models/). Coinciden con los .onnx convertidos
-// ya presentes en disco.
-//
-// FORMATO = fp32 (ver CLAUDE.md "CORRECCIÓN 2026-07-10"): el fp16 convertido produce policy NaN →
-// el motor juega la esquina 1-1 degenerada (verificado en wasm y WebGPU). fp32 es correcto. fp16 queda
-// como optimización futura (arreglar la conversión).
-//
-// humanv0 fp32 confirmado sano (fp16 daba NaN igual que kata1: policy NaN → jugada esquina; fp32 → jugada
-// central/tengen, verificado en wasm y WebGPU con meta_input). b10 aún no convertida.
-const MODEL_FILES: Record<NetworkId, string> = {
-  b18: 'b18c384nbt-kata1.fp32.onnx',
-  humanv0: 'b18c384nbt-humanv0.fp32.onnx',
-  b10: '',
-}
+import { requireManifestEntry } from './models/netManifest'
+import { createOpfsModelStore } from './models/modelStore'
 
 export async function appEvaluatorFactory(net: NetworkId, boardSize: BoardSize): Promise<NNEvaluator> {
-  const file = MODEL_FILES[net]
-  if (file === '') throw new Error(`red ${net} aún no disponible en apps/web`)
-  return OnnxEvaluator.create(`/models/${file}`, { boardSize, ep: 'webgpu' })
+  const entry = requireManifestEntry(net) // lanza para redes no disponibles (p.ej. b10).
+  const store = createOpfsModelStore()
+
+  let buf: ArrayBuffer
+  try {
+    buf = await store.readArrayBuffer(entry.opfsName)
+  } catch (err) {
+    // El archivo no está en OPFS (NotFoundError) u otro fallo de lectura: mensaje accionable.
+    throw new Error(
+      `modelo ${net} no está en OPFS (${entry.opfsName}); el hilo principal debe cachearlo con ` +
+        `ensureModel (ModelGate) antes de init — ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+
+  if (buf.byteLength !== entry.bytes) {
+    throw new Error(`modelo ${net}: tamaño ${buf.byteLength} ≠ esperado ${entry.bytes} en OPFS`)
+  }
+
+  return OnnxEvaluator.create(buf, { boardSize, ep: 'webgpu' })
 }
