@@ -11,12 +11,11 @@ import type { BoardSize, NetworkId, NNEvaluator } from '@tengen/engine'
 // el motor juega la esquina 1-1 degenerada (verificado en wasm y WebGPU). fp32 es correcto. fp16 queda
 // como optimización futura (arreglar la conversión).
 //
-// ⚠️ humanv0 sigue en fp16 porque NO existe un b18c384nbt-humanv0.fp32.onnx en disco (falta generarlo
-// con la tooling de conversión). Presuntamente comparte el bug de NaN → Human SL NO juega bien hasta
-// convertir su fp32. b10 aún no convertida.
+// humanv0 fp32 confirmado sano (fp16 daba NaN igual que kata1: policy NaN → jugada esquina; fp32 → jugada
+// central/tengen, verificado en wasm y WebGPU con meta_input). b10 aún no convertida.
 const MODEL_FILES: Record<NetworkId, string> = {
   b18: 'b18c384nbt-kata1.fp32.onnx',
-  humanv0: 'b18c384nbt-humanv0.fp16.onnx',
+  humanv0: 'b18c384nbt-humanv0.fp32.onnx',
   b10: '',
 }
 
