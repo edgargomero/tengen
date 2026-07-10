@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tengen/engine": "*",
@@ -16,6 +17,7 @@
     "@sabaki/sgf": "^3.5.0",
     "@sabaki/shudan": "^1.7.1",
     "typescript": "^5.9.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
   }
 }
