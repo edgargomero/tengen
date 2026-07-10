@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:nn": "vitest run --config vitest.nn.config.ts",
     "bench": "vite --open /bench.html",
     "gen-reference": "node scripts/gen-reference.mjs"
   },
