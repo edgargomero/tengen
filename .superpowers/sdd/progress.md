@@ -191,7 +191,8 @@ Plan: `docs/superpowers/plans/2026-07-10-fase2-jugar.md`. Estrategia: subagent-d
 - `localStorage` ausente en vitest Node → persistence.ts con Storage inyectable.
 
 ## Tasks Fase 2
-- Task 1: PENDIENTE — coords.ts + gameConfig.ts (M-4 + Task13a + networkForOpponent) + rules.ts (go-board oráculo).
+- Task 1: complete (commits c2b0926..83b8405, review spec ✅ + Approved, sin Critical/Important). coords.ts (footgun signMap[y][x] documentado), gameConfig.ts (M-4 lanza handicap>1 fuera de 19; clamp visits>=1; networkForOpponent human→humanv0/kata→b18; handicap 1 normalizado a 0), rules.ts (boardFromMoves/currentTurn/validateMove/applyMove/signMapOf/capturesOf, go-board como oráculo). @sabaki/go-board añadido como dep directa. Reviewer cross-check: turn/handicap byte-consistente con buildGameState del motor; tests ko/suicidio/overwrite/captura/handicap reales. web 66/66 (25 Fase 1 + 41 nuevos), tsc 0. BASE Task 2 = 83b8405.
+  - Minor abiertos (para review final, NO bloquean): (1) rules.test.ts drift-guard compara go-board contra constantes hardcodeadas (verificadas correctas hoy) en vez del handicapPoints19 privado del motor — no cazaría drift del motor; cerrarlo requeriría exportar la fn del motor (scope). (2) gameConfig.ts:131-136 opponent compartido por referencia cuando no se clampa (inofensivo, config inmutable por convención). (3) nombre de test cosmético ('reduce libertades' asevera captura+contador).
 - Task 2: PENDIENTE — gameTree.ts + sgf.ts (round-trip) + persistence.ts + types/sabaki-sgf.d.ts.
 - Task 3: PENDIENTE — engineManager.ts (ensureReady/genMove/analyze + crash recovery). [opus: correctness-sensitive]
 - Task 4: PENDIENTE — NewGameForm + PlayView + ModelGate wiring + CSS (primer jugar end-to-end).
