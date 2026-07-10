@@ -5,7 +5,7 @@
 import { render } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { WorkerEngine } from '@tengen/engine'
-import type { NetworkId, Position } from '@tengen/engine'
+import type { Move, NetworkId, Position } from '@tengen/engine'
 import { detectWebGpu } from './webgpu'
 import { ModelGate } from './models/ModelGate'
 
@@ -25,7 +25,7 @@ function Smoke({ net }: { net: NetworkId }) {
       await engine.init({ network: net, boardSize: 9 })
       const empty: Position = { boardSize: 9, komi: 7, rules: 'chinese', handicap: 0, moves: [] }
       // Nivel inline por red: human (rank) para humanv0; kata (visitas) para el resto (b18).
-      let move
+      let move: Move
       if (net === 'humanv0') {
         append('genMove human (5k) en tablero vacío…')
         move = await engine.genMove(empty, { level: { kind: 'human', rank: '5k' } })

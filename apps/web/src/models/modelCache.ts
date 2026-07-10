@@ -43,9 +43,11 @@ export async function ensureModel(
   const sink = await store.openWritable(entry.opfsName)
 
   // 6. Loop de streaming: escribe cada chunk y reporta progreso. Si revienta → abort + re-throw.
+  // `getReader()` vive DENTRO del try: si lanzara, el sink ya abierto se aborta en vez de
+  // quedar huérfano (en vez de abrirlo dos veces, el `try` simplemente lo engloba).
   let received = 0
-  const reader = res.body.getReader()
   try {
+    const reader = res.body.getReader()
     for (;;) {
       const result = await reader.read()
       if (result.done) break
@@ -58,16 +60,25 @@ export async function ensureModel(
       })
     }
   } catch (err) {
-    await sink.abort() // NO markComplete: nada se acepta en caché.
+    try {
+      await sink.abort() // NO markComplete: nada se acepta en caché.
+    } catch {
+      // un fallo de abort no debe enmascarar el error primario
+    }
     throw err
   }
 
   // 7. Validación de completitud ANTES de commitear. Mismatch → abort + throw.
   if (received !== entry.bytes) {
-    await sink.abort() // NO markComplete.
-    throw new Error(
+    const mismatchErr = new Error(
       `descarga de ${net} incompleta: ${received} bytes recibidos vs ${entry.bytes} esperados`,
     )
+    try {
+      await sink.abort() // NO markComplete.
+    } catch {
+      // un fallo de abort no debe enmascarar el error primario
+    }
+    throw mismatchErr
   }
 
   // 8. Commit y SOLO entonces marcar completo (marcador = éxito + validación).

@@ -29,6 +29,8 @@ class MockModelStore implements ModelStore {
   closeCalls = 0
   /** Bytes totales que pasaron por `write` (para probar escritura parcial pre-abort). */
   bytesWritten = 0
+  /** Si true, `close()` del sink rechaza (simula fallo del commit OPFS) en vez de commitear. */
+  failClose = false
 
   async isComplete(name: string, bytes: number): Promise<boolean> {
     // Marcador presente Y tamaño del archivo coincide (espeja la impl OPFS real).
@@ -51,6 +53,7 @@ class MockModelStore implements ModelStore {
       },
       close: async (): Promise<void> => {
         this.closeCalls++
+        if (this.failClose) throw new Error('close: commit OPFS falló')
         this.committed.set(name, written) // commit = longitud
       },
       abort: async (): Promise<void> => {
@@ -191,6 +194,27 @@ describe('ensureModel', () => {
     expect(store.abortCalls).toBe(1)
     expect(store.markCompleteCalls).toHaveLength(0)
     expect(store.committed.has(ENTRY.opfsName)).toBe(false)
+  })
+
+  it('close() rechaza en el commit: stream limpio y bytes correctos pero el commit OPFS falla → ensureModel rechaza, sin markComplete, sin entrada aceptada; re-fetchea', async () => {
+    const store = new MockModelStore()
+    store.failClose = true
+    const { fetchFn, calls } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
+
+    // El stream entrega exactamente `bytes` (happy-sized) pero close() rechaza al commitear.
+    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
+
+    // close() se intentó (y rechazó) pero markComplete NUNCA se alcanza: el await de close()
+    // lanza antes de llegar a la línea de markComplete.
+    expect(store.closeCalls).toBe(1)
+    expect(store.markCompleteCalls).toHaveLength(0)
+    // Nada quedó commiteado (el mock no setea `committed` cuando close() rechaza) ni marcado.
+    expect(store.committed.has(ENTRY.opfsName)).toBe(false)
+    expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(false)
+
+    // 2ª llamada re-descarga (fetchFn 1→2): sin marcador aceptado, isComplete sigue false.
+    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
+    expect(calls).toHaveLength(2)
   })
 
   it('progreso monotónico: receivedBytes estrictamente creciente, último === bytes; percent no-decreciente y ≤ 100', async () => {
