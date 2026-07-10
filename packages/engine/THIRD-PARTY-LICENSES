@@ -1,0 +1,47 @@
+web-katrain (https://github.com/Sir-Teo/web-katrain), commit 7a0a487
+=====================================================================
+
+Los siguientes archivos en `src/vendor/web-katrain/` están adaptados de
+web-katrain y se distribuyen bajo la licencia MIT original del proyecto:
+
+  - fastBoard.ts
+  - scoreValue.ts
+  - evalV8.ts
+  - searchParams.ts
+  - analyzeMcts.ts
+  - featuresV7Fast.ts
+
+Además, `src/encoding/featuresV7.ts` es un **fork** de `featuresV7Fast.ts`
+(encoder V7 en layout NCHW); lleva la misma cabecera de origen y también se
+distribuye bajo esta licencia MIT.
+
+Cada archivo lleva una cabecera de atribución individual. Los cambios de
+adaptación introducidos por tengen y el procedimiento de re-sync ante
+releases de upstream se documentan en
+`docs/research/fase-engine/adaptaciones-upstream.md` (la estrategia de
+adaptación está en `docs/research/fase-engine/decisiones-adaptacion.md`).
+
+Texto de la licencia MIT de web-katrain:
+-----------------------------------------
+
+MIT License
+
+Copyright (c) 2026 Web KatRain Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
