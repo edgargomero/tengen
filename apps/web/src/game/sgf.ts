@@ -1,0 +1,131 @@
+// Export/import SGF del árbol de jugadas (Fase 2), sobre `@sabaki/sgf` (parse/stringify). Puro, Node.
+//
+// Import por defecto (`import sgf from '@sabaki/sgf'`): el paquete es CJS y sus named exports NO
+// resuelven bajo Node ESM nativo; el `default` funciona en Node, Vitest y el build de browser.
+//
+// IDEMPOTENCIA DEL ROUND-TRIP: `exportSgf(importSgf(exportSgf(t))) === exportSgf(t)` (byte-idéntico).
+// Se logra porque `exportSgf` es CANÓNICO: `importSgf` descarta el SgfNode y reconstruye nuestro
+// GameTree, así que el orden de propiedades y el formato de cada valor los fija SIEMPRE el exporter.
+//
+// INVARIANTE DE HANDICAP: `HA[n]` ↔ `meta.handicap`; las `AB[..]` (piedras de handicap) se REGENERAN
+// en el export desde `handicapVertices(boardSize, handicap)` y NUNCA se guardan ni se leen como
+// jugadas. Al importar, los `AB` se ignoran (el handicap ya está en `HA`): así no se filtran a `moves`.
+import type { BoardSize, Move, Rules, StoneColor } from '@tengen/engine'
+import sgf from '@sabaki/sgf'
+import type { SgfNode } from '@sabaki/sgf'
+import { GameTree, type GameNode } from './gameTree'
+import { handicapVertices } from './rules'
+
+/** Vértice del motor {x,y} → coordenada SGF de 2 letras (columna=x primero, a=0). */
+export function vertexToSgf(v: { x: number; y: number }): string {
+  return String.fromCharCode(97 + v.x) + String.fromCharCode(97 + v.y)
+}
+
+/** Coordenada SGF de 2 letras → vértice del motor {x,y}. Inverso de `vertexToSgf`. */
+export function sgfToVertex(s: string): { x: number; y: number } {
+  return { x: s.charCodeAt(0) - 97, y: s.charCodeAt(1) - 97 }
+}
+
+function rulesToSgf(rules: Rules): string {
+  return rules === 'chinese' ? 'Chinese' : 'Japanese'
+}
+
+function sgfToRules(value: string): Rules {
+  return value === 'Japanese' ? 'japanese' : 'chinese'
+}
+
+/** Valida que un número de tablero parseado sea un BoardSize soportado. */
+function asBoardSize(n: number): BoardSize {
+  if (n === 9 || n === 13 || n === 19) return n
+  throw new Error(`SZ no soportado: ${n} (se esperaba 9, 13 o 19)`)
+}
+
+/** Datos SGF de una jugada: `{ B|W: [coord] }`; el pase es `[''] `(valor vacío). */
+function moveToData(move: Move): Record<string, string[]> {
+  const key = move.color === 'black' ? 'B' : 'W'
+  const value = move.vertex === 'pass' ? '' : vertexToSgf(move.vertex)
+  return { [key]: [value] }
+}
+
+/** Extrae la jugada de un nodo SGF (B o W). null si el nodo no es una jugada. */
+function moveFromData(data: Record<string, string[]>): Move | null {
+  const readColor = (key: string, color: StoneColor): Move | null => {
+    const values = data[key]
+    if (!values) return null
+    const raw = values[0] ?? ''
+    return { color, vertex: raw === '' ? 'pass' : sgfToVertex(raw) }
+  }
+  return readColor('B', 'black') ?? readColor('W', 'white')
+}
+
+/** Construye el SgfNode de un GameNode y sus descendientes. `extraRootData` sólo aplica a la raíz. */
+function toSgfNode(node: GameNode, extraRootData?: Record<string, string[]>): SgfNode {
+  const data: Record<string, string[]> = node.move ? moveToData(node.move) : { ...extraRootData }
+  return {
+    id: node.id,
+    data,
+    parentId: node.parent ? node.parent.id : null,
+    children: node.children.map((child) => toSgfNode(child)),
+  }
+}
+
+/**
+ * Serializa el árbol completo a SGF. Orden de propiedades de la raíz FIJO (idempotencia):
+ * GM, FF, SZ, KM, RU, [HA, AB], [RE]. `stringify([root])` envuelve el juego en `(;...)`.
+ */
+export function exportSgf(tree: GameTree): string {
+  const { boardSize, komi, rules, handicap, result } = tree.meta
+  // Orden de inserción = orden de emisión de stringify (itera `for id in data`): mantenerlo estable.
+  const rootData: Record<string, string[]> = {
+    GM: ['1'],
+    FF: ['4'],
+    SZ: [String(boardSize)],
+    KM: [String(komi)],
+    RU: [rulesToSgf(rules)],
+  }
+  if (handicap >= 2) {
+    rootData.HA = [String(handicap)]
+    rootData.AB = handicapVertices(boardSize, handicap).map(([x, y]) => vertexToSgf({ x, y }))
+  }
+  if (result !== undefined) rootData.RE = [result]
+
+  return sgf.stringify([toSgfNode(tree.root, rootData)])
+}
+
+/**
+ * Parsea SGF a un GameTree. Asume el formato que produce `exportSgf` (game-info en la raíz). Mapea
+ * SZ/KM/RU/HA/RE; los AB del raíz se IGNORAN (handicap ya en HA). Lanza si el SGF es inválido (el
+ * caller de persistencia lo envuelve en try/catch). El cursor queda en la raíz.
+ */
+export function importSgf(source: string): GameTree {
+  const roots = sgf.parse(source)
+  const root = roots[0]
+  if (!root) throw new Error('SGF sin nodo raíz')
+
+  const { data } = root
+  const boardSize = asBoardSize(parseInt(data.SZ?.[0] ?? '19', 10))
+  const komiRaw = parseFloat(data.KM?.[0] ?? '0')
+  const komi = Number.isFinite(komiRaw) ? komiRaw : 0
+  const rules = sgfToRules(data.RU?.[0] ?? 'Chinese')
+  const handicapRaw = parseInt(data.HA?.[0] ?? '0', 10)
+  const handicap = Number.isFinite(handicapRaw) ? handicapRaw : 0
+
+  const meta = { boardSize, komi, rules, handicap } as const
+  const tree = new GameTree(data.RE?.[0] !== undefined ? { ...meta, result: data.RE[0] } : meta)
+
+  // Los hijos de la raíz son las jugadas (la raíz sólo lleva game-info + AB, que se ignoran).
+  const attach = (sgfNode: SgfNode, parent: GameNode): void => {
+    for (const child of sgfNode.children) {
+      const move = moveFromData(child.data)
+      if (move) {
+        attach(child, tree.appendChild(parent, move))
+      } else {
+        // Nodo sin jugada (raro en nuestro formato): transparente, cuelga sus hijos del mismo padre.
+        attach(child, parent)
+      }
+    }
+  }
+  attach(root, tree.root)
+
+  return tree
+}
