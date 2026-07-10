@@ -190,10 +190,16 @@ function spawnKatago() {
     '-override-config',
     'numSearchThreads=1,logToStderr=false',
   ]);
-  // El log de arranque de katago (versión, backend Metal, modelo cargado)
-  // va a stderr; se descarta salvo que el proceso muera (ver 'error'/'exit').
-  proc.stderr.on('data', () => {});
-  return proc;
+  // El log de arranque de katago (versión, backend Metal, modelo cargado) va a
+  // stderr. En la ruta feliz no interesa, pero si katago muere lo volcamos como
+  // diagnóstico (ver el handler 'exit' de makeGtpDriver), así que lo acumulamos
+  // en un buffer acotado (últimos ~8 KB) en vez de descartarlo a ciegas.
+  let stderrBuf = '';
+  proc.stderr.on('data', (chunk) => {
+    stderrBuf += chunk.toString('utf8');
+    if (stderrBuf.length > 8192) stderrBuf = stderrBuf.slice(-8192);
+  });
+  return { proc, getStderr: () => stderrBuf };
 }
 
 /**
@@ -202,10 +208,12 @@ function spawnKatago() {
  * blanco) que cierra su respuesta — así se reutiliza un solo proceso katago
  * para toda la batería de casos (evita recargar el modelo ~15-30s cada vez).
  * @param {import('node:child_process').ChildProcessWithoutNullStreams} proc
+ * @param {() => string} getStderr  lee el stderr acumulado de katago (diagnóstico si muere)
  */
-function makeGtpDriver(proc) {
+function makeGtpDriver(proc, getStderr) {
   let buf = '';
-  /** @type {Array<(resp: string) => void>} */
+  let died = false;
+  /** @type {Array<{ resolve: (resp: string) => void, reject: (err: Error) => void, cmd: string }>} */
   const pending = [];
   proc.stdout.on('data', (chunk) => {
     buf += chunk.toString('utf8').replace(/\r\n/g, '\n');
@@ -214,13 +222,39 @@ function makeGtpDriver(proc) {
       const resp = buf.slice(0, idx);
       buf = buf.slice(idx + 2);
       const settle = pending.shift();
-      if (settle) settle(resp);
+      if (settle) settle.resolve(resp);
     }
   });
+  // Si katago arranca bien pero muere DESPUÉS (modelo/config inválidos, fallo de
+  // backend o de licencia), deja de llegar stdout y el `send` en vuelo colgaría
+  // para siempre. Al cerrarse el proceso rechazamos todo lo pendiente con el
+  // código de salida y el stderr acumulado (que contiene el diagnóstico real de
+  // katago) en vez de tragarlo y colgar. El handler 'error' de main() cubre solo
+  // el fallo de spawn (binario ausente), no una muerte posterior. En la ruta
+  // feliz `proc.kill()` dispara 'exit' con `pending` ya vacío → no hace nada.
+  proc.on('exit', (code, signal) => {
+    died = true;
+    if (pending.length === 0) return;
+    const detail = getStderr().trim();
+    const err = new Error(
+      `katago terminó inesperadamente (code=${code}, signal=${signal}) con ` +
+        `${pending.length} comando(s) en vuelo.` +
+        (detail ? `\n--- stderr de katago ---\n${detail}` : ''),
+    );
+    while (pending.length) pending.shift().reject(err);
+  });
+  // Escribir a un stdin ya cerrado emite EPIPE; sin handler, Node lo convierte en
+  // un 'error' no capturado que tumba el script de forma opaca. Lo silenciamos:
+  // la muerte real se reporta por el handler 'exit' de arriba con diagnóstico.
+  proc.stdin.on('error', () => {});
   /** @param {string} cmd */
   return function send(cmd) {
-    return new Promise((res) => {
-      pending.push(res);
+    return new Promise((resolve, reject) => {
+      if (died) {
+        reject(new Error(`katago ya no está vivo; no se puede enviar "${cmd}"`));
+        return;
+      }
+      pending.push({ resolve, reject, cmd });
       proc.stdin.write(cmd + '\n');
     });
   };
@@ -364,8 +398,8 @@ function checkEmpty19Sanity(fixture) {
 
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
-  const proc = spawnKatago();
-  const send = makeGtpDriver(proc);
+  const { proc, getStderr } = spawnKatago();
+  const send = makeGtpDriver(proc, getStderr);
   proc.on('error', (err) => {
     console.error('No se pudo lanzar katago:', err);
     process.exit(1);
