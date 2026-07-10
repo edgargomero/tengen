@@ -321,11 +321,11 @@ Extiende la base (strict + `noUncheckedIndexedAccess` + `moduleResolution: bundl
 
 - [ ] **Step 3: Instalar dependencias y linkear el workspace**
 
-Run (desde la raíz del repo):
+Run (desde la raíz del repo). El primer `npm install` registra/linkea el workspace `@tengen/web` recién creado (sin él, el `-w @tengen/web` hace un no-op silencioso con warning "no workspace folder present"); el segundo añade las deps de scaffold:
 ```bash
-npm install -w @tengen/web -D @sabaki/shudan @sabaki/sgf && npm install
+npm install && npm install -w @tengen/web -D @sabaki/shudan @sabaki/sgf
 ```
-Esto añade `@sabaki/shudan` y `@sabaki/sgf` (deps de scaffold para Fase 2/3 — se instalan ahora pero NO se importan en Fase 0) a `apps/web`, resuelve sus versiones reales en `package.json`, y `npm install` linkea `@tengen/engine` y `@tengen/web` en el workspace.
+Esto linkea `@tengen/engine` y `@tengen/web` en el workspace y añade `@sabaki/shudan` y `@sabaki/sgf` (deps de scaffold para Fase 2/3 — se instalan ahora pero NO se importan en Fase 0) a `apps/web`, resolviendo sus versiones reales en `package.json`.
 Expected: `node_modules/@tengen/engine` existe como symlink a `packages/engine`; `node_modules/@tengen/web` existe.
 
 Run: `ls -la node_modules/@tengen/`
