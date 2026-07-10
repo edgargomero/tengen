@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sabaki/go-board": "^1.4.3",
     "@tengen/engine": "*",
     "preact": "^10.24.0"
   },
