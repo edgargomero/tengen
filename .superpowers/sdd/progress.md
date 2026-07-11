@@ -246,4 +246,4 @@ Los 5 defectos del review, todos verificados de primera mano por el controlador 
 4. Recargar → restaura donde quedó (incl. si toca IA → retoma sola); **restaurar partida TERMINADA (resign/2-pases) → "Partida terminada"+resultado de inmediato, no revive** (FIX 2); import→recargar antes de jugar → persiste el import (FIX 4).
 5. "Nueva partida" mid-genMove sin errores de consola; "Preparando motor…" durante la carga (no "IA pensando…"); panel de árbol legible con variaciones.
 
-**PENDIENTE: gate manual de Edgar + `git push` a `origin/main` (14 commits) SOLO con su confirmación explícita.**
+**PUSHEADA a `origin/main` (2026-07-10, `d89a0a2..ffb6295`, con OK explícito de Edgar vía AskUserQuestion — mismo precedente que Fase 1). PENDIENTE: solo el gate manual de browser de Edgar (Chrome/WebGPU real).**
