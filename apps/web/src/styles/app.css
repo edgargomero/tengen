@@ -64,6 +64,30 @@ input[type='number'] {
   margin-top: 1rem;
 }
 
+/* ── Conmutador de modo Jugar/Analizar (Task 11) ────────────────────────────────────────────── */
+
+.mode-menu {
+  max-width: 28rem;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+}
+
+.mode-menu h1 {
+  margin: 0;
+}
+
+.mode-menu p {
+  margin: 0;
+  color: #555;
+}
+
 /* ── Formulario de nueva partida ────────────────────────────────────────────────────────────── */
 
 .new-game-form {

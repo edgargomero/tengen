@@ -22,6 +22,7 @@ import type { GameConfig } from './game/gameConfig'
 import { validateConfig } from './game/gameConfig'
 import type { GameTree } from './game/gameTree'
 import { clearGame, loadGame } from './game/persistence'
+import { AnalyzeView } from './ui/AnalyzeView'
 import { NewGameForm } from './ui/NewGameForm'
 import { PlayView } from './ui/PlayView'
 import { detectWebGpu } from './webgpu'
@@ -163,6 +164,42 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoun
   }
 }
 
+// ── Conmutador de modo Jugar/Analizar (Task 11) ────────────────────────────────────────────────
+// Se inserta ENTRE el gate de WebGPU y PlayApp/AnalyzeView: ambos modos lo necesitan, así que el
+// gate sigue siendo lo primero (ver App() más abajo).
+type Mode = 'menu' | 'play' | 'analyze'
+
+function ModeApp() {
+  // Arranca directo en 'play' si ya hay una partida guardada (preserva el comportamiento de Fase 2:
+  // recargar la página retoma la partida en curso sin pasar por un menú intermedio). `loadGame` es
+  // el MISMO chequeo barato que ya usa `restoreSession()` dentro de `PlayApp` — no duplica su
+  // validación completa (`validateConfig` etc.) aquí, solo "¿hay algo guardado?"; si ese algo
+  // resulta corrupto, `PlayApp.restoreSession()` ya sabe recuperarse mostrando `NewGameForm` (mismo
+  // comportamiento que hoy, sin cambios).
+  const [mode, setMode] = useState<Mode>(() => (loadGame(window.localStorage) !== null ? 'play' : 'menu'))
+
+  if (mode === 'menu') return <ModeMenu onSelect={setMode} />
+  if (mode === 'play') return <PlayApp />
+  return <AnalyzeView onBack={() => setMode('menu')} />
+}
+
+interface ModeMenuProps {
+  onSelect(mode: Mode): void
+}
+
+function ModeMenu({ onSelect }: ModeMenuProps) {
+  return (
+    <main class="mode-menu">
+      <h1>tengen</h1>
+      <p>¿Qué querés hacer?</p>
+      <button class="primary" onClick={() => onSelect('play')}>
+        Jugar
+      </button>
+      <button onClick={() => onSelect('analyze')}>Analizar</button>
+    </main>
+  )
+}
+
 function App() {
   const [webgpu, setWebgpu] = useState<boolean | null>(null)
   useEffect(() => {
@@ -175,7 +212,7 @@ function App() {
       </main>
     )
   }
-  return webgpu ? <PlayApp /> : <NoWebGpu />
+  return webgpu ? <ModeApp /> : <NoWebGpu />
 }
 
 const root = document.getElementById('app')
