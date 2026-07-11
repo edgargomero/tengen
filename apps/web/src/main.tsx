@@ -170,13 +170,16 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoun
 type Mode = 'menu' | 'play' | 'analyze'
 
 function ModeApp() {
-  // Arranca directo en 'play' si ya hay una partida guardada (preserva el comportamiento de Fase 2:
-  // recargar la página retoma la partida en curso sin pasar por un menú intermedio). `loadGame` es
-  // el MISMO chequeo barato que ya usa `restoreSession()` dentro de `PlayApp` — no duplica su
-  // validación completa (`validateConfig` etc.) aquí, solo "¿hay algo guardado?"; si ese algo
-  // resulta corrupto, `PlayApp.restoreSession()` ya sabe recuperarse mostrando `NewGameForm` (mismo
-  // comportamiento que hoy, sin cambios).
-  const [mode, setMode] = useState<Mode>(() => (loadGame(window.localStorage) !== null ? 'play' : 'menu'))
+  // SIEMPRE arranca en 'menu' — el plan pide el conmutador "antes del formulario actual", es decir
+  // antes de PlayApp/NewGameForm, no solo cuando no hay partida guardada. Una versión anterior de
+  // esta tarea saltaba directo a 'play' si `loadGame()` encontraba una partida guardada (para
+  // preservar el "recargar retoma tu partida" de Fase 2) — pero como Modo Jugar no tiene forma de
+  // volver al menú (asimetría deliberada, ver comentario de ModeApp más abajo), eso dejaba Analizar
+  // INALCANZABLE para cualquier usuario que ya hubiera jugado una vez: cada recarga futura saltaba
+  // el menú para siempre. El costo de arreglarlo es un clic extra para retomar una partida en curso
+  // (menú → "Jugar" → PlayApp.restoreSession() ya la restaura igual, sin pérdida de datos) — trivial
+  // frente a un modo completo inalcanzable.
+  const [mode, setMode] = useState<Mode>('menu')
 
   if (mode === 'menu') return <ModeMenu onSelect={setMode} />
   if (mode === 'play') return <PlayApp />
