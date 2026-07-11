@@ -47,13 +47,22 @@ function moveToData(move: Move): Record<string, string[]> {
   return { [key]: [value] }
 }
 
-/** Extrae la jugada de un nodo SGF (B o W). null si el nodo no es una jugada. */
-function moveFromData(data: Record<string, string[]>): Move | null {
+/** Extrae la jugada de un nodo SGF (B o W). null si el nodo no es una jugada.
+ *
+ * FIX 3 (fix wave post-Fase 2): trata como pase, además del valor vacío (FF[4]), cualquier
+ * coordenada FUERA de rango para `boardSize` — cubre el pase legacy FF[3] (`tt`, que en 19×19 cae
+ * en {x:19,y:19}) y cualquier otra coordenada off-board. Antes solo `''` contaba como pase: `tt` se
+ * colaba como jugada fantasma que go-board descartaba en silencio pero que quedaba en el árbol, se
+ * re-exportaba como `tt`, y rompía `isGameOverByTwoPasses` en partidas importadas de otros clientes. */
+function moveFromData(data: Record<string, string[]>, boardSize: BoardSize): Move | null {
   const readColor = (key: string, color: StoneColor): Move | null => {
     const values = data[key]
     if (!values) return null
     const raw = values[0] ?? ''
-    return { color, vertex: raw === '' ? 'pass' : sgfToVertex(raw) }
+    if (raw === '') return { color, vertex: 'pass' }
+    const vertex = sgfToVertex(raw)
+    const onBoard = vertex.x >= 0 && vertex.x < boardSize && vertex.y >= 0 && vertex.y < boardSize
+    return { color, vertex: onBoard ? vertex : 'pass' }
   }
   return readColor('B', 'black') ?? readColor('W', 'white')
 }
@@ -108,7 +117,14 @@ export function importSgf(source: string): GameTree {
   const komi = Number.isFinite(komiRaw) ? komiRaw : 0
   const rules = sgfToRules(data.RU?.[0] ?? 'Chinese')
   const handicapRaw = parseInt(data.HA?.[0] ?? '0', 10)
-  const handicap = Number.isFinite(handicapRaw) ? handicapRaw : 0
+  const handicapParsed = Number.isFinite(handicapRaw) ? handicapRaw : 0
+  // FIX 6 (fix wave post-Fase 2): HA[1] normalizado a 0, misma regla que `validateConfig` (handicap
+  // 1 en Go = "solo komi, sin piedra de ventaja"). Sin esto, `tree.meta.handicap` quedaba en 1
+  // mientras `importedConfig` (validado en `PlayView.handleImportFile`) ya lo normalizaba a 0 —
+  // árbol y config desincronizados toda la sesión (`positionAt()` emitiría `handicap:1` al motor,
+  // un valor que el flujo normal —validateConfig antes de fromConfig— nunca produce). No rompe la
+  // idempotencia de Task 2: `exportSgf` nunca emite HA[1] (sólo escribe HA si handicap>=2).
+  const handicap = handicapParsed === 1 ? 0 : handicapParsed
 
   const meta = { boardSize, komi, rules, handicap } as const
   const tree = new GameTree(data.RE?.[0] !== undefined ? { ...meta, result: data.RE[0] } : meta)
@@ -116,7 +132,7 @@ export function importSgf(source: string): GameTree {
   // Los hijos de la raíz son las jugadas (la raíz sólo lleva game-info + AB, que se ignoran).
   const attach = (sgfNode: SgfNode, parent: GameNode): void => {
     for (const child of sgfNode.children) {
-      const move = moveFromData(child.data)
+      const move = moveFromData(child.data, boardSize)
       if (move) {
         attach(child, tree.appendChild(parent, move))
       } else {

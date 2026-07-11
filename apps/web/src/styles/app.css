@@ -50,6 +50,20 @@ input[type='number'] {
   text-align: center;
 }
 
+/* ── Error boundary (fix wave post-Fase 2, FIX 1 parte 2) ──────────────────────────────────────── */
+
+.crash-recovery {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 2rem auto;
+  max-width: 32rem;
+  text-align: center;
+}
+
+.crash-recovery button {
+  margin-top: 1rem;
+}
+
 /* ── Formulario de nueva partida ────────────────────────────────────────────────────────────── */
 
 .new-game-form {

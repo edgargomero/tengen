@@ -38,7 +38,7 @@ import type { GameConfig } from '../game/gameConfig'
 import { networkForOpponent, validateConfig } from '../game/gameConfig'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
-import { capturesOf, signMapOf, validateMove } from '../game/rules'
+import { capturesOf, isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
 import { engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
@@ -177,8 +177,16 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
       } catch {
         if (staleRef.current || endedRef.current) return
         endedRef.current = true
-        // "No se pudo estimar…" NO es un RE válido: queda solo en estado local, `meta.result` sin setear.
+        // FIX 2 parte 2 (fix wave post-Fase 2): antes este catch dejaba `tree.meta.result` SIN
+        // setear ("'No se pudo estimar…' NO es un RE válido"), lo que divergía memoria/storage —
+        // localStorage quedaba con dos pases y SIN RE, abriendo la ventana de revival que cierra la
+        // parte 1 (en `boot()`). 'Void' SÍ es un RE válido (SGF estándar de "sin resultado"), así
+        // que se usa como marcador de fin persistible: el texto amigable de abajo sigue siendo lo
+        // que ve el usuario en ESTA sesión; lo que se persiste (y se re-exporta como `RE[Void]`) es
+        // sólo la marca de "partida terminada", no ese texto.
+        tree.meta.result = 'Void'
         setResult('No se pudo estimar el resultado.')
+        persist()
       } finally {
         if (!staleRef.current) {
           setBusy(false)
@@ -230,7 +238,28 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
         // al recargar — el mismo bug de raíz que `isExploring`, aplicado al arranque. `isAtLiveTip`
         // cubre el caso que R1 pide (no revivir una partida terminada, no corromper el árbol) y
         // además el caso restaurado-en-variación que la redacción literal de R1 no contemplaba.
-        if (!endedRef.current && tree.isAtLiveTip() && tree.currentTurnAt() === 'white') {
+        //
+        // FIX 2 parte 1 (fix wave post-Fase 2): `endedRef` (arriba) nace de
+        // `tree.meta.result !== undefined`, que sólo se persiste tras un `analyzeToScore` EXITOSO
+        // (ver `finishTurn`). En la ventana de scoring (guardado justo tras el 2º pase, antes de que
+        // resuelva) o si el scoring FALLA, el storage puede quedar con dos pases pero SIN `meta.result`
+        // → `endedRef` arranca en `false` y se abren DOS caminos de revival según qué color pasó
+        // último: IA-pasa-primero (`currentTurnAt()==='white'`) dispararía `aiTurn()` en el `if` de
+        // abajo; humano-pasa-primero (`currentTurnAt()==='black'`) no dispara la IA aquí, pero deja
+        // que `handleVertexClick`/`handlePass` traten el click como continuación de la partida VIVA
+        // (`isExploring()` da `false` porque `endedRef` es falso y el cursor SÍ está en el tip).
+        // Detectar el fin por dos pases AQUÍ y marcar `endedRef.current = true` cierra AMBOS: el
+        // `if` de abajo ya no dispara `aiTurn` (su guarda `!endedRef.current` pasa a fallar), y esos
+        // handlers pasan a tratar cualquier click como exploración (nueva variación) en vez de
+        // continuación de la partida — nunca vuelven a llamar `finishTurn`/`aiTurn`. NO se re-corre
+        // `analyzeToScore` aquí: añadiría ~30s de cómputo + una superficie de fallo nueva en CADA
+        // restore para cubrir un caso raro; sólo se marca la partida terminada con un texto genérico
+        // (el RE exacto, si se pudo calcular la primera vez, ya vive en `tree.meta.result`/el SGF).
+        if (!endedRef.current && isGameOverByTwoPasses(tree.movesTo())) {
+          endedRef.current = true
+          setResult('Partida terminada')
+          setBusy(false)
+        } else if (!endedRef.current && tree.isAtLiveTip() && tree.currentTurnAt() === 'white') {
           await aiTurn() // handicap≥2 (o restauración a media mano): la IA (Blanco) sigue/abre
         } else {
           setBusy(false)
@@ -353,6 +382,27 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
     try {
       const text = await file.text()
       const importedTree = importSgf(text)
+      // UX: dejar el cursor al final de la línea principal (la posición final de la partida
+      // importada), no en la raíz — así se ve la partida completa de inmediato en vez de un
+      // tablero vacío. `importSgf` deja el cursor en la raíz por contrato; lo avanzamos aquí, ANTES
+      // de validar, para que la validación (siguiente paso) cubra exactamente esa línea principal.
+      while (importedTree.toChild(0)) {
+        /* avanza hasta el tip de la línea principal */
+      }
+      // FIX 1 (Important, fix wave post-Fase 2): valida la línea principal DENTRO de este try,
+      // ANTES de aceptar el árbol. `boardFromMoves` (vía `boardAt`/`isMoveSequenceLegal`) LANZA ante
+      // overwrite/ko/suicidio; sin esta validación, ese throw sólo se descubría en el RENDER de
+      // `ReadyPlayView` (`tree.boardAt()`, ya remontado), fuera de cualquier try — con la SPA sin
+      // error boundary previo a esta fix wave, eso dejaba la pantalla en blanco. Disparadores
+      // reales: SGF con jugadas overwrite/ko-inmediato/suicidio, o un SGF 19×19 con handicap de
+      // colocación libre (varios servidores) cuyas piedras reales no coinciden con los hoshi
+      // estándar que `boardFromMoves` siempre regenera. `isMoveSequenceLegal` es la versión
+      // pura/no-lanzante (rules.ts, con test propio), así que este `throw` queda contenido aquí.
+      if (
+        !isMoveSequenceLegal(importedTree.meta.boardSize, importedTree.meta.handicap, importedTree.movesTo())
+      ) {
+        throw new Error('el SGF contiene jugadas ilegales en la línea principal')
+      }
       // El SGF no lleva `opponent` (decisión de Task 5): se conserva el de la partida actual.
       const importedConfig = validateConfig({
         boardSize: importedTree.meta.boardSize,
@@ -361,12 +411,11 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
         handicap: importedTree.meta.handicap,
         opponent: config.opponent,
       })
-      // UX: dejar el cursor al final de la línea principal (la posición final de la partida
-      // importada), no en la raíz — así se ve la partida completa de inmediato en vez de un
-      // tablero vacío. `importSgf` deja el cursor en la raíz por contrato; lo avanzamos aquí.
-      while (importedTree.toChild(0)) {
-        /* avanza hasta el tip de la línea principal */
-      }
+      // FIX 4 (fix wave post-Fase 2): persiste el árbol importado ANTES de remontar — sin esto, una
+      // partida importada y recargada antes de la primera jugada se perdía (localStorage seguía
+      // apuntando a la partida anterior). SECUENCIA OBLIGATORIA: validar (arriba) → saveGame →
+      // onImport, para nunca persistir un árbol que la validación habría rechazado.
+      saveGame(window.localStorage, importedConfig.opponent, importedTree)
       onImport(importedConfig, importedTree)
     } catch (e) {
       setImportError(`No se pudo importar el SGF (${errorMessage(e)}).`)

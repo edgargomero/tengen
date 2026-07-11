@@ -7,6 +7,7 @@ import {
   capturesOf,
   currentTurn,
   handicapVertices,
+  isMoveSequenceLegal,
   signMapOf,
   validateMove,
 } from '../src/game/rules'
@@ -162,6 +163,55 @@ describe('applyMove', () => {
     const after = applyMove(board, 'black', { x: 0, y: 1 })
     expect(after.get([0, 0])).toBe(0) // la piedra blanca fue capturada
     expect(capturesOf(after)).toEqual({ black: 1, white: 0 })
+  })
+})
+
+// FIX 1 (Important, fix wave post-Fase 2): `boardFromMoves` LANZA ante una jugada ilegal
+// (overwrite/ko/suicidio) — antes, esa reconstrucción sólo ocurría en el RENDER de `ReadyPlayView`
+// (`tree.boardAt()`), fuera de cualquier try, con la SPA sin error boundary → pantalla blanca ante
+// un SGF importado ilegal. `isMoveSequenceLegal` es la versión pura/no-lanzante (atrapa el throw),
+// que `PlayView.handleImportFile` usa DENTRO de su try para rechazar el import con un mensaje
+// recuperable en vez de dejar que el throw escape al render.
+describe('isMoveSequenceLegal (FIX 1: valida un import antes de aceptarlo)', () => {
+  it('secuencia legal → true', () => {
+    const moves: Move[] = [
+      { color: 'black', vertex: { x: 3, y: 3 } },
+      { color: 'white', vertex: { x: 15, y: 15 } },
+    ]
+    expect(isMoveSequenceLegal(19, 0, moves)).toBe(true)
+  })
+
+  it('overwrite (dos jugadas en el mismo vértice) → false, sin lanzar', () => {
+    const moves: Move[] = [
+      { color: 'black', vertex: { x: 4, y: 4 } },
+      { color: 'white', vertex: { x: 4, y: 4 } },
+    ]
+    expect(() => isMoveSequenceLegal(9, 0, moves)).not.toThrow()
+    expect(isMoveSequenceLegal(9, 0, moves)).toBe(false)
+  })
+
+  it('suicidio real → false', () => {
+    const moves: Move[] = [
+      { color: 'black', vertex: { x: 1, y: 0 } },
+      { color: 'black', vertex: { x: 0, y: 1 } },
+      { color: 'black', vertex: { x: 1, y: 2 } },
+      { color: 'black', vertex: { x: 2, y: 1 } },
+      { color: 'white', vertex: { x: 1, y: 1 } },
+    ]
+    expect(isMoveSequenceLegal(9, 0, moves)).toBe(false)
+  })
+
+  it('los pases no afectan la legalidad', () => {
+    const moves: Move[] = [
+      { color: 'black', vertex: { x: 2, y: 2 } },
+      { color: 'white', vertex: 'pass' },
+      { color: 'black', vertex: { x: 4, y: 4 } },
+    ]
+    expect(isMoveSequenceLegal(9, 0, moves)).toBe(true)
+  })
+
+  it('secuencia vacía (partida recién importada sin jugadas) → true', () => {
+    expect(isMoveSequenceLegal(19, 0, [])).toBe(true)
   })
 })
 

@@ -13,7 +13,8 @@
 // `PlayView` ya montado, y sus refs (`treeRef`/`managerRef`) — creados con `if (!ref.current)` —
 // seguirían apuntando al árbol/motor VIEJOS: el import/restore serían un no-op silencioso (con fuga
 // del `EngineManager` viejo, que solo se dispone en el cleanup del desmontaje real).
-import { render } from 'preact'
+import { Component, render } from 'preact'
+import type { ComponentChildren } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import '@sabaki/shudan/css/goban.css'
 import './styles/app.css'
@@ -106,6 +107,62 @@ function PlayApp() {
   )
 }
 
+/** Mensaje legible de un `unknown` atrapado (mismo patrón que `errorMessage` en PlayView.tsx). */
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
+interface ErrorBoundaryState {
+  error: unknown
+}
+
+/**
+ * FIX 1 parte 2 (Important, fix wave post-Fase 2): red de última instancia. La validación in-try de
+ * `PlayView.handleImportFile` (FIX 1 parte 1) cubre el import de un SGF ilegal en el momento en que
+ * se importa, pero NO cubre variaciones importadas ilegales que sólo se descubren al NAVEGAR a
+ * ellas después (`GameTree.boardAt()`/`boardFromMoves` lanza recién ahí, en pleno render) — ni
+ * cualquier otro throw de render no previsto. Sin este boundary, Preact no re-renderiza tras un
+ * throw de render y la SPA queda en blanco, sin forma de recuperarse salvo recargar. Degrada a un
+ * mensaje recuperable + "Nueva partida" (que limpia la partida guardada y recarga desde cero) en vez
+ * de pantalla blanca. NO sustituye a la validación in-try (que da el mensaje en el punto de origen,
+ * sin perder el resto de la sesión); es el respaldo para lo que se cuele.
+ */
+class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: unknown): void {
+    // Único diagnóstico disponible: no hay telemetría en Fase 2.
+    console.error('Error no capturado en la SPA:', error)
+  }
+
+  handleReset = (): void => {
+    try {
+      clearGame(window.localStorage)
+    } catch {
+      // Best-effort: un storage bloqueado no debe impedir volver al formulario.
+    }
+    window.location.reload()
+  }
+
+  render() {
+    const { error } = this.state
+    if (error !== null) {
+      return (
+        <main class="crash-recovery">
+          <h1>tengen</h1>
+          <p>Algo salió mal: {errorMessage(error)}</p>
+          <button onClick={this.handleReset}>Nueva partida</button>
+        </main>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function App() {
   const [webgpu, setWebgpu] = useState<boolean | null>(null)
   useEffect(() => {
@@ -122,4 +179,10 @@ function App() {
 }
 
 const root = document.getElementById('app')
-if (root) render(<App />, root)
+if (root)
+  render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>,
+    root,
+  )

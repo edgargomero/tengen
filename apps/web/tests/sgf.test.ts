@@ -137,3 +137,56 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
     assertIdempotent(t)
   })
 })
+
+// FIX 3 (fix wave post-Fase 2): `moveFromData` sólo trataba como pase el valor vacío (FF[4]); un
+// pase legacy FF[3] (`tt`) o cualquier coordenada fuera de rango se colaba como jugada fantasma
+// {x:19,y:19} en un tablero de 19×19 (go-board la descarta en silencio, pero el nodo queda en el
+// árbol, se re-exporta como `tt`, y rompe isGameOverByTwoPasses en partidas importadas).
+describe('importSgf — pase legacy `tt` y coordenadas fuera de rango (FIX 3)', () => {
+  it('B[tt] en 19×19 se importa como pase, no como {19,19}', () => {
+    const raw = '(;GM[1]FF[4]SZ[19]KM[6.5]RU[Chinese];B[tt])'
+    const t = importSgf(raw)
+    expect(t.mainLine().map((n) => n.move)).toEqual([{ color: 'black', vertex: 'pass' }])
+  })
+
+  it('W[tt] tras una jugada negra también se importa como pase', () => {
+    const raw = '(;GM[1]FF[4]SZ[19]KM[6.5]RU[Chinese];B[cc];W[tt])'
+    const t = importSgf(raw)
+    expect(t.mainLine().map((n) => n.move)).toEqual([
+      B(2, 2),
+      { color: 'white', vertex: 'pass' },
+    ])
+  })
+
+  it('en 9×9, `tt` SÍ es una coordenada válida ({19,19} está fuera de rango, pero `tt`→{19,19} en'
+    + ' un tablero de 9 excede el tablero igual): se trata como pase', () => {
+    const raw = '(;GM[1]FF[4]SZ[9]KM[6.5]RU[Chinese];B[tt])'
+    const t = importSgf(raw)
+    expect(t.mainLine().map((n) => n.move)).toEqual([{ color: 'black', vertex: 'pass' }])
+  })
+})
+
+// FIX 6 (fix wave post-Fase 2): `importSgf` dejaba `meta.handicap=1` para HA[1]; `validateConfig`
+// SÍ normaliza handicap 1→0 (Go: "solo komi, sin piedra"), así que el árbol importado y la config
+// validada quedaban desincronizados toda la sesión (positionAt() emitiría handicap:1 al motor, un
+// valor que el flujo normal — validateConfig antes de fromConfig — nunca produce).
+describe('importSgf — normaliza HA[1]→0 (FIX 6)', () => {
+  it('HA[1] se normaliza a meta.handicap===0', () => {
+    const raw = '(;GM[1]FF[4]SZ[19]KM[6.5]RU[Chinese]HA[1])'
+    const t = importSgf(raw)
+    expect(t.meta.handicap).toBe(0)
+  })
+
+  it('HA[2] NO se toca (sigue en 2)', () => {
+    const raw = '(;GM[1]FF[4]SZ[19]KM[0.5]RU[Chinese]HA[2])'
+    const t = importSgf(raw)
+    expect(t.meta.handicap).toBe(2)
+  })
+
+  it('el round-trip de Task 2 (handicap 2) sigue verde: nuestro exporter nunca emite HA[1]', () => {
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    t.addMove(W(15, 15))
+    t.addMove(B(3, 3))
+    assertIdempotent(t)
+  })
+})

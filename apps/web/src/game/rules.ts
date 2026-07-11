@@ -70,6 +70,23 @@ export function validateMove(
 }
 
 /**
+ * FIX 1 (Important, fix wave post-Fase 2): versión pura/no-lanzante de `boardFromMoves`, para
+ * validar una secuencia de jugadas ANTES de confiar en ella (p.ej. la línea principal de un SGF
+ * importado, sin garantías de legalidad). `boardFromMoves` LANZA ante overwrite/ko/suicidio; sin
+ * esta validación, ese throw sólo se descubría en el RENDER de `ReadyPlayView` (`tree.boardAt()`),
+ * fuera de cualquier try — con la SPA sin error boundary, eso deja la pantalla en blanco. Se usa en
+ * `PlayView.handleImportFile`, DENTRO del try, antes de aceptar el árbol importado.
+ */
+export function isMoveSequenceLegal(boardSize: BoardSize, handicap: number, moves: Move[]): boolean {
+  try {
+    boardFromMoves(boardSize, handicap, moves)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Aplica una jugada y devuelve un tablero NUEVO (go-board es inmutable). Con los tres prevent-flags
  * activos: una jugada ilegal lanza (el caller debe validar antes con validateMove si no quiere que
  * lance).
