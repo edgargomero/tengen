@@ -33,7 +33,8 @@ app.get('/ort-dist/:filename', async (c) => {
   const filename = c.req.param('filename')
   const object = await c.env.MODELS.get(`ort-dist/${filename}`)
   if (!object) return c.notFound()
-  const ext = filename.slice(filename.lastIndexOf('.'))
+  const dot = filename.lastIndexOf('.')
+  const ext = dot === -1 ? '' : filename.slice(dot)
   const contentType = ORT_DIST_CONTENT_TYPES[ext] ?? 'application/octet-stream'
   return new Response(object.body, {
     headers: {

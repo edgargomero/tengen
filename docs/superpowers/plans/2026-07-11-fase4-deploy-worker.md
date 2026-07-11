@@ -526,10 +526,11 @@ git commit -m "feat(web): _headers COOP/COEP para producción (Cloudflare Worker
    npx wrangler r2 object put tengen-models/b18c384nbt-humanv0.fp32.onnx --file packages/engine/models/b18c384nbt-humanv0.fp32.onnx
    ```
 
-2b. **Subir el runtime de onnxruntime-web bajo el prefijo `ort-dist/`** (Hallazgo crítico #3 — sin esto, `GET /ort-dist/:filename` de Task 3 devuelve 404 y el motor no inicializa en `tengen.kntor.io` aunque el resto del deploy esté bien; source: `node_modules/onnxruntime-web/dist/`, resuelto vía `require.resolve('onnxruntime-web')`):
+2b. **Subir el runtime de onnxruntime-web bajo el prefijo `ort-dist/`** (Hallazgo crítico #3 — sin esto, `GET /ort-dist/:filename` de Task 3 devuelve 404 y el motor no inicializa en `tengen.kntor.io` aunque el resto del deploy esté bien). El paquete puede vivir hoisteado en la raíz del monorepo o no — resolver la ruta con Node en vez de hardcodear `node_modules/onnxruntime-web/dist/` (mismo mecanismo que ya usa `apps/web/vite.config.ts`, `createRequire(...).resolve('onnxruntime-web')`):
    ```bash
-   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.mjs --file node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs
-   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.wasm --file node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm
+   ORT_DIST=$(node -e "console.log(require('path').dirname(require.resolve('onnxruntime-web')))")
+   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.mjs --file "$ORT_DIST/ort-wasm-simd-threaded.jsep.mjs"
+   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.wasm --file "$ORT_DIST/ort-wasm-simd-threaded.jsep.wasm"
    ```
 
 3. **Build + deploy del Worker:**

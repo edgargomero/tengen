@@ -47,6 +47,12 @@ describe('GET /models/:filename', () => {
     // Consume the body to properly dispose of resources
     await res.arrayBuffer()
   })
+
+  it('NO fija Cross-Origin-Embedder-Policy (solo ort-dist lo necesita, ver dev middleware)', async () => {
+    const res = await app.request('/models/existe.onnx', {}, env)
+    expect(res.headers.get('Cross-Origin-Embedder-Policy')).toBeNull()
+    await res.arrayBuffer()
+  })
 })
 
 describe('GET /ort-dist/:filename', () => {
@@ -84,5 +90,14 @@ describe('GET /ort-dist/:filename', () => {
   it('no responde a /models/:filename para keys bajo el prefijo ort-dist/ (namespaces separados)', async () => {
     const res = await app.request('/models/ort-wasm-simd-threaded.jsep.mjs', {}, env)
     expect(res.status).toBe(404)
+  })
+
+  it('un filename sin extensión cae en el fallback application/octet-stream', async () => {
+    await env.MODELS.put('ort-dist/sinextension', new TextEncoder().encode('x'))
+    const res = await app.request('/ort-dist/sinextension', {}, env)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('application/octet-stream')
+    await res.arrayBuffer()
+    await env.MODELS.delete('ort-dist/sinextension')
   })
 })

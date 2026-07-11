@@ -6,6 +6,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build -w @tengen/web",
     "test": "vitest run"
   },
   "dependencies": {

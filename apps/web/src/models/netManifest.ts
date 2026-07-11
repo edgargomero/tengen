@@ -1,13 +1,16 @@
 // Manifest de redes descargables de apps/web (Fase 1 — caché OPFS con progreso).
-// En dev, sourceUrl apunta al middleware serve-models (vite.config.ts); en prod (Fase 4) cambiará
-// a una URL de R2 sin tocar el resto del pipeline. opfsName lleva versión (`.v1`) porque un bump
-// de versión = nueva entrada de caché (no invalida transparentemente la anterior).
+// sourceUrl es la MISMA ruta relativa '/models/<archivo>' en dev y en prod: en dev la sirve el
+// middleware serve-models (vite.config.ts); en prod (Fase 4) la sirve el mismo path, ahora como
+// ruta del Worker (GET /models/:filename, apps/worker/src/index.ts) que proxya el archivo real
+// desde R2 — mismo origen en ambos casos, sin URL absoluta de R2 ni reconfiguración de CORS/COEP.
+// opfsName lleva versión (`.v1`) porque un bump de versión = nueva entrada de caché (no invalida
+// transparentemente la anterior).
 import type { NetworkId } from '@tengen/engine'
 
 export interface ModelManifestEntry {
   /** Nombre en OPFS, plano y VERSIONADO (bump = nueva entrada de caché). */
   opfsName: string
-  /** Fuente de descarga. Dev: '/models/<archivo real>'. Prod (Fase 4): URL de R2. */
+  /** Fuente de descarga: '/models/<archivo>', mismo path relativo en dev y prod (ver arriba). */
   sourceUrl: string
   /** Tamaño total en bytes, para validación de completitud. */
   bytes: number
