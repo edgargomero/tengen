@@ -25,6 +25,7 @@ export interface CandidateMove {
   pointsLost: number // relativo a la evaluación de la raíz (KaTrain-like)
   order: number // 0 = mejor jugada
   prior?: number // probabilidad de policy (0..1)
+  pv?: string[] // variación principal, coords GTP (Task 4: gameReport.ts lee `top?.pv` verbatim)
 }
 
 export interface AnalysisResult {

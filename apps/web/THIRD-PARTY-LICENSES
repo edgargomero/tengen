@@ -9,7 +9,8 @@ la licencia MIT original del proyecto:
 
   - src/analysis/vendor/web-katrain/types.ts (origen: src/types.ts — subconjunto
     TRIMMED: solo Player/Move/CandidateMove/AnalysisResult/GameNode con los
-    campos que los archivos portados de este directorio realmente leen)
+    campos que los archivos portados de este directorio realmente leen; Task 4
+    añadió CandidateMove.pv, leído por gameReport.ts)
 
   - src/analysis/vendor/web-katrain/nodeAnalysis.ts (origen:
     src/utils/nodeAnalysis.ts — verbatim salvo el import de tipos)
@@ -29,6 +30,22 @@ la licencia MIT original del proyecto:
     src/utils/topMoveMetric.ts — TopMoveMetric/PolicyHeatmapMetric reescritos
     como uniones literales locales en vez de GameSettings['...'], resto
     verbatim)
+
+  - src/analysis/vendor/web-katrain/gameReport.ts (origen:
+    src/utils/gameReport.ts — archivo completo portado; computeGameReport
+    adaptado para recibir mainLine:GameNode[] + boardSize:number en vez de
+    currentNode+activeBranchChildIds (branchNavigation.ts, excluido); dentro
+    del loop, moveNumber = depth+1 en vez de leer gameState.moveHistory.length.
+    Resto verbatim. positionEval.ts tampoco se porta (no es importado por este
+    archivo; ver adaptaciones-upstream.md para el motivo completo de ambas
+    exclusiones)
+
+  - src/analysis/vendor/web-katrain/playedMoveQuality.ts (origen:
+    src/utils/playedMoveQuality.ts — getPlayedMoveQuality gana un parámetro
+    boardSize:number explícito; getNextMoveQuality pierde el parámetro
+    activeBranches y usa node.children[0] en vez de getActiveChild
+    (branchNavigation.ts, excluido) — children se tipa localmente en este
+    archivo (GameNodeWithChildren), no en types.ts. Resto verbatim)
 
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
