@@ -30,8 +30,9 @@
 | 0 · Scaffold apps/web | proyecto Preact+Vite+TS, engine importable, worker propio, gate WebGPU | detallado aquí |
 | 1 · Entrega de modelos | evaluatorFactory OPFS-cache + descarga R2/URL con progreso | detallado aquí |
 | 2 · Jugar bien | flujo de partida completo (Shudan + go-board + WorkerEngine) | detallado aquí |
-| 3 · Analizar bien | SGF + overlays + review progresivo (porta lógica web-katrain) | alcance + reúso; spec propio al llegar |
-| 4 · apps/worker base | Worker Hono: static assets + R2 para redes; deploy workers.dev | alcance + decisiones |
+| 3a · Analizar (núcleo) | SGF + overlays + review progresivo (porta lógica web-katrain) | **COMPLETA** — [plan](2026-07-11-fase3a-analizar.md), ledger `.superpowers/sdd/progress.md` |
+| 3b · Analizar (comentarios + biblioteca local) | comentarios de posición, biblioteca local de partidas | sin planear, fase separada |
+| 4 · apps/worker base | Worker Hono: static assets + R2 para redes; deploy `tengen.kntor.io` | **spec + plan escritos (2026-07-11), EN EJECUCIÓN** — [spec](../specs/2026-07-11-fase4-deploy-worker.md), [plan](2026-07-11-fase4-deploy-worker.md) |
 | 5 · Cuentas + nube | D1 + better-auth (Google) + Turnstile + guardado/listado | alcance + decisiones; spec propio |
 | 6 · Deploy + CI | Cloudflare (Worker+R2+D1) + Renovate + watcher upstream + Playwright | alcance |
 
@@ -72,6 +73,8 @@ La deuda del motor se cierra **en el borde de la app**, no como fase aparte: M-4
 - Un Worker Cloudflare con **Hono** que sirve la SPA (static assets) + binding **R2** para las redes (o dominio público de R2 con caché de CF delante). `wrangler.jsonc`. Deploy inicial a `*.workers.dev`.
 - **Decisiones:** subir las redes fp16 (b18 58 MB + humanv0 54 MB) a un bucket R2; versionado `/nets/<nombre>-<versión>.onnx` con caché inmutable. Confirmar headers para WebGPU/ORT en prod (COEP solo si se usa ORT-WASM multihilo; el path WebGPU no lo exige).
 
+> **Nota (2026-07-11):** este párrafo original quedó superado por la spec/plan de Fase 4 (`2026-07-11-fase4-deploy-worker.md`) en dos puntos — se deja como registro histórico, no se reescribe: (a) "redes fp16" está revocado (fp16 produce policy NaN, ver corrección de CLAUDE.md 2026-07-10); la spec nueva sube los `.onnx` **fp32** reales (b18c384nbt 115.8 MB + humanv0 108.0 MB); (b) el dominio propio (`tengen.kntor.io`) se resuelve en ESTA fase, no en Fase 6 — `kntor.io` ya está en la misma cuenta de Cloudflare de Edgar.
+
 ### Fase 5 — Cuentas + nube — *alcance; spec propio*
 - **D1:** tablas de better-auth + `games(id, user_id, name, sgf TEXT, board_size, result, created_at, updated_at)`.
 - **Auth:** better-auth con Google OAuth; **Turnstile** en el registro. API JSON (Hono) para guardar/listar/reabrir; **rate limiting** por usuario/IP (protege D1). Offline-first: guardar en la nube falla con aviso y reintento, el SGF local nunca se pierde.
@@ -100,8 +103,8 @@ La deuda del motor se cierra **en el borde de la app**, no como fase aparte: M-4
 
 ## Decisiones abiertas (a resolver en el spec de su fase)
 
-1. Bucket/dominio de R2 y esquema de versionado de redes (Fase 4).
-2. Dominio propio del producto (Fase 6, pregunta abierta #4 del spec).
+1. ~~Bucket/dominio de R2 y esquema de versionado de redes (Fase 4).~~ **RESUELTO (2026-07-11):** bucket `tengen-models`, versionado por nombre de archivo (`b18c384nbt-kata1.fp32.onnx`, `b18c384nbt-humanv0.fp32.onnx`) — ver spec/plan de Fase 4.
+2. ~~Dominio propio del producto (Fase 6, pregunta abierta #4 del spec).~~ **RESUELTO (2026-07-11):** `tengen.kntor.io`, resuelto en Fase 4 (no en Fase 6) — ver spec/plan de Fase 4.
 3. ¿Marcado manual de piedras muertas como mejora de "jugar bien"? (hoy: estimación del motor — Fase 2).
 4. Profundidad/estrategia del review progresivo (Fase 3, pregunta abierta #3).
 5. better-auth: sesión, Turnstile, migraciones D1 (Fase 5).
