@@ -181,6 +181,12 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   const [guessBusy, setGuessBusy] = useState(false)
   const [guessResult, setGuessResult] = useState<GuessAgainstEngineResult | null>(null)
   const [guessErrorMsg, setGuessErrorMsg] = useState<string | null>(null)
+  // A qué nodo pertenece la adivinanza en curso — mismo rol que `analyzingNodeId` para el flujo
+  // hermano "Analizar esta posición" (ver `handleAnalyzeClick`). No se lee en render (no hay
+  // consumidor natural hoy: `guessBusy` debe seguir siendo "hay una petición en vuelo" a secas para
+  // no bloquear el botón de arranque tras navegar); documenta el estado y respalda el guard de
+  // staleness por-nodo en `handleBoardGuessClick`.
+  const [guessNodeId, setGuessNodeId] = useState<number | null>(null)
 
   useEffect(() => {
     staleRef.current = false
@@ -312,6 +318,8 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   function handleBoardGuessClick(v: [number, number]): void {
     setGuessWaiting(false)
     setGuessBusy(true)
+    const nodeId = tree.current.id
+    setGuessNodeId(nodeId)
     const [x, y] = v
     guessAgainstEngine({
       pos: tree.positionAt(),
@@ -322,13 +330,16 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
       (result) => {
         if (staleRef.current) return
         setGuessBusy(false)
-        setGuessResult(result)
+        // Guard de staleness por-nodo (mismo patrón que `handleAnalyzeClick`): si el usuario navegó
+        // a otra posición mientras la adivinanza estaba en vuelo, el resultado ya no corresponde a
+        // lo que se ve en pantalla — descartarlo en vez de mostrarlo mal atribuido.
+        if (tree.current.id === nodeId) setGuessResult(result)
       },
       (e: unknown) => {
         if (staleRef.current) return
         setGuessBusy(false)
         if (isAnalysisQueueCanceledError(e) || isAnalysisQueueStaleError(e)) return // benigno, mismo criterio que "Analizar esta posición"
-        setGuessErrorMsg(`No se pudo adivinar (${errorMessage(e)}).`)
+        if (tree.current.id === nodeId) setGuessErrorMsg(`No se pudo adivinar (${errorMessage(e)}).`)
       },
     )
   }
