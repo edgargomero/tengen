@@ -247,3 +247,25 @@ Los 5 defectos del review, todos verificados de primera mano por el controlador 
 5. "Nueva partida" mid-genMove sin errores de consola; "Preparando motor…" durante la carga (no "IA pensando…"); panel de árbol legible con variaciones.
 
 **PUSHEADA a `origin/main` (2026-07-10, `d89a0a2..ffb6295`, con OK explícito de Edgar vía AskUserQuestion — mismo precedente que Fase 1). Gate manual EN CURSO: escenario 1 parcialmente confirmado (9×9 vs KataGo). PENDIENTE: 13×13/19×19, Human SL, handicap, y escenarios 2–5 (exploración, Export/Import incl. SGF ilegal, restauración, Nueva partida mid-genMove).**
+
+## Hallazgos del gate manual de Edgar (2026-07-11, sesión de juego 9×9 vs Human SL 1k) — investigación PAUSADA a pedido de Edgar (reportar y avanzar a Fase 3; retomar diagnóstico cuando corresponda)
+
+Edgar jugó 9×9 contra Human SL 1k con reglas configuradas como japonesas. Tres observaciones, ninguna investigada a fondo todavía:
+
+1. **CRASH: `Error: Suicide prevented` durante el montaje/remonte de `ReadyPlayView`.** Stack real:
+   ```
+   Error: Suicide prevented
+       at _GoBoard.makeMove (@sabaki_go-board.js:73:19)
+       at applyMove (rules.ts:95:16)
+       at boardFromMoves (rules.ts:40:13)
+       at GameTree.boardAt (gameTree.ts:196:12)
+       at C.ReadyPlayView [as constructor] (PlayView.tsx:434:22)
+   ```
+   **BUENA NOTICIA:** el `ErrorBoundary` de la fix wave (FIX 1 parte 2, commit `7472a49`) FUNCIONÓ como se diseñó — capturó el throw y mostró la pantalla de recuperación, no pantalla blanca. Primera confirmación en producción de esa red de seguridad.
+   **CAUSA RAÍZ — NO CONFIRMADA (investigación pausada antes de leer el código):** el throw ocurre reconstruyendo el tablero completo desde la raíz (`boardFromMoves` repite TODAS las jugadas del árbol), lo que implica que una jugada ILEGAL ya estaba en el árbol ANTES de este montaje — se coló en algún punto sin pasar por `validateMove`. El log muestra dos bloques de reconexión de Vite ~25 min aparte, consistente con un reload a mitad de partida (candidato: `restoreSession()` cargando un árbol persistido ya corrupto). **Hipótesis de trabajo (sin verificar):** `aiTurn()` en PlayView.tsx llama `tree.addMove(move)` sobre el resultado de `manager.genMove()` SIN pasar por `validateMove` (a diferencia de los clics humanos, que sí validan primero); si `sampleHumanMove` (humansl.ts) no chequea suicidio real en su filtro de candidatas (solo excluye ocupado y ko-simple — ver hallazgo #2 abajo, mismo archivo), una jugada de la IA Human SL podría ser un suicidio legítimo que entra al árbol sin guardas. **Próximo paso al retomar:** leer `humansl.ts` (filtro de candidatas), `aiTurn()` (PlayView.tsx), y `GameTree.addMove` para confirmar o refutar esta cadena antes de proponer fix (systematic-debugging Fase 1, no completada).
+
+2. **CONFIRMADO EN CÓDIGO (no requiere más investigación): Human SL puede NO pasar nunca, salvo tablero sin candidatas.** `packages/engine/src/humansl.ts:30` documenta explícitamente `humanSLChosenMoveIgnorePass=true`: `sampleHumanMove` IGNORA `policyPass` y solo pasa cuando no quedan casillas legales vacías∧≠ko. Decisión de Task 11 de la fase engine, nunca antes ejercitada contra un humano jugando en vivo (Task 11/12 solo testearon con policy sintética). **Consecuencia de producto real:** en "Modo Jugar" contra Human SL, el mecanismo normal de fin de partida (dos pases consecutivos) puede no dispararse NUNCA — el humano puede pasar todas las veces que quiera, la IA seguirá jugando hasta que el tablero esté físicamente lleno. La única salida práctica es "Rendirse". Esto es justo lo que Edgar reportó ("pasé muchas veces y la máquina no se rendía"). **No es un bug del código** (el comportamiento es el diseñado), pero SÍ es un gap de producto sin resolver para Modo Jugar: decidir si Human SL necesita un umbral/heurística de "posición muerta → pasar" para esta UI, o si se documenta como comportamiento esperado y se refuerza el botón Rendirse.
+
+3. **SIN CONFIRMAR: impresión de reglas chinas pese a configurar japonesas.** Edgar percibió que el scoring/la partida se comportó como reglas chinas aunque seleccionó japonesas en `NewGameForm`. Podría ser: (a) percepción (diferencia sutil china/japonesa en partidas cortas), (b) `scoreValue`/`evalV8` (adaptación de web-katrain) no diferenciando reglas correctamente en el postproceso, o (c) el `rules` de `GameConfig` no propagándose correctamente hasta `positionAt()`/el motor. Sin evidencia aún — anotado para verificar cuando se retome.
+
+**Acción para retomar:** los 3 puntos quedan abiertos para una sesión de debugging dedicada (`systematic-debugging`, Fase 1 completa) antes de tocar código — en particular el #1 (crash) es Important por severidad (aunque mitigado por el ErrorBoundary) y el #2 tiene una decisión de producto pendiente de Edgar.
