@@ -240,10 +240,10 @@ Los 5 defectos del review, todos verificados de primera mano por el controlador 
 - Motor `npm test` **88/88** (17 files) · Web `npm test` **151/151** (11 files) · Web `tsc --noEmit` **0** · Web `vite build` **exit 0**. Árbol limpio. `main` 14 commits ahead de `origin/main`, no pusheado.
 
 ### GATE MANUAL de Edgar (Chrome/WebGPU real — headless no soporta WebGPU; R1/R2/R4 y toda la UI son UI-wired, sin cobertura auto)
-1. Partida completa 9×9/13×13/19×19 vs KataGo(200) y Human SL(rank); pasar×2→score; rendirse→W+R/B+R; handicap 19×19 (Blanco abre).
+1. ✅ **CONFIRMADO (2026-07-11):** partida completa 9×9 vs KataGo(200) jugada de punta a punta hasta el fin — Edgar perdió. Nivel de juego "aceptablemente bueno" a 200 visitas (descarta jugada degenerada/NaN, el susto fp16 de Fase 0 no reaparece). Ejercita de punta a punta: apertura, capturas, ciclo hasta terminar la partida (pases o resign). 13×13/19×19 y Human SL(rank) aún sin confirmar explícitamente; handicap 19×19 (Blanco abre) sin confirmar.
 2. Exploración de variaciones: navegar atrás, jugar 2+ movimientos alternando color → la IA NUNCA interviene, banner "Modo exploración"; re-jugar la secuencia real → reencuentra la main line → la IA vuelve a responder.
 3. Export→Import round-trip idéntico; **importar un SGF ILEGAL → mensaje "No se pudo importar…" recuperable, SIN pantalla blanca** (FIX 1); import de partida no-terminada con turno Blanco → la IA juega (esperado, eyeball de producto).
 4. Recargar → restaura donde quedó (incl. si toca IA → retoma sola); **restaurar partida TERMINADA (resign/2-pases) → "Partida terminada"+resultado de inmediato, no revive** (FIX 2); import→recargar antes de jugar → persiste el import (FIX 4).
 5. "Nueva partida" mid-genMove sin errores de consola; "Preparando motor…" durante la carga (no "IA pensando…"); panel de árbol legible con variaciones.
 
-**PUSHEADA a `origin/main` (2026-07-10, `d89a0a2..ffb6295`, con OK explícito de Edgar vía AskUserQuestion — mismo precedente que Fase 1). PENDIENTE: solo el gate manual de browser de Edgar (Chrome/WebGPU real).**
+**PUSHEADA a `origin/main` (2026-07-10, `d89a0a2..ffb6295`, con OK explícito de Edgar vía AskUserQuestion — mismo precedente que Fase 1). Gate manual EN CURSO: escenario 1 parcialmente confirmado (9×9 vs KataGo). PENDIENTE: 13×13/19×19, Human SL, handicap, y escenarios 2–5 (exploración, Export/Import incl. SGF ilegal, restauración, Nueva partida mid-genMove).**
