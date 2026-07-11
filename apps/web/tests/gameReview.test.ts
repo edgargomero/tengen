@@ -374,3 +374,69 @@ describe('GameReview — dispose() durante una cancelación benigna en vuelo no 
     expect(engine.calls[1]!.cancelled).toBe(true) // jugada1 sí fue preemptada de verdad (no un no-op)
   })
 })
+
+// ── 8. Finding 1 (fix-wave del review final): el review no pisa un análisis interactivo que
+// llegó mientras su propio job para ese nodo seguía en vuelo ─────────────────────────────────
+//
+// Escenario del bug real (`start()` encola TODO al montar, con el store vacío): el usuario analiza
+// a mano una posición (`AnalyzeView.tsx` `handleAnalyzeClick`, 200 visitas) ANTES de que le toque el
+// turno a su job de review ya encolado (100 visitas) — cuando ese job de review finalmente se
+// asienta con éxito, NO debe sobrescribir el resultado interactivo, de mayor calidad, que ya está en
+// el store. A diferencia del test de idempotencia (#4, arriba), que prepobla el store ANTES de
+// `start()` — ahí el guard de ENCOLADO (`!store.has(node.id)` en `start()`) ya evita que se encole
+// nada, así que nunca llega a ejercitar el guard de ESCRITURA del handler de éxito. Aquí la escritura
+// interactiva llega DESPUÉS de que el job de review ya está encolado/activo, así que solo el guard en
+// el sitio de escritura (`analyzeTarget`) puede salvar el resultado interactivo.
+describe('GameReview — Finding 1: no pisa un análisis interactivo que llegó mientras su job de review estaba en vuelo', () => {
+  it('jugada1 recibe un análisis interactivo mientras su job de review sigue activo; cuando el job de review (tras reintento) se asienta con éxito, el store conserva el valor interactivo', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2)) // única jugada → targets = [raíz, jugada1]
+
+    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+
+    // 1) la raíz se resuelve normal; jugada1 arranca de verdad en el motor y queda colgada (activa,
+    // sin behavior programado todavía) — mismo arranque que el test de "reencolado tras cancelación
+    // benigna" (#5).
+    engine.programNext({ chunks: [mkReportReadyAnalysis(0)] })
+    const startPromise = review.start(() => {})
+    await flush(16)
+
+    expect(store.has(tree.root.id)).toBe(true)
+    const m1 = tree.mainLine()[0]!
+    expect(store.has(m1.id)).toBe(false) // jugada1 aún NO tiene análisis — su job de review sigue en vuelo
+
+    // 2) simula el resultado de una interacción del usuario ("Analizar esta posición", 200 visitas en
+    // producción) que aterriza en el store MIENTRAS el job de review de jugada1 (100 visitas en
+    // producción) sigue activo, sin haberse asentado todavía.
+    const interactiveAnalysis = mkReportReadyAnalysis(999)
+    store.set(m1.id, interactiveAnalysis)
+
+    // 3) preempta el job de review de jugada1 EN CURSO con un análisis interactivo real del scheduler
+    // (mismo mecanismo que el test #5) — esto es solo el vehículo para controlar CUÁNDO el REINTENTO
+    // del job de review de jugada1 llega al motor y se asienta con éxito (con SU PROPIO resultado,
+    // distinto del interactivo simulado en el paso 2).
+    engine.programNext({ chunks: [mkReportReadyAnalysis(50)] }) // consumido por el interactivo (irrelevante al assert)
+    engine.programNext({ chunks: [mkReportReadyAnalysis(3)] }) // consumido por el REINTENTO del job de review de jugada1
+    const pInteractive = scheduler.analyzePosition({
+      pos: tree.positionAt(tree.root),
+      visits: VISITS,
+      priority: 'interactive',
+      group: 'nav',
+    })
+    await expect(pInteractive).resolves.toMatchObject({ visits: VISITS })
+
+    await flush(24) // deja que el REINTENTO del job de review de jugada1 llegue al motor y se asiente con éxito
+    await startPromise // no cuelga: raíz y jugada1 (vía el reintento) terminaron asentados
+
+    // 4) el job de review de jugada1 SÍ se asentó con éxito (scoreLead=3, ver programNext arriba) —
+    // pero el store debe conservar el valor interactivo (999), no el del review (3): la escritura del
+    // handler de éxito debe haber sido un no-op porque el store YA tenía algo para ese nodo.
+    expect(store.get(m1.id)).toBe(interactiveAnalysis) // MISMA referencia: cero escritura, no solo "mismo valor"
+    expect(store.get(m1.id)!.scoreLead).toBe(999)
+
+    review.dispose()
+  })
+})

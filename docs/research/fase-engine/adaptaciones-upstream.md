@@ -21,7 +21,11 @@ Cuando cualquiera de estos publique una versión nueva, seguir el **runbook de r
 
 ## Log de adaptaciones por archivo
 
-Cada archivo vendorizado en `packages/engine/src/vendor/web-katrain/` proviene de `~/dev/vendor/web-katrain/src/engine/katago/<mismo nombre>` en el commit fijado. La columna **Cambios de tengen** es lo que hay que **re-aplicar** sobre una versión nueva de upstream.
+Los archivos vendorizados vienen de DOS subdirectorios distintos del mismo repo upstream, según a qué paquete de tengen aterrizan (cada fila de la tabla documenta su origen individual exacto; esto es solo el mapa general):
+- `packages/engine/src/vendor/web-katrain/` (motor: board, encoding, MCTS) ← `~/dev/vendor/web-katrain/src/engine/katago/<mismo nombre>`.
+- `apps/web/src/analysis/vendor/web-katrain/` (Fase 3a — Modo Analizar: reportes, cola de análisis, adivinanza) ← `~/dev/vendor/web-katrain/src/utils/<mismo nombre>` (excepciones puntuales de origen fusionado/distinto ya anotadas en su propia fila, p.ej. `analysisSummary.ts`).
+
+La columna **Cambios de tengen** de cada fila es lo que hay que **re-aplicar** sobre una versión nueva de upstream.
 
 | Archivo | Origen (web-katrain@7a0a487) | Cambios de tengen | Task | Notas de re-sync |
 |---|---|---|---|---|
@@ -51,12 +55,13 @@ Cada archivo vendorizado en `packages/engine/src/vendor/web-katrain/` proviene d
 
 ## Runbook de re-sync (cuando salga una release de web-katrain)
 
-1. **Actualizar el pin y ver qué cambió upstream:**
+1. **Actualizar el pin y ver qué cambió upstream** (revisar AMBOS subdirectorios origen — `src/engine/katago/` alimenta `packages/engine/`, `src/utils/` alimenta `apps/web/src/analysis/`, ver el mapa de la sección anterior; mirar solo uno se salta silenciosamente los cambios que afectan al otro paquete):
    ```bash
-   cd ~/dev/vendor/web-katrain && git fetch && git log --oneline 7a0a487..origin/main -- src/engine/katago/
-   git diff 7a0a487..origin/main -- src/engine/katago/fastBoard.ts   # y por cada archivo de la tabla
+   cd ~/dev/vendor/web-katrain && git fetch
+   git log --oneline 7a0a487..origin/main -- src/engine/katago/ src/utils/
+   git diff 7a0a487..origin/main -- src/engine/katago/fastBoard.ts   # y por cada archivo de la tabla (de cualquiera de los dos subdirectorios)
    ```
-2. **Por cada archivo de la tabla de arriba:** si upstream lo tocó, re-copiar la versión nueva a `packages/engine/src/vendor/web-katrain/`, re-poner la cabecera, y **re-aplicar los "Cambios de tengen"** de su fila (son pocos y localizados). Si upstream NO lo tocó, no hay nada que hacer.
+2. **Por cada archivo de la tabla de arriba:** si upstream lo tocó, re-copiar la versión nueva al directorio local que le corresponde según su fila — `packages/engine/src/vendor/web-katrain/` para los que vienen de `src/engine/katago/`, `apps/web/src/analysis/vendor/web-katrain/` para los que vienen de `src/utils/` (ver el mapa de la sección anterior) —, re-poner la cabecera, y **re-aplicar los "Cambios de tengen"** de su fila (son pocos y localizados). Si upstream NO lo tocó, no hay nada que hacer.
    - Nota: `tests/board.test.ts` y `tests/ladderArea.test.ts` citan en comentarios números de línea aproximados (`~NNNN`) de `fastBoard.ts` como documentación (no se asertan); si `fastBoard.ts` cambia de tamaño en un re-sync, esos números derivan — actualizarlos si confunden, pero no bloquean. El test de Task 3 además depende del string literal `'Illegal suicide move'` (ver fila de `fastBoard.ts`).
 3. **Actualizar el pin** en este documento (tabla de pins + cabeceras de los archivos) al nuevo commit.
 4. **Correr los gates:**

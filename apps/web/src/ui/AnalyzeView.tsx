@@ -258,9 +258,17 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
 
   /** Único punto de salida de toda navegación (nav ⏮◀▶⏭, árbol, gráfico, turning point): además de
    * repintar, cancela un modo-adivinanza en curso (una adivinanza pendiente queda sin sentido si el
-   * usuario navega a otra posición) — no-op si no había ninguna. */
+   * usuario navega a otra posición) — no-op si no había ninguna. También limpia el resultado/error de
+   * la última adivinanza y el error del último análisis interactivo: ambos quedan atados a la
+   * posición donde se generaron, así que dejarlos pintados tras navegar los atribuiría, de forma
+   * engañosa, a la posición nueva (Fase 3a, fix-wave del review final, Finding 2). `analysis`/`store`
+   * en sí NO se tocan aquí — el análisis cacheado de un nodo sigue siendo válido para ESE nodo pase lo
+   * que pase con la navegación. */
   function afterNavigate(): void {
     setGuessWaiting(false)
+    setGuessResult(null)
+    setGuessErrorMsg(null)
+    setAnalyzeError(null)
     bump()
   }
 

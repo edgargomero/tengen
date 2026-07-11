@@ -147,7 +147,18 @@ export class GameReview {
         })
         .then(
           (analysis) => {
-            this.deps.store.set(node.id, analysis)
+            // Guard deliberado (Fase 3a, fix-wave del review final, Finding 1): un análisis
+            // interactivo ("Analizar esta posición", AnalyzeView.tsx `handleAnalyzeClick`) puede
+            // haber escrito YA en `store` para este mismo nodo mientras este job de review estaba en
+            // vuelo — el review encola TODO al montar, así que un usuario que analiza a mano una
+            // posición antes de que le toque su turno en la cola de fondo es el caso común, no el
+            // raro. El review SIEMPRE corre con menos visitas (`REVIEW_VISITS`) que un análisis
+            // interactivo (`INTERACTIVE_VISITS`), así que si `store` YA tiene algo para este nodo,
+            // es de mayor calidad o igual de fresco — nunca pisarlo. `handleAnalyzeClick` hace lo
+            // simétrico-inverso a propósito (escribe SIEMPRE, sin este guard): una petición
+            // interactiva fresca debe ganarle a cualquier resultado de review ya cacheado, sin
+            // importar el orden de llegada.
+            if (!this.deps.store.has(node.id)) this.deps.store.set(node.id, analysis)
             this.recomputeAndReport(onReport)
           },
           (err: unknown) => {
