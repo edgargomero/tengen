@@ -3,6 +3,10 @@
   "name": "tengen-worker",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
+  "account_id": "1462061bf4f3dd4785e2fd0c1da9b21e",
+  "routes": [
+    { "pattern": "tengen.kntor.io", "custom_domain": true }
+  ],
   "assets": {
     "directory": "../web/dist",
     "binding": "ASSETS"
