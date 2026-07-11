@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tengen-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS"
+  },
+  "r2_buckets": [
+    { "binding": "MODELS", "bucket_name": "tengen-models" }
+  ]
+}
