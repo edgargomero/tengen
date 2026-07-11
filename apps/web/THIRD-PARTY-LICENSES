@@ -1,13 +1,36 @@
 web-katrain (https://github.com/Sir-Teo/web-katrain), commit 7a0a487
 =====================================================================
 
-El siguiente archivo en `src/models/` está adaptado de web-katrain y se
-distribuye bajo la licencia MIT original del proyecto:
+Los siguientes archivos están adaptados de web-katrain y se distribuyen bajo
+la licencia MIT original del proyecto:
 
   - src/models/progress.ts (origen: src/utils/downloadProgress.ts — se porta
     verbatim solo la matemática de progreso, getContentLength/getProgressPercent)
 
-El archivo lleva una cabecera de atribución individual. Los cambios de
+  - src/analysis/vendor/web-katrain/types.ts (origen: src/types.ts — subconjunto
+    TRIMMED: solo Player/Move/CandidateMove/AnalysisResult/GameNode con los
+    campos que los archivos portados de este directorio realmente leen)
+
+  - src/analysis/vendor/web-katrain/nodeAnalysis.ts (origen:
+    src/utils/nodeAnalysis.ts — verbatim salvo el import de tipos)
+
+  - src/analysis/vendor/web-katrain/analysisSummary.ts (origen:
+    src/utils/analysisSummary.ts Y src/utils/manualScore.ts — de este segundo
+    origen se porta SOLO la función formatResultScoreLead, no el archivo
+    completo)
+
+  - src/analysis/vendor/web-katrain/analysisCoverage.ts (origen:
+    src/utils/analysisCoverage.ts — verbatim salvo el import de tipos)
+
+  - src/analysis/vendor/web-katrain/analysisSmoothing.ts (origen:
+    src/utils/analysisSmoothing.ts — verbatim, sin dependencias)
+
+  - src/analysis/vendor/web-katrain/topMoveMetric.ts (origen:
+    src/utils/topMoveMetric.ts — TopMoveMetric/PolicyHeatmapMetric reescritos
+    como uniones literales locales en vez de GameSettings['...'], resto
+    verbatim)
+
+Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
 releases de upstream se documentan en
 `docs/research/fase-engine/adaptaciones-upstream.md` (la estrategia de
