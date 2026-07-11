@@ -1,13 +1,13 @@
-// Pantalla de análisis (Fase 3a, Task 9): primer "analizar una posición de punta a punta". Carga
-// un SGF (reusa `importSgf`), muestra el tablero Shudan con overlays (`analysis/overlays.ts`) y un
-// panel winrate/score simple, y ofrece "Analizar esta posición" (botón manual — NO se auto-dispara
-// al navegar, ver el brief de esta tarea) que pide un análisis interactivo vía `ReviewScheduler`.
+// Pantalla de análisis (Fase 3a, Tasks 9-10): "analizar una posición de punta a punta" + el review
+// de fondo de toda la partida. Carga un SGF (reusa `importSgf`), muestra el tablero Shudan con
+// overlays (`analysis/overlays.ts`) y un panel winrate/score simple, ofrece "Analizar esta
+// posición" (botón manual — NO se auto-dispara al navegar) que pide un análisis interactivo vía
+// `ReviewScheduler`, arranca `GameReview` (el review de fondo, Task 7) al montar, y renderiza los
+// tres paneles de presentación pura que lo visualizan/consumen (Task 10):
+// `WinrateGraphPanel`/`GameReviewPanel`/`GuessMovePanel`.
 //
-// Alcance deliberadamente acotado (frontera con Task 10/11, ver brief):
-//   - NO instancia `GameReview` (el review de fondo, Task 7) ni construye
-//     `WinrateGraphPanel`/`GameReviewPanel`/`GuessMovePanel` — eso llega con Task 10, junto con el
-//     panel que visualiza el progreso de ese review de fondo.
-//   - NO se referencia desde `main.tsx` — el conmutador Jugar/Analizar es Task 11.
+// Alcance deliberadamente acotado (frontera con Task 11, ver brief): NO se referencia desde
+// `main.tsx` — el conmutador Jugar/Analizar es Task 11.
 //
 // Mismo lenguaje de ciclo de vida que `PlayView.tsx`/`ReadyPlayView`: refs creados UNA vez (`if
 // (!ref.current)`), `staleRef` para descartar continuaciones async tras el desmontaje, y un
@@ -16,7 +16,7 @@
 // ni del análisis.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Goban } from '@sabaki/shudan'
-import type { BoardSize, NetworkId } from '@tengen/engine'
+import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import { GameTree, type GameNode } from '../game/gameTree'
@@ -28,7 +28,16 @@ import { ReviewScheduler } from '../analysis/reviewScheduler'
 import { buildGhostStoneMap, buildHeatMap, buildPvLines } from '../analysis/overlays'
 import { formatAnalysisScoreLead, formatAnalysisWinRate } from '../analysis/vendor/web-katrain/analysisSummary'
 import { isAnalysisQueueCanceledError, isAnalysisQueueStaleError } from '../analysis/vendor/web-katrain/analysisQueue'
+import { GameReview, getReportTurningPoints } from '../analysis/gameReview'
+import type { MoveReportEntry } from '../analysis/gameReview'
+import { buildWinrateGraphData } from '../analysis/winrateGraphData'
+import type { WinrateGraphPoint } from '../analysis/winrateGraphData'
+import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
+import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { GameTreePanel } from './GameTreePanel'
+import { WinrateGraphPanel } from './WinrateGraphPanel'
+import { GameReviewPanel } from './GameReviewPanel'
+import { GuessMovePanel } from './GuessMovePanel'
 
 /** Analizar SIEMPRE usa la red b18 (MCTS fuerte), nunca Human SL — heatmap/PV/winrate necesitan
  * "la mejor jugada según el motor", no la política de imitación humana (esa es exclusiva de Modo
@@ -42,12 +51,29 @@ const ANALYZE_NETWORK: NetworkId = 'b18'
  * siempre sin pedirlo). Trivialmente ajustable, no es una constante de dominio. */
 const INTERACTIVE_VISITS = 200
 
+/** Visitas del review de fondo (por nodo). Decisión de esta tarea (mismo espíritu que
+ * `INTERACTIVE_VISITS`): 100 — menos que las 200 interactivas porque el review corre sin que el
+ * usuario lo pida, sobre TODA la partida; priorizar cobertura amplia sobre profundidad por nodo.
+ * Mismo valor que `SCORE_VISITS` de `PlayView.tsx` (Fase 2), coincidencia razonable, no un
+ * acoplamiento real entre ambos módulos. */
+const REVIEW_VISITS = 100
+
 /** vertexSize por tamaño de tablero: MISMA tabla que `PlayView.tsx` (duplicada a propósito — ese
  * archivo no la exporta; 1 línea de duplicación, mismo patrón ya aceptado que `errorMessage`). */
 const VERTEX_SIZE: Record<BoardSize, number> = { 9: 44, 13: 32, 19: 24 }
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
+}
+
+/** Mismo cálculo que `vertexLabel` (privado) de `GameTreePanel.tsx` — duplicado a propósito, mismo
+ * patrón ya aceptado en Task 9 para `VERTEX_SIZE`/`errorMessage` (ese archivo no exporta nada). */
+function formatVertexLabel(v: TengenVertex, boardSize: BoardSize): string {
+  if (v === 'pass') return 'pasa'
+  const GTP_COLUMNS = 'ABCDEFGHJKLMNOPQRST'
+  const col = GTP_COLUMNS.charAt(v.x) || '?'
+  const row = boardSize - v.y
+  return `${col}${row}`
 }
 
 interface AnalyzeViewProps {
@@ -136,6 +162,12 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   if (!schedulerRef.current) schedulerRef.current = new ReviewScheduler(manager)
   const scheduler = schedulerRef.current
 
+  const reviewRef = useRef<GameReview | null>(null)
+  if (!reviewRef.current) {
+    reviewRef.current = new GameReview({ tree, store, scheduler, visits: REVIEW_VISITS })
+  }
+  const review = reviewRef.current
+
   const staleRef = useRef(false)
   const [, setTick] = useState(0)
   const bump = (): void => setTick((t) => t + 1)
@@ -145,12 +177,23 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   const [analyzingNodeId, setAnalyzingNodeId] = useState<number | null>(null)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
+  const [guessWaiting, setGuessWaiting] = useState(false) // true = el próximo clic en el tablero cuenta como adivinanza
+  const [guessBusy, setGuessBusy] = useState(false)
+  const [guessResult, setGuessResult] = useState<GuessAgainstEngineResult | null>(null)
+  const [guessErrorMsg, setGuessErrorMsg] = useState<string | null>(null)
+
   useEffect(() => {
     staleRef.current = false
     manager
       .ensureReady(ANALYZE_NETWORK, tree.meta.boardSize)
       .then(() => {
-        if (!staleRef.current) setBooting(false)
+        if (staleRef.current) return
+        setBooting(false)
+        // Fire-and-forget: si se `await`eara, `booting` no bajaría hasta terminar de analizar TODA
+        // la partida, matando la progresividad del review de fondo.
+        void review.start(() => {
+          if (!staleRef.current) bump()
+        })
       })
       .catch((e: unknown) => {
         if (staleRef.current) return
@@ -158,13 +201,24 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
         setBooting(false)
       })
 
+    // Refresca el ETA/porcentaje de progreso (depende de tiempo transcurrido, no solo de qué se
+    // completó). No hace falta pararlo cuando el review termina — YAGNI, ver brief de Task 10.
+    const progressTimer = setInterval(() => {
+      if (!staleRef.current) bump()
+    }, 1000)
+
     return () => {
       staleRef.current = true
+      clearInterval(progressTimer)
+      // Orden de dependencia (más legible, no estrictamente necesario: cada dispose() es
+      // idempotente/tolerante): review primero, luego scheduler (cancela todo lo que quede), luego
+      // manager.
+      review.dispose()
       scheduler.dispose()
       manager.dispose()
     }
-    // Se ejecuta una sola vez: `tree`/`manager`/`store`/`scheduler` son fijos durante la vida de
-    // este componente (una sesión de análisis = un montaje), mismo patrón que `ReadyPlayView`.
+    // Se ejecuta una sola vez: `tree`/`manager`/`store`/`scheduler`/`review` son fijos durante la
+    // vida de este componente (una sesión de análisis = un montaje), mismo patrón que `ReadyPlayView`.
   }, [])
 
   function handleAnalyzeClick(): void {
@@ -196,23 +250,87 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
       )
   }
 
-  function goFirst(): void {
-    tree.toRoot()
+  /** Único punto de salida de toda navegación (nav ⏮◀▶⏭, árbol, gráfico, turning point): además de
+   * repintar, cancela un modo-adivinanza en curso (una adivinanza pendiente queda sin sentido si el
+   * usuario navega a otra posición) — no-op si no había ninguna. */
+  function afterNavigate(): void {
+    setGuessWaiting(false)
     bump()
   }
+
+  function goFirst(): void {
+    tree.toRoot()
+    afterNavigate()
+  }
   function goPrev(): void {
-    if (tree.toParent()) bump()
+    if (tree.toParent()) afterNavigate()
   }
   function goNext(): void {
-    if (tree.toChild(0)) bump()
+    if (tree.toChild(0)) afterNavigate()
   }
   function goLast(): void {
     let moved = false
     while (tree.toChild(0)) moved = true
-    if (moved) bump()
+    if (moved) afterNavigate()
   }
   function handleTreeNavigate(node: GameNode): void {
-    if (tree.navigateToPath(tree.pathTo(node))) bump()
+    if (tree.navigateToPath(tree.pathTo(node))) afterNavigate()
+  }
+
+  /** `WinrateGraphPoint.moveNumber` indexa `[tree.root, ...tree.mainLine()]` (0 = raíz, 1 = primera
+   * jugada, …) — convención distinta de `MoveReportEntry.moveNumber`, ver `nodeForReportEntry`. */
+  function nodeForGraphPoint(point: WinrateGraphPoint): GameNode {
+    const nodes = [tree.root, ...tree.mainLine()]
+    return nodes[point.moveNumber]! // moveNumber YA coincide 1:1 con el índice de este array
+  }
+  /** `MoveReportEntry.moveNumber` indexa `tree.mainLine()` 1-based (raíz EXCLUIDA; entry con
+   * `moveNumber=1` es `mainLine()[0]`) — convención distinta de `WinrateGraphPoint.moveNumber`, ver
+   * `nodeForGraphPoint`. Un `MoveReportEntry` nunca representa la raíz, así que el índice siempre
+   * es válido, pero se tipa `| undefined` igualmente (`noUncheckedIndexedAccess`). */
+  function nodeForReportEntry(entry: MoveReportEntry): GameNode | undefined {
+    return tree.mainLine()[entry.moveNumber - 1]
+  }
+  function handleSelectGraphPoint(point: WinrateGraphPoint): void {
+    const node = nodeForGraphPoint(point)
+    if (tree.navigateToPath(tree.pathTo(node))) afterNavigate()
+  }
+  function handleSelectTurningPoint(entry: MoveReportEntry): void {
+    const node = nodeForReportEntry(entry)
+    if (node && tree.navigateToPath(tree.pathTo(node))) afterNavigate()
+  }
+
+  function handleGuessStart(): void {
+    setGuessWaiting(true)
+    setGuessResult(null)
+    setGuessErrorMsg(null)
+  }
+
+  function handleGuessCancel(): void {
+    setGuessWaiting(false)
+  }
+
+  function handleBoardGuessClick(v: [number, number]): void {
+    setGuessWaiting(false)
+    setGuessBusy(true)
+    const [x, y] = v
+    guessAgainstEngine({
+      pos: tree.positionAt(),
+      guess: { x, y },
+      visits: INTERACTIVE_VISITS, // reusa la MISMA constante del análisis interactivo puntual
+      scheduler,
+    }).then(
+      (result) => {
+        if (staleRef.current) return
+        setGuessBusy(false)
+        setGuessResult(result)
+      },
+      (e: unknown) => {
+        if (staleRef.current) return
+        setGuessBusy(false)
+        if (isAnalysisQueueCanceledError(e) || isAnalysisQueueStaleError(e)) return // benigno, mismo criterio que "Analizar esta posición"
+        setGuessErrorMsg(`No se pudo adivinar (${errorMessage(e)}).`)
+      },
+    )
   }
 
   const board = tree.boardAt()
@@ -228,6 +346,13 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   const lines = topMove ? buildPvLines(topMove, boardSize) : undefined
   const analyzing = analyzingNodeId === tree.current.id
 
+  const now = Date.now() // válido en render de un componente Preact real
+  const graphPoints = buildWinrateGraphData(tree, store, { smooth: true })
+  const totalMoves = tree.mainLine().length
+  const reviewProgress = review.progress(now)
+  const report = review.getLatestReport()
+  const turningPoints = report ? getReportTurningPoints(report.moveEntries) : []
+
   return (
     <div class="analyze-view">
       <div class="analyze-board">
@@ -238,6 +363,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
           lines={lines}
           vertexSize={VERTEX_SIZE[boardSize]}
           showCoordinates
+          onVertexClick={guessWaiting ? (_evt, v) => handleBoardGuessClick(v) : undefined}
         />
       </div>
       <aside class="analyze-panel">
@@ -254,6 +380,27 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
           {analyzing ? 'Analizando…' : 'Analizar esta posición'}
         </button>
         {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
+
+        <WinrateGraphPanel
+          points={graphPoints}
+          totalMoves={totalMoves}
+          currentNodeId={tree.current.id}
+          onSelectPoint={handleSelectGraphPoint}
+        />
+        <GameReviewPanel
+          progress={reviewProgress}
+          turningPoints={turningPoints}
+          onSelectEntry={handleSelectTurningPoint}
+        />
+        <GuessMovePanel
+          waiting={guessWaiting}
+          busy={guessBusy}
+          result={guessResult}
+          errorMsg={guessErrorMsg}
+          expectedLabel={guessResult ? formatVertexLabel(guessResult.expected, boardSize) : null}
+          onStart={handleGuessStart}
+          onCancel={handleGuessCancel}
+        />
 
         <div class="play-nav">
           <button onClick={goFirst} title="Primera jugada">

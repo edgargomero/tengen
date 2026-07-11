@@ -69,7 +69,7 @@ export class GameReview {
       tree: GameTree
       store: AnalysisStore
       scheduler: ReviewScheduler
-      /** Sin default deliberado — decisión de producto de quien construye `GameReview` (Task 9). */
+      /** Sin default deliberado — decisión de producto de quien construye `GameReview` (Task 10). */
       visits: number
     }
   ) {}

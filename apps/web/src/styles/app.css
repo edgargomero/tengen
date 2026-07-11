@@ -307,3 +307,99 @@ button.primary:hover:not(:disabled) {
   color: #777;
   font-size: 0.85rem;
 }
+
+/* ── Paneles del review de fondo (Fase 3a, Task 10) ─────────────────────────────────────────── */
+
+.review-graph {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-graph-svg {
+  width: 100%;
+  height: auto;
+}
+
+.review-graph-midline {
+  stroke: #ddd;
+  stroke-width: 1;
+}
+
+.review-graph-line {
+  stroke: #2f6fed;
+  stroke-width: 1.5;
+}
+
+.review-graph-point {
+  fill: #2f6fed;
+  cursor: pointer;
+}
+
+.review-graph-point-current {
+  fill: #b00020;
+  cursor: pointer;
+}
+
+.review-graph-empty {
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.review-progress {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.review-empty {
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.review-turning-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.review-entry {
+  width: 100%;
+  text-align: left;
+}
+
+.guess-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.guess-hint {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.guess-result {
+  font-weight: 600;
+}
+
+/* ── Clases de tono compartidas (Task 10): `summarizePointsLost`/`guessVerdict` ─────────────────── */
+
+.tone-success {
+  color: #1a7a3c;
+}
+
+.tone-warning {
+  color: #a06a00;
+}
+
+.tone-danger {
+  color: #b00020;
+}
