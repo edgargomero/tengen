@@ -15,6 +15,10 @@ interface GameTreePanelProps {
   /** Deshabilita todos los nodos (p.ej. mientras la IA piensa), igual que los botones de
    * navegación de `PlayView`; `onNavigate` ya no-opea con `busy`, esto es solo el reflejo visual. */
   disabled?: boolean
+  /** Anotación opcional junto a la etiqueta de cada nodo (incluida la raíz), p.ej. un indicador de
+   * "esta posición tiene análisis cacheado" (Modo Analizar, Fase 3a). Retro-compatible: PlayView
+   * (Fase 2) no la pasa — `undefined` en todos los nodos, sin cambio visual para Modo Jugar. */
+  annotationFor?(node: GameNode): string | undefined
 }
 
 /** Letras GTP (sin "I", convención de Go) para la columna de un vértice. */
@@ -62,9 +66,10 @@ interface BranchProps {
   currentId: number
   disabled: boolean
   onNavigate(node: GameNode): void
+  annotationFor?(node: GameNode): string | undefined
 }
 
-function Branch({ node, moveNumber, boardSize, currentId, disabled, onNavigate }: BranchProps) {
+function Branch({ node, moveNumber, boardSize, currentId, disabled, onNavigate, annotationFor }: BranchProps) {
   const line = straightLine(node)
   const tail = line[line.length - 1] ?? node
   return (
@@ -80,6 +85,7 @@ function Branch({ node, moveNumber, boardSize, currentId, disabled, onNavigate }
             onClick={() => onNavigate(n)}
           >
             {moveNumber + i}. {moveLabel(n, boardSize)}
+            {annotationFor?.(n) !== undefined ? ` ${annotationFor(n)}` : ''}
           </button>
         ))}
       </div>
@@ -94,6 +100,7 @@ function Branch({ node, moveNumber, boardSize, currentId, disabled, onNavigate }
               currentId={currentId}
               disabled={disabled}
               onNavigate={onNavigate}
+              annotationFor={annotationFor}
             />
           ))}
         </div>
@@ -102,7 +109,7 @@ function Branch({ node, moveNumber, boardSize, currentId, disabled, onNavigate }
   )
 }
 
-export function GameTreePanel({ tree, onNavigate, disabled = false }: GameTreePanelProps) {
+export function GameTreePanel({ tree, onNavigate, disabled = false, annotationFor }: GameTreePanelProps) {
   const { root, meta, current } = tree
   return (
     <div class="tree-panel">
@@ -113,6 +120,7 @@ export function GameTreePanel({ tree, onNavigate, disabled = false }: GameTreePa
         onClick={() => onNavigate(root)}
       >
         Inicio
+        {annotationFor?.(root) !== undefined ? ` ${annotationFor(root)}` : ''}
       </button>
       {root.children.length > 0 ? (
         <div class="tree-variations">
@@ -125,6 +133,7 @@ export function GameTreePanel({ tree, onNavigate, disabled = false }: GameTreePa
               currentId={current.id}
               disabled={disabled}
               onNavigate={onNavigate}
+              annotationFor={annotationFor}
             />
           ))}
         </div>

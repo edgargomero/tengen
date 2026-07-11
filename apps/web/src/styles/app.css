@@ -252,3 +252,58 @@ button.primary:hover:not(:disabled) {
   border-color: #2f6fed;
   color: #fff;
 }
+
+/* ── Pantalla de análisis (Fase 3a, Task 9) ─────────────────────────────────────────────────── */
+
+.analyze-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 2rem auto;
+  max-width: 64rem;
+  padding: 0 1rem;
+}
+
+.analyze-board {
+  flex: 0 0 auto;
+}
+
+.analyze-panel {
+  flex: 1 1 16rem;
+  min-width: 16rem;
+  max-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.analyze-panel p {
+  margin: 0;
+}
+
+.analyze-picker {
+  max-width: 28rem;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.analyze-picker h1 {
+  margin: 0;
+}
+
+.analyze-score {
+  font-weight: 600;
+}
+
+.analyze-score-hint {
+  color: #777;
+  font-size: 0.85rem;
+}
