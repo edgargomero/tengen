@@ -34,6 +34,12 @@ const ORT_DIST_CONTENT_TYPES: Record<string, string> = {
   '.wasm': 'application/wasm',
 }
 
+// Variante que la app pide en runtime bajo ep:'webgpu' (confirmado en navegador real —
+// ver "Hallazgo crítico" del plan de Fase 4). Solo esta variante, no las otras 3 de
+// onnxruntime-web (asyncify/jspi/plain) — ninguna otra vía de EP está configurada en la app
+// (`apps/web/src/appFactory.ts` hardcodea `ep: 'webgpu'`).
+const ORT_DIST_PROD_FILES = ['ort-wasm-simd-threaded.jsep.mjs', 'ort-wasm-simd-threaded.jsep.wasm']
+
 export default defineConfig({
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm'] },
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
@@ -95,6 +101,20 @@ export default defineConfig({
             .on('error', (err) => res.destroy(err))
             .pipe(res)
         })
+      },
+    },
+    {
+      // Copia el par jsep de onnxruntime-web a dist/ort-dist/ DESPUÉS del build — replica en
+      // build-time lo que serve-ort-dist hace en request-time (dev). Sin esto, `session.ts`
+      // (`packages/engine`) pide `/ort-dist/ort-wasm-simd-threaded.jsep.mjs` en producción y esa
+      // ruta no existe: el motor no inicializa (ver "Hallazgo crítico" del plan de Fase 4).
+      name: 'copy-ort-dist-prod',
+      closeBundle() {
+        const outDir = path.resolve(rootDir, 'dist/ort-dist')
+        fs.mkdirSync(outDir, { recursive: true })
+        for (const file of ORT_DIST_PROD_FILES) {
+          fs.copyFileSync(path.resolve(ortDist, file), path.resolve(outDir, file))
+        }
       },
     },
   ],
