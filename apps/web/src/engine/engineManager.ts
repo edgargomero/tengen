@@ -22,9 +22,13 @@
 // deseada; en otro caso reconstruye. Un crash marca el engine `alive=false` → el siguiente
 // `reconcile()` reconstruye (cubre también un worker que muere ESTANDO IDLE entre jugadas).
 //
-// ── Uso serial ────────────────────────────────────────────────────────────────────────────────
-// El manager asume operaciones EN SERIE (el bucle de juego por turnos hace `await` de cada op). NO
-// serializa ops concurrentes ni expone streaming de `analyze` (eso es Fase 3, YAGNI aquí).
+// ── Uso serial (genMove/analyzeToScore) + streaming (analyze) ───────────────────────────────────
+// `genMove`/`analyzeToScore` asumen operaciones EN SERIE (el bucle de juego por turnos hace `await`
+// de cada op); el manager NO serializa ops concurrentes entre sí. `analyze` (Fase 3a — Modo
+// Analizar, Task 2) SÍ es streaming de verdad: reenvía cada `onUpdate` del motor al caller (no
+// acumula ni resuelve una vez, a diferencia de `analyzeToScore`) y devuelve un `CancelFn` SÍNCRONO
+// pese a que `reconcile()` es async, para que un caller que navega rápido entre posiciones pueda
+// cancelar antes de que el análisis real llegue a arrancar.
 
 import type { Analysis, BoardSize, CancelFn, Engine, Move, NetworkId, Position, RankLevel } from '@tengen/engine'
 
@@ -138,6 +142,66 @@ export class EngineManager {
       // no-op de arriba; ahora que tiene el CancelFn real, córrelo para no dejar el análisis vivo.
       if (settled) cancel()
     })
+  }
+
+  /**
+   * Streaming de análisis de una posición arbitraria (Fase 3a — Modo Analizar): reenvía CADA
+   * `onUpdate` del motor al caller sin acumular ni filtrar (a diferencia de `analyzeToScore`, que
+   * consume los updates y resuelve una sola vez) — no hay concepto de "visits alcanzadas → parar
+   * solo" aquí, el caller (el scheduler de review) decide cuándo tiene suficiente y cancela él mismo.
+   *
+   * Devuelve un `CancelFn` SÍNCRONO aunque `reconcile()` sea async: si el caller cancela ANTES de
+   * que `reconcile()` resuelva (p.ej. navegación rápida entre posiciones), el flag `cancelled` hace
+   * que, cuando `reconcile()` sí resuelva, jamás se llegue a invocar `engine.analyze` ni se registre
+   * ningún listener de crash para esta llamada — nunca arranca un análisis ni deja un handler
+   * colgado para una operación que el caller ya abandonó. Si cancela DESPUÉS de que el análisis real
+   * arrancó, delega al `CancelFn` real devuelto por `engine.analyze` (mismo patrón `let cancel = ()
+   * => {}` + reasignación que usa `analyzeToScore`, incluido el caso "canceló durante la ráfaga
+   * síncrona de onUpdate, antes de que `engine.analyze` devolviera su CancelFn real").
+   *
+   * Un crash del worker se reporta vía `onError` (nunca deja la operación colgada en silencio ni
+   * como unhandled rejection): engancha `live.crash.catch(...)` como listener ADICIONAL a la red de
+   * seguridad de `build()`, sin competir con nada (este método no tiene una Promise que resolver).
+   * No reintenta tras un crash (a diferencia de `genMove`) — el caller decide si reintentar.
+   */
+  analyze(pos: Position, visits: number, onUpdate: (a: Analysis) => void, onError?: (e: unknown) => void): CancelFn {
+    let cancelled = false
+    let realCancel: CancelFn = () => {}
+
+    void this.reconcile()
+      .then(() => {
+        if (cancelled) return // cancelado ANTES de que reconcile() resolviera: nunca arranca, sin listener de crash
+        const live = this.requireLive()
+        live.crash.catch((e) => {
+          if (!cancelled) onError?.(e)
+        })
+        const cancelReal = live.managed.engine.analyze(
+          pos,
+          { visits },
+          (a) => {
+            if (!cancelled) onUpdate(a)
+          },
+          (e) => {
+            if (!cancelled) onError?.(e)
+          },
+        )
+        realCancel = cancelReal
+        // Si el caller canceló DURANTE la ráfaga síncrona de onUpdate de arriba (antes de que
+        // `engine.analyze` devolviera su CancelFn real), `realCancel` aún era el no-op de arriba
+        // cuando se invocó `cancel()`; ahora que tiene el CancelFn real, córrelo para no dejar el
+        // análisis vivo (mismo remate que usa `analyzeToScore` con `if (settled) cancel()`).
+        if (cancelled) cancelReal()
+      })
+      .catch((e) => {
+        // reconcile() rechazó (p.ej. crash del worker durante el init/rebuild): repórtalo en vez de
+        // dejarlo como unhandled rejection.
+        if (!cancelled) onError?.(e)
+      })
+
+    return () => {
+      cancelled = true
+      realCancel()
+    }
   }
 
   /** Termina el managed engine actual y deja el manager en estado no-inicializado. */

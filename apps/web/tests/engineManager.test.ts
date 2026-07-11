@@ -36,6 +36,9 @@ class FakeEngine implements Engine {
   /** Chunks que `analyze` emite SÍNCRONAMENTE al invocarse (útil con fake timers). */
   analyzeChunks: Analysis[] = []
   analyzeCancelled = false
+  /** Si se programa, `analyze` invoca el 4º parámetro (`onError`, canal de error POR-LLAMADA del
+   *  motor — distinto del crash del Worker) SÍNCRONAMENTE con este valor, tras emitir los chunks. */
+  analyzeErrorToFire: unknown | undefined = undefined
 
   async init(config: { network: NetworkId; boardSize: BoardSize }): Promise<void> {
     this.initCalls.push(config)
@@ -44,9 +47,10 @@ class FakeEngine implements Engine {
     this.genMoveCalls++
     return this.genMoveImpl(pos, opts)
   }
-  analyze(_pos: Position, _opts: { visits: number }, onUpdate: (a: Analysis) => void): CancelFn {
+  analyze(_pos: Position, _opts: { visits: number }, onUpdate: (a: Analysis) => void, onError?: (e: unknown) => void): CancelFn {
     this.analyzeCalls++
     for (const chunk of this.analyzeChunks) onUpdate(chunk)
+    if (this.analyzeErrorToFire !== undefined) onError?.(this.analyzeErrorToFire)
     return () => {
       this.analyzeCancelled = true
     }
@@ -252,6 +256,115 @@ describe('EngineManager.analyzeToScore', () => {
     const expectation = expect(p).rejects.toThrow()
     await vi.advanceTimersByTimeAsync(5000)
     await expectation
+  })
+})
+
+describe('EngineManager.analyze', () => {
+  it('reenvía cada onUpdate del motor mock (streaming: no solo el último)', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [mkAnalysis(32), mkAnalysis(64), mkAnalysis(100)]
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const updates: Analysis[] = []
+    mgr.analyze(POS, 100, (a) => updates.push(a))
+    await flush()
+
+    expect(updates.map((a) => a.visits)).toEqual([32, 64, 100])
+    expect(instances[0]!.engine.analyzeCalls).toBe(1)
+  })
+
+  it('cancelar vía el CancelFn devuelto detiene los onUpdate futuros e invoca el CancelFn real del motor', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [mkAnalysis(32), mkAnalysis(64), mkAnalysis(100)]
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const updates: Analysis[] = []
+    const cancel = mgr.analyze(POS, 100, (a) => {
+      updates.push(a)
+      if (updates.length === 1) cancel() // cancela desde dentro del primer onUpdate
+    })
+    await flush()
+
+    // Solo el primer chunk llegó al caller (los demás se filtraron tras cancelar), y el CancelFn
+    // real del motor sí se invocó (no es solo un no-op local).
+    expect(updates.map((a) => a.visits)).toEqual([32])
+    expect(instances[0]!.engine.analyzeCancelled).toBe(true)
+  })
+
+  it('un crash del worker durante un analyze en curso invoca onError (no deja la operación colgada)', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [] // el mock no completa por sí solo: el análisis queda "en curso"
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const errors: unknown[] = []
+    mgr.analyze(POS, 100, () => {}, (e) => errors.push(e))
+    await flush() // deja que reconcile (no-op) resuelva y engine.analyze arranque
+    instances[0]!.fireError(new Error('worker murió'))
+    await flush()
+
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toBeInstanceOf(WorkerCrashError)
+  })
+
+  it('un error determinista por-llamada del motor (4º parámetro de engine.analyze, distinto de un crash) se reenvía a onError', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [mkAnalysis(32)]
+      engine.analyzeErrorToFire = new Error('motor: red sin meta_input para Human SL')
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const errors: unknown[] = []
+    mgr.analyze(POS, 100, () => {}, (e) => errors.push(e))
+    await flush()
+
+    expect(instances[0]!.engine.analyzeCalls).toBe(1)
+    expect(errors).toEqual([new Error('motor: red sin meta_input para Human SL')])
+  })
+
+  it('cancelar suprime el error determinista por-llamada si llega DESPUÉS de cancelar (el caller ya se fue)', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [mkAnalysis(32)] // el mock emite este chunk y RECIÉN DESPUÉS dispara el error
+      engine.analyzeErrorToFire = new Error('tardío, tras cancelar')
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const errors: unknown[] = []
+    // Cancela desde DENTRO del primer (único) onUpdate: para cuando el mock dispara `analyzeErrorToFire`
+    // (después de agotar `analyzeChunks`, mismo tick), `cancelled` ya es true.
+    const cancel = mgr.analyze(POS, 100, () => cancel(), (e) => errors.push(e))
+    await flush()
+
+    expect(instances[0]!.engine.analyzeCalls).toBe(1)
+    expect(errors).toHaveLength(0)
+  })
+
+  it('cancelar INMEDIATAMENTE (antes de que reconcile() resuelva) evita invocar engine.analyze y no deja listener de crash huérfano', async () => {
+    const { factory, instances } = makeHarness((engine) => {
+      engine.analyzeChunks = [mkAnalysis(50)]
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const errors: unknown[] = []
+    const cancel = mgr.analyze(POS, 100, () => {}, (e) => errors.push(e))
+    cancel() // síncrono: reconcile() todavía no resolvió (su promesa se asienta en un microtask)
+
+    await flush()
+    expect(instances[0]!.engine.analyzeCalls).toBe(0)
+
+    // Un crash DESPUÉS de la cancelación temprana no debe reportarse: el caller ya se fue y este
+    // analyze nunca llegó a registrar un listener de crash.
+    instances[0]!.fireError(new Error('crash tardío, tras cancelación temprana'))
+    await flush()
+    expect(errors).toHaveLength(0)
   })
 })
 
