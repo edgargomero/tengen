@@ -54,6 +54,12 @@ la licencia MIT original del proyecto:
     AnalysisQueue();` — un singleton de módulo; `reviewScheduler.ts` (nativo,
     no portado) instancia su propia AnalysisQueue por sesión de Analizar)
 
+  - src/analysis/vendor/web-katrain/gameAnalysisProgress.ts (origen:
+    src/utils/gameAnalysisProgress.ts — verbatim, sin cambios: archivo
+    autocontenido de 58 líneas, sin dependencias externas ni de tipos de
+    web-katrain. Consumido por src/analysis/gameReview.ts (nativo, no
+    portado), que expone su resultado a través de `GameReview.progress()`)
+
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
 releases de upstream se documentan en
