@@ -210,4 +210,40 @@ Plan: `docs/superpowers/plans/2026-07-10-fase2-jugar.md`. Estrategia: subagent-d
   - **Decisión propia del implementer (no en brief, anotada para el gate):** tras importar, adelanta el cursor al tip de la main line (`while toChild(0)`) para mostrar la posición final; esto es la CAUSA de que un import de partida NO-terminada con turno Blanco dispare la IA (coherente con humano=Negro/IA=Blanco + "import comparte el camino de restore"). Decisión de producto para el eyeball de Edgar, NO gap de spec (el brief no pidió modo-revisión).
   - **GATE DE EDGAR (browser Chrome/WebGPU real — R1/R2/R4 son UI-wired, sin cobertura auto):** (1) exploración multi-jugada: navegar atrás, jugar variación de 2+ movimientos alternando color, la IA NUNCA interviene, banner "Modo exploración"; re-jugar la secuencia real → reencuentra la main line → la IA vuelve a responder. (2) Export→Import round-trip: tablero/árbol/turno idénticos. (3) recargar → restaura donde quedó (incl. si toca IA → retoma sola). (4) restaurar partida TERMINADA (resign/2-pases) → "Partida terminada"+resultado de inmediato, sin flash de "Preparando motor…"/"IA pensando…", no revive. (5) import SGF no-terminado turno Blanco → la IA juega (esperado, eyeball de producto). (6) "Preparando motor…" durante la carga, cambia a "IA pensando…" solo en turno Blanco real. (7) panel de árbol legible con variaciones (`.tree-panel` max-height 16rem + scroll).
 
-## Fase 2 — Tasks 1–5 COMPLETAS. PRÓXIMA ACCIÓN: review final whole-branch (Workflow multi-agente, ultracode) sobre `d89a0a2..HEAD` + `finishing-a-development-branch`. Push a origin/main SOLO con confirmación de Edgar.
+## CIERRE Fase 2 — COMPLETA en código (Tasks 1–5 + review final + fix wave + pulido). Pendiente: gate manual de browser de Edgar + push a origin/main (con su OK).
+
+### Review final whole-branch (Workflow multi-agente, ultracode, `d89a0a2..HEAD`)
+- Workflow `wf_89e9b162-698`: 6 dimensiones (corrección/anti-corrupción, runtime-safety, test-quality, simplificación, integración-contratos, licencias) → **verificación adversarial por-hallazgo** (default: refutar) → síntesis con triage. 20 agentes, 0 errores. La dimensión "licenses" retornó findings:[] — CORRECTO (GameTreePanel.tsx 100% tengen; apps/web USA @sabaki/* como deps npm, no copia código).
+- **Veredicto: mergeable=true tras una fix wave.** 10 hallazgos confirmados (tras dedup cross-dimensión → 4 mustFix + 4 deferred + 2 adicionales que el controlador trió a mano).
+- **Overturn notable:** la verificación adversarial REFUTÓ la disposición previa del ledger de M5.1 ("benigno, R2 autoriza"): en el orden IA-pasa-primero, una partida terminada por dos pases SÍ revive al recargar (la IA juega tras el fin, o el humano puede clickear) → M5.1 promovido de "diferido" a "arreglar ahora". Lección: un review por-tarea aceptó un razonamiento incompleto; solo el review adversarial independiente lo desmontó.
+
+### Fix wave (commit `7472a49`, sonnet; review de la fix wave por opus: Approved, 0 Critical/0 Important, 2 Minors)
+Los 5 defectos del review, todos verificados de primera mano por el controlador contra el código real ANTES de despachar (a pedido de Edgar):
+- **FIX 1 [Important]:** import de SGF ilegal (overwrite/ko/suicidio, o HA de colocación libre cuyo hoshi regenerado colisiona) crasheaba TODA la SPA (throw en el render de ReadyPlayView, fuera del try, sin error boundary). Fix: `isMoveSequenceLegal` (rules.ts, pura/no-lanzante) valida la main line DENTRO del try de `handleImportFile` (cursor avanzado al tip ANTES de validar → línea validada == línea renderizada) + `ErrorBoundary` de Preact (getDerivedStateFromError/componentDidCatch) envuelve `<App/>` como red para variaciones ilegales navegadas.
+- **FIX 2 [Minor confirmado]:** partida de dos-pases resucitaba al recargar. Fix: `boot()` detecta `isGameOverByTwoPasses` → `endedRef.current=true` (cierra AMBOS paths: el aiTurn por su guard, y el click humano vía isExploring) sin re-correr analyzeToScore; el catch de `finishTurn` persiste `meta.result='Void'` (RE-válido).
+- **FIX 3 [Minor]:** pase legacy `tt`/off-board importado como jugada fantasma → `moveFromData(data, boardSize)` trata off-board como pass.
+- **FIX 4 [Minor]:** import no persistía → `saveGame` en la secuencia validar→saveGame→onImport.
+- **FIX 6 [Minor correctness]:** `importSgf` no normalizaba `HA[1]`→0 → `handicap:1` espurio al motor; normalizado (no rompe el round-trip de Task 2, que nunca emite HA[1]).
+- Tests: web 139→150 (+5 `isMoveSequenceLegal` en rules.test.ts, +6 en sgf.test.ts para FIX 3/6), RED→GREEN.
+
+### Pulido del review de la fix wave (commit `e0a1762`, controlador directo — 2 Minors triviales)
+- `saveGame` de `handleImportFile` ahora best-effort (try/catch propio, como `persist()`): un fallo de storage (modo privado/quota) en un import VÁLIDO ya no lo aborta con el mensaje engañoso "No se pudo importar el SGF".
+- Test Node del round-trip de `meta.result='Void'` + supervivencia de los dos pases (guarda FIX 2). web 150→**151**.
+
+### Deuda DIFERIDA a una fase de robustez posterior (NO va al gate de Edgar — invisible a un eyeball de browser; registrada aquí para no perderla)
+- **genMove/analyze no-cancelables (engineManager.ts:146):** un `genMove`/`analyze` en vuelo NO settlea al `dispose()`/reconcile (el Worker terminado no emite 'error'/'move') → la cadena aiTurn→genMove queda pendiente (fuga acotada por acción); y `handleResign` no cancela la búsqueda del motor (cómputo desperdiciado hasta autoterminar). Fix no-trivial: exponer cancelación en EngineManager (error distinto de WorkerCrashError) + rechazar el pending Map + cablear resign. Relacionado con M-1 del review de la fase engine ("un Worker por rol o cancelación por-id").
+- **Test de `crash.catch` idle (engineManager.ts:184):** la línea anti-unhandled-rejection ante crash IDLE (sin op en vuelo) no tiene test; borrarla deja los 11 tests verdes y el fallo solo aparece en browser. Añadir 2 tests con la harness `fireError` (idle + init-que-nunca-resuelve).
+- Cobertura de la frontera 'Draw' de `formatResult` (banda cercana-a-cero); duplicación del mapeo GameConfig (restoreSession↔handleImportFile) y de la secuencia post-jugada (handleVertexClick↔handlePass) — pulido/refactor.
+- Minors del ledger de Tasks 1–4 (M1.1–M4.3) y de Task 5 (M5.2–M5.5): triados como `defer` por la síntesis (cobertura de test, cosméticos, UX-en-browser que cubre el gate de Edgar, y edges de contrato ya aceptados).
+
+### Evidencia primaria final (corrida por el controlador en HEAD `e0a1762`)
+- Motor `npm test` **88/88** (17 files) · Web `npm test` **151/151** (11 files) · Web `tsc --noEmit` **0** · Web `vite build` **exit 0**. Árbol limpio. `main` 14 commits ahead de `origin/main`, no pusheado.
+
+### GATE MANUAL de Edgar (Chrome/WebGPU real — headless no soporta WebGPU; R1/R2/R4 y toda la UI son UI-wired, sin cobertura auto)
+1. Partida completa 9×9/13×13/19×19 vs KataGo(200) y Human SL(rank); pasar×2→score; rendirse→W+R/B+R; handicap 19×19 (Blanco abre).
+2. Exploración de variaciones: navegar atrás, jugar 2+ movimientos alternando color → la IA NUNCA interviene, banner "Modo exploración"; re-jugar la secuencia real → reencuentra la main line → la IA vuelve a responder.
+3. Export→Import round-trip idéntico; **importar un SGF ILEGAL → mensaje "No se pudo importar…" recuperable, SIN pantalla blanca** (FIX 1); import de partida no-terminada con turno Blanco → la IA juega (esperado, eyeball de producto).
+4. Recargar → restaura donde quedó (incl. si toca IA → retoma sola); **restaurar partida TERMINADA (resign/2-pases) → "Partida terminada"+resultado de inmediato, no revive** (FIX 2); import→recargar antes de jugar → persiste el import (FIX 4).
+5. "Nueva partida" mid-genMove sin errores de consola; "Preparando motor…" durante la carga (no "IA pensando…"); panel de árbol legible con variaciones.
+
+**PENDIENTE: gate manual de Edgar + `git push` a `origin/main` (14 commits) SOLO con su confirmación explícita.**
