@@ -95,6 +95,14 @@ export type CancelFn = () => void
 export interface Engine {
   init(config: { network: NetworkId; boardSize: BoardSize }): Promise<void>
   genMove(pos: Position, opts: { level: RankLevel }): Promise<Move>
-  analyze(pos: Position, opts: { visits: number }, onUpdate: (a: Analysis) => void): CancelFn
+  // `onError` (4º parámetro, opcional): canal de error POR-LLAMADA — si el motor lanza durante este
+  // `analyze` específico, se invoca en vez de perderse en silencio (Fase 3a Task 1, M-2). Aditivo: los
+  // callers de Fase 2 que sólo pasan 3 argumentos siguen funcionando sin cambios.
+  analyze(
+    pos: Position,
+    opts: { visits: number },
+    onUpdate: (a: Analysis) => void,
+    onError?: (e: unknown) => void,
+  ): CancelFn
   stop(): void
 }

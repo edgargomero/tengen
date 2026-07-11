@@ -84,14 +84,21 @@ async function defaultEvaluatorFactory(net: NetworkId, boardSize: BoardSize): Pr
   return OnnxEvaluator.create(`/models/${files[net]}`, { boardSize, ep: 'webgpu' })
 }
 
+/** Token de cancelación POR-LLAMADA (Fase 3a Task 1, M-1): cada `genMove`/`analyze` crea el suyo y lo
+ *  captura en su propia clausura (leído por `shouldAbort` en `run()`). Reemplaza el flag ÚNICO de
+ *  instancia de antes, que hacía que cancelar UNA llamada cancelara TODAS las demás en vuelo/encoladas. */
+type CancelToken = { cancelled: boolean }
+
 export class LocalEngine implements Engine {
   private readonly evaluatorFactory: (net: NetworkId, boardSize: BoardSize) => Promise<NNEvaluator>
   private readonly rng: () => number
   private evaluator: NNEvaluator | undefined
   private boardSize: BoardSize | undefined
-  /** Flag ÚNICO de cancelación cooperativa: leído por `shouldAbort` en `run()`; lo alzan tanto la
-   *  `CancelFn` de `analyze` como `stop()`. Se resetea al entrar a `genMove`/`analyze`. */
-  private cancelled = false
+  /** Token de la operación (`genMove`/`analyze`) actualmente activa: es lo único que `stop()` (global)
+   *  puede tocar. Cada llamada se apunta a sí misma aquí al arrancar; la última en arrancar "gana" —
+   *  mismo alcance que el flag único de antes, pero ahora conviviendo con tokens por-llamada para la
+   *  `CancelFn` propia de cada `analyze` (que cancela SÓLO su propio token, nunca `activeToken`). */
+  private activeToken: CancelToken | undefined
 
   constructor(deps?: {
     evaluatorFactory?: (net: NetworkId, boardSize: BoardSize) => Promise<NNEvaluator>
@@ -109,7 +116,8 @@ export class LocalEngine implements Engine {
   }
 
   async genMove(pos: Position, opts: { level: RankLevel }): Promise<Move> {
-    this.cancelled = false
+    const token: CancelToken = { cancelled: false }
+    this.activeToken = token
     const evaluator = this.requireInit(pos)
 
     if (opts.level.kind === 'kata') {
@@ -119,7 +127,7 @@ export class LocalEngine implements Engine {
         visits: opts.level.visits,
         maxTimeMs: 600_000,
         batchSize: 8,
-        shouldAbort: () => this.cancelled,
+        shouldAbort: () => token.cancelled,
       })
       const a = search.getAnalysis({ topK: 1, analysisPvLen: 0 })
       const best = a.moves.find((m) => m.order === 0)
@@ -150,20 +158,27 @@ export class LocalEngine implements Engine {
     })
   }
 
-  // Extensión de Task 13 (retrocompatible): `hooks` opcionales para señalar completado natural y
-  // error. Añadir parámetros OPCIONALES mantiene `implements Engine` (el método de la interfaz es
-  // `(pos,opts,onUpdate)=>CancelFn`; un impl con params opcionales extra es asignable). Los callers de
-  // Task 12 (sin hooks) conservan el comportamiento previo: `analyze` seguía tragando errores en
-  // silencio y no señalaba fin, y sin ese contrato el Worker no podría emitir `{final:true}`/`error`.
+  // `onError` (4º parámetro, Fase 3a Task 1, M-2): canal de error PÚBLICO por-llamada — antes sólo
+  // existía vía `hooks` (uso interno del Worker) y los callers de Fase 2 (analyze con 3 args) tragaban
+  // el error en silencio. `hooks` (5º parámetro, uso interno del Worker) conserva SÓLO `onDone`
+  // (completado natural: target ≥ visits, sin cancelar) — `onError` se promovió a parámetro público.
+  // Añadir parámetros OPCIONALES mantiene `implements Engine` (un impl con params opcionales extra al
+  // final es asignable a la firma de la interfaz).
+  //
+  // Cancelación POR-LLAMADA (M-1): cada `analyze` crea su propio `CancelToken`, capturado en la
+  // clausura de la `CancelFn` devuelta Y en el `shouldAbort` pasado al MCTS — cancelar ESTA llamada
+  // nunca toca el token de otra `analyze`/`genMove` en vuelo o encolada.
   analyze(
     pos: Position,
     opts: { visits: number },
     onUpdate: (a: Analysis) => void,
-    hooks?: { onDone?: (a: Analysis) => void; onError?: (e: unknown) => void },
+    onError?: (e: unknown) => void,
+    hooks?: { onDone?: (a: Analysis) => void },
   ): CancelFn {
-    this.cancelled = false
+    const token: CancelToken = { cancelled: false }
+    this.activeToken = token
     const cancel: CancelFn = () => {
-      this.cancelled = true
+      token.cancelled = true
     }
     void (async () => {
       try {
@@ -174,34 +189,35 @@ export class LocalEngine implements Engine {
         const CHUNK = 32
         let target = 0
         let last: Analysis | undefined
-        while (target < opts.visits && !this.cancelled) {
+        while (target < opts.visits && !token.cancelled) {
           target = Math.min(target + CHUNK, opts.visits)
           await search.run({
             visits: target,
             maxTimeMs: 600_000,
             batchSize: 8,
-            shouldAbort: () => this.cancelled,
+            shouldAbort: () => token.cancelled,
           })
-          if (this.cancelled) break
-          last = mapAnalysis(search.getAnalysis({ topK: 30, analysisPvLen: 10 }), N)
+          if (token.cancelled) break
+          last = mapAnalysis(search.getAnalysis({ topK: 50, analysisPvLen: 10 }), N)
           onUpdate(last)
         }
         // `onDone` señala SÓLO el completado natural (target ≥ visits, sin cancelar). La cancelación NO
         // dispara ningún hook (el Worker resuelve la cancelación client-side; no emite mensaje).
-        if (!this.cancelled && last !== undefined) hooks?.onDone?.(last)
+        if (!token.cancelled && last !== undefined) hooks?.onDone?.(last)
       } catch (e) {
-        // Sin hooks (callers de Task 12): traga en silencio para no rechazar una promesa flotante
-        // (rompe vitest). Con hook, el Worker traduce el error a un mensaje 'error'.
-        hooks?.onError?.(e)
+        // Sin `onError` (callers de Fase 2, 3 args): traga en silencio para no rechazar una promesa
+        // flotante (rompe vitest). Con `onError` (el Worker lo pasa siempre), lo propaga.
+        onError?.(e)
       }
     })()
     return cancel
   }
 
   stop(): void {
-    // Mismo flag que la `CancelFn` de `analyze`: leído por `shouldAbort` en `run()`. También aborta un
-    // `genMove` kata en vuelo.
-    this.cancelled = true
+    // Cancelación GLOBAL: corta lo que esté activo AHORA MISMO (el `genMove`/`analyze` más reciente en
+    // arrancar), sin tocar tokens de operaciones ya finalizadas. Comportamiento equivalente al flag
+    // único de antes, pero implementado sobre el token de la operación activa.
+    if (this.activeToken !== undefined) this.activeToken.cancelled = true
   }
 
   /** Valida que se llamó `init()` y que el tablero de `pos` coincide con el de esta instancia

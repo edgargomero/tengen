@@ -4,7 +4,7 @@
 // `apps/web/src/engine.worker.ts` (entrada del browser de la app, con su propia factory). Movido aquí
 // desde `engine.worker.ts` para que importarlo NO arrastre el side-effect de auto-cableado del browser.
 
-import type { Analysis } from '../types'
+import type { Analysis, CancelFn } from '../types'
 import { LocalEngine } from '../engine'
 import { transferablesOf, type WorkerRequest, type WorkerResponse } from './protocol'
 
@@ -18,30 +18,37 @@ function errorMessage(e: unknown): string {
 
 /**
  * Fábrica del manejador de mensajes del Worker. Recibe un `LocalEngine` (la extensión de `analyze`
- * con hooks `onDone`/`onError` vive en la clase concreta, no en la interfaz pública `Engine`) y un
+ * con hook `onDone`/canal `onError` vive en la clase concreta, no en la interfaz pública `Engine`) y un
  * `post` para responder. Devuelve `(req) => void` para cablear a `onmessage`.
  *
  * Concurrencia:
  * - `init`/`genMove`/`analyze` se ENCOLAN en serie (`queue = queue.then(...)`) y se esperan a
  *   completar: el scratch del MCTS (`expandScratch` en analyzeMcts.ts) es global y no reentrante.
- * - `stop` se maneja al RECIBIR, FUERA de la cola. Si pasara por la misma cola quedaría encolado
- *   detrás del `analyze` en vuelo —que sólo termina al cancelarse— produciendo un DEADLOCK: `stop`
- *   nunca correría y `analyze` nunca pararía. Sólo hace `engine.stop()` (flip del flag cooperativo) y
- *   resuelve la entrada de cola del `analyze` activo. Esa resolución es imprescindible: la cancelación
- *   NO dispara `onDone`/`onError` (contrato de `final`), así que sin ella la entrada quedaría colgada.
+ * - `stop`/`stopAll` se manejan al RECIBIR, FUERA de la cola. Si pasaran por la misma cola quedarían
+ *   encolados detrás del `analyze` en vuelo —que sólo termina al cancelarse— produciendo un DEADLOCK.
  *
- * Nota (sub-especificado, documentado en el reporte de Task 13): una operación de búsqueda encolada
- * INMEDIATAMENTE tras un `stop` puede reiniciar el flag `cancelled` mientras el IIFE de `analyze`
- * cancelado aún se desenrolla. Al ser JS mono-hilo no hay corrupción del scratch (buffer transitorio,
- * sin `await` en su ventana viva); el residuo es lógico (un `onUpdate` tardío para un id ya detenido,
- * que el cliente ignora porque borró su callback). Cerrarlo requeriría una señal de asentamiento de
- * cancelación que el set fijo de dos hooks omite a propósito → fuera de scope.
+ * Cancelación por-id (Fase 3a Task 1, M-1): `activeCancels`/`activeFinishers` registran, por `id` de
+ * request, la `CancelFn` y el resolutor de cola de cada `analyze` justo al arrancar. `stop{targetId}`
+ * cancela SÓLO esa entrada: si ya está en los Maps (en vuelo), la cancela y libera su entrada de cola;
+ * si aún no arrancó (encolado detrás de otra operación), se marca en `preCancelled` para que
+ * `handleAnalyze` la salte por completo cuando la cola la alcance — nunca llega a invocar
+ * `engine.analyze`. `stopAll` es el comportamiento global de antes (teardown/crash-recovery): corta
+ * TODO lo activo vía `engine.stop()` + drena todos los resolutores en vuelo + limpia los tres registros.
+ *
+ * Nota (sub-especificado, heredado del diseño de Task 13): una operación DISTINTA que arranca justo
+ * tras cancelar la activa puede resetear el token cooperativo de esta última mientras su IIFE aún se
+ * desenrolla. Al ser JS mono-hilo no hay corrupción de datos entre tokens (cada `analyze` tiene el
+ * suyo); el residuo es lógico (un `onUpdate` tardío para un id ya detenido, que el cliente ignora
+ * porque borró su callback).
  */
 export function createWorkerHandler(engine: LocalEngine, post: PostFn): (req: WorkerRequest) => void {
   let queue: Promise<void> = Promise.resolve()
-  // Resolutor de la entrada de cola del `analyze` en vuelo (undefined si no hay ninguno). Lo invoca el
-  // handler de `stop` para desbloquear la cola al cancelar (ver doc arriba).
-  let resolveActiveAnalyze: (() => void) | undefined
+  // `CancelFn`/resolutor de cola de cada `analyze` REGISTRADO (en vuelo o recién arrancado), por `id`.
+  const activeCancels = new Map<number, CancelFn>()
+  const activeFinishers = new Map<number, () => void>()
+  // Ids cancelados MIENTRAS seguían encolados (aún no llegaron a `activeCancels`): `handleAnalyze` los
+  // consulta al arrancar y, si están aquí, se salta por completo (nunca invoca `engine.analyze`).
+  const preCancelled = new Set<number>()
 
   const enqueue = (task: () => Promise<void>): void => {
     // `.catch` defensivo: una tarea nunca debe dejar la cola en estado rechazado (colgaría las
@@ -69,47 +76,77 @@ export function createWorkerHandler(engine: LocalEngine, post: PostFn): (req: Wo
 
   const handleAnalyze = (req: Extract<WorkerRequest, { type: 'analyze' }>): Promise<void> => {
     return new Promise<void>((resolve) => {
+      // Se canceló mientras seguía encolado (nunca llegó a `activeCancels`): saltar por completo, sin
+      // invocar `engine.analyze`. `.delete` consume la marca (uso único).
+      if (preCancelled.delete(req.id)) {
+        resolve()
+        return
+      }
       let settled = false
       const finish = (): void => {
         if (settled) return
         settled = true
-        resolveActiveAnalyze = undefined
+        activeCancels.delete(req.id)
+        activeFinishers.delete(req.id)
         resolve()
       }
       const emit = (analysis: Analysis, final: boolean): void => {
         const msg: WorkerResponse = { type: 'analysis', id: req.id, analysis, final }
         post(msg, transferablesOf(msg))
       }
-      // Registrar el resolutor ANTES de lanzar: un `stop` puede llegar en cuanto el primer `await`
-      // interno ceda el control.
-      resolveActiveAnalyze = finish
-      engine.analyze(
+      const cancelFn = engine.analyze(
         req.pos,
         { visits: req.visits },
         (a) => emit(a, false),
+        // Error: lo traduce a mensaje y desbloquea la cola.
+        (e) => {
+          post({ type: 'error', id: req.id, message: errorMessage(e) })
+          finish()
+        },
         {
           // Completado natural (target ≥ visits): emite el `final:true` y desbloquea la cola.
           onDone: (a) => {
             emit(a, true)
             finish()
           },
-          // Error: lo traduce a mensaje y desbloquea la cola.
-          onError: (e) => {
-            post({ type: 'error', id: req.id, message: errorMessage(e) })
-            finish()
-          },
         },
       )
+      // Registrar ANTES de que el próximo mensaje pueda procesarse: un `stop{targetId:req.id}` para
+      // ESTE id sólo puede llegar en un mensaje posterior (JS mono-hilo), así que esto ya corre a
+      // tiempo para cualquier cancelación dirigida a esta operación.
+      activeCancels.set(req.id, cancelFn)
+      activeFinishers.set(req.id, finish)
     })
   }
 
   return (req: WorkerRequest): void => {
     switch (req.type) {
-      case 'stop':
+      case 'stop': {
         // BYPASS de la cola (ver doc de la fábrica): se maneja de inmediato para no caer en deadlock.
-        engine.stop()
-        resolveActiveAnalyze?.()
+        // Cancela SÓLO `req.targetId`, nunca lo que esté activo si no coincide.
+        const cancelTarget = activeCancels.get(req.targetId)
+        if (cancelTarget !== undefined) {
+          cancelTarget()
+          // Esa resolución es imprescindible: la cancelación NO dispara `onDone`/`onError` (contrato
+          // de `final`), así que sin ella la entrada de cola quedaría colgada.
+          activeFinishers.get(req.targetId)?.()
+        } else {
+          // Aún no arrancó (sigue encolado detrás de otra operación): marcarlo para que se salte por
+          // completo cuando la cola lo alcance.
+          preCancelled.add(req.targetId)
+        }
         break
+      }
+      case 'stopAll': {
+        // BYPASS de la cola: comportamiento global de antes (teardown/crash-recovery). Corta TODO lo
+        // activo y drena cualquier entrada de cola pendiente.
+        engine.stop()
+        for (const finish of Array.from(activeFinishers.values())) finish()
+        activeCancels.clear()
+        activeFinishers.clear()
+        preCancelled.clear()
+        break
+      }
       case 'init':
         enqueue(() => handleInit(req))
         break

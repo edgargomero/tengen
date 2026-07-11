@@ -7,12 +7,15 @@
 import type { Analysis, BoardSize, Move, NetworkId, Position, RankLevel } from '../types'
 
 /** Hilo principal → Worker. `id` correlaciona la respuesta; el Worker encola init/genMove/analyze en
- *  serie (scratch del MCTS no reentrante) y trata `stop` fuera de la cola (ver engine.worker.ts). */
+ *  serie (scratch del MCTS no reentrante) y trata `stop`/`stopAll` fuera de la cola (ver handler.ts).
+ *  `stop` cancela SÓLO la operación `targetId` (cancelación por-id, Fase 3a Task 1); `stopAll` es el
+ *  comportamiento global de antes (teardown/crash-recovery): cancela TODO lo en vuelo/encolado. */
 export type WorkerRequest =
   | { type: 'init'; id: number; network: NetworkId; boardSize: BoardSize }
   | { type: 'genMove'; id: number; pos: Position; level: RankLevel }
   | { type: 'analyze'; id: number; pos: Position; visits: number }
-  | { type: 'stop'; id: number }
+  | { type: 'stop'; id: number; targetId: number }
+  | { type: 'stopAll'; id: number }
 
 /** Worker → hilo principal. `analysis` es un par streaming: `final:false` por chunk y `final:true` al
  *  completar de forma natural (la cancelación NO emite mensaje; se resuelve client-side). */
@@ -36,6 +39,7 @@ export function encodeRequest(req: WorkerRequest): WorkerRequest {
     case 'genMove':
     case 'analyze':
     case 'stop':
+    case 'stopAll':
       return req
     default:
       throw new Error(`WorkerRequest desconocida: ${String((req as { type?: unknown }).type)}`)

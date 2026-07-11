@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { LocalEngine } from '../src/engine'
 import { WorkerEngine, type WorkerLike } from '../src/worker/client'
 import { createWorkerHandler, type PostFn } from '../src/worker/handler'
-import type { WorkerRequest } from '../src/worker/protocol'
+import type { WorkerRequest, WorkerResponse } from '../src/worker/protocol'
 import type { NNEvaluator, RawEval } from '../src/nn/evaluator'
 import type { Analysis, BoardSize, NetworkId, Position } from '../src/types'
 
@@ -111,6 +111,72 @@ describe('WorkerEngine round-trip (canal mock, sin Worker real)', () => {
     we.stop()
     await we.init({ network: 'b18', boardSize: 9 }) // drena sólo si stop() disparó el bypass
     expect(updates.length).toBeGreaterThan(0)
+  })
+
+  it('cancelar un analyze encolado detrás NO afecta al analyze en curso (cancelación por-id)', async () => {
+    // El brief describe el escenario como "cancelar el primero (en curso), verificar que el segundo
+    // (en cola) completa". Esa dirección NO discrimina: `LocalEngine.analyze` resetea su flag de
+    // cancelación al entrar, así que apenas arranca el segundo (en cola) el propio reset "des-cancela"
+    // al primero por accidente — pasa igual con el flag único viejo que con el fix. La dirección que sí
+    // discrimina es la inversa: cancelar el SEGUNDO (encolado, aún no arrancado) y verificar que el
+    // PRIMERO (en curso) sigue intacto. Confirmado empíricamente contra el código pre-fix (ver reporte).
+    //
+    // Además, el registro `WorkerEngine.analyzers` se borra localmente al cancelar (en AMBOS diseños),
+    // así que `onUpdate` de B nunca ver nada pase lo que pase en el Worker — no sirve como testigo. Se
+    // intercepta el canal CRUDO worker→cliente (verdad de terreno) para comprobar si el `engine.analyze`
+    // real de B llegó a invocarse o no.
+    const rawLog: WorkerResponse[] = []
+    const listeners: Array<(ev: { data: unknown }) => void> = []
+    const post: PostFn = (msg) => {
+      rawLog.push(msg)
+      queueMicrotask(() => {
+        for (const l of listeners) l({ data: msg })
+      })
+    }
+    const engine = new LocalEngine({ evaluatorFactory: async (_n, N) => makeMock(N) })
+    const handle = createWorkerHandler(engine, post)
+    const workerLike: WorkerLike = {
+      postMessage(message) {
+        queueMicrotask(() => handle(message as WorkerRequest))
+      },
+      addEventListener(_type, cb) {
+        listeners.push(cb)
+      },
+    }
+    const we = new WorkerEngine(workerLike)
+
+    await we.init({ network: 'b18', boardSize: 9 }) // id=1
+
+    const POS_B: Position = {
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      moves: [{ color: 'black', vertex: { x: 4, y: 4 } }],
+    }
+
+    const updatesA: Analysis[] = []
+    // A con visits ENORME: nunca completa por sí solo → queda "en curso" de forma estable (mismo
+    // patrón que el test de arriba), sin depender de ganar una carrera contra el reloj.
+    const cancelA = we.analyze(EMPTY_9, { visits: 100_000 }, (a) => updatesA.push(a)) // id=2
+    await until(() => updatesA.length >= 1) // A arrancó y ocupa la cola serial (en curso, indefinido)
+
+    // B se postea DETRÁS de A (id=3): la cola FIFO no invoca su `engine.analyze` real hasta que A
+    // libere la cola, así que en este instante B está encolado pero NO arrancado.
+    const cancelB = we.analyze(POS_B, { visits: 200 }, () => {}) // id=3
+    cancelB() // cancela SOLO B (targetId). Con el flag único viejo esto cancelaba a A (el activo).
+
+    const updatesABeforeCancelB = updatesA.length
+    // A debe SEGUIR emitiendo updates después de cancelar B (sanity check; no discrimina por sí solo,
+    // ver nota arriba — el discriminante real es `rawLog` más abajo).
+    await until(() => updatesA.length > updatesABeforeCancelB)
+
+    cancelA() // cancelación explícita de A (nunca completa por sí solo)
+    await we.init({ network: 'b18', boardSize: 9 }) // drena la cola: nada quedó colgado
+
+    // Verdad de terreno: el `engine.analyze` REAL de B nunca se invocó (nunca posteó ninguna
+    // `analysis` con su propio id) — quedó pre-cancelado en la cola, jamás arrancó.
+    expect(rawLog.some((m) => m.type === 'analysis' && m.id === 3)).toBe(false)
   })
 
   it('propaga un error del engine como rechazo de la promesa (genMove sin init)', async () => {

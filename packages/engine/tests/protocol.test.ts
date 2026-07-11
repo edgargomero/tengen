@@ -16,7 +16,8 @@ describe('protocolo Worker — encodeRequest', () => {
       { type: 'init', id: 1, network: 'b18', boardSize: 19 },
       { type: 'genMove', id: 2, pos: EMPTY, level: { kind: 'kata', visits: 100 } },
       { type: 'analyze', id: 3, pos: EMPTY, visits: 50 },
-      { type: 'stop', id: 4 },
+      { type: 'stop', id: 4, targetId: 3 },
+      { type: 'stopAll', id: 5 },
     ]
     for (const r of reqs) expect(encodeRequest(r)).toEqual(r)
   })

@@ -1,7 +1,8 @@
 // `WorkerEngine implements Engine` — fachada del hilo principal sobre el Worker. Archivo 100% de
 // tengen. Expone la MISMA interfaz `Engine` que `LocalEngine` (intercambiables desde apps/web).
 // Correlaciona requests/responses por `id` incremental; el streaming de `analyze` se entrega vía el
-// callback `onUpdate` registrado por id, y la `CancelFn` postea `stop`.
+// callback `onUpdate` registrado por id, y la `CancelFn` postea `stop{targetId}` (cancelación por-id,
+// Fase 3a Task 1) — SÓLO esa llamada, nunca las demás en vuelo/encoladas.
 
 import type { Analysis, BoardSize, CancelFn, Engine, Move, NetworkId, Position, RankLevel } from '../types'
 import { decodeResponse, encodeRequest, type WorkerRequest } from './protocol'
@@ -24,8 +25,9 @@ export class WorkerEngine implements Engine {
   private nextId = 1
   /** Operaciones de resultado único (init/genMove) en vuelo, por id. */
   private readonly pending = new Map<number, Pending>()
-  /** Callbacks de streaming de `analyze` en vuelo, por id. */
-  private readonly analyzers = new Map<number, (a: Analysis) => void>()
+  /** Callbacks de streaming de `analyze` en vuelo, por id: `onUpdate` (obligatorio) + `onError`
+   *  (Fase 3a Task 1, M-2: canal de error por-llamada, antes sólo se borraba el callback en silencio). */
+  private readonly analyzers = new Map<number, { onUpdate: (a: Analysis) => void; onError?: (e: unknown) => void }>()
 
   constructor(worker: WorkerLike) {
     this.worker = worker
@@ -48,26 +50,27 @@ export class WorkerEngine implements Engine {
     })
   }
 
-  analyze(pos: Position, opts: { visits: number }, onUpdate: (a: Analysis) => void): CancelFn {
+  analyze(pos: Position, opts: { visits: number }, onUpdate: (a: Analysis) => void, onError?: (e: unknown) => void): CancelFn {
     const id = this.nextId++
-    this.analyzers.set(id, onUpdate)
+    this.analyzers.set(id, { onUpdate, onError })
     this.post({ type: 'analyze', id, pos, visits: opts.visits })
     return () => {
-      // La cancelación se resuelve client-side: dejar de escuchar este id + avisar al Worker. El
-      // Worker NO emite mensaje de cancelación (contrato de `final`), así que la limpieza es local.
+      // La cancelación se resuelve client-side: dejar de escuchar este id + avisar al Worker de que
+      // cancele ESTA operación específica (`targetId`), no todas. El Worker NO emite mensaje de
+      // cancelación (contrato de `final`), así que la limpieza local del callback es necesaria aquí.
       this.analyzers.delete(id)
-      this.post({ type: 'stop', id })
+      this.post({ type: 'stop', id: this.nextId++, targetId: id })
     }
   }
 
   stop(): void {
-    // Paridad con `LocalEngine.stop` (flag único que corta TODO lo en vuelo). El Worker cancela
-    // globalmente con un único `stop`; limpiamos además los callbacks locales de análisis (la
-    // cancelación no trae `final`). Un genMove kata en vuelo lo aborta el `engine.stop()` del Worker,
-    // que igualmente resuelve su promesa con la mejor jugada hallada.
+    // Paridad con `LocalEngine.stop` (corta TODO lo en vuelo/encolado). El Worker cancela globalmente
+    // con `stopAll`; limpiamos además los callbacks locales de análisis (la cancelación no trae
+    // `final`). Un genMove kata en vuelo lo aborta el `engine.stop()` del Worker, que igualmente
+    // resuelve su promesa con la mejor jugada hallada.
     const id = this.nextId++
     this.analyzers.clear()
-    this.post({ type: 'stop', id })
+    this.post({ type: 'stopAll', id })
   }
 
   private post(req: WorkerRequest): void {
@@ -94,9 +97,9 @@ export class WorkerEngine implements Engine {
         break
       }
       case 'analysis': {
-        const cb = this.analyzers.get(res.id)
-        if (cb !== undefined) {
-          cb(res.analysis)
+        const entry = this.analyzers.get(res.id)
+        if (entry !== undefined) {
+          entry.onUpdate(res.analysis)
           if (res.final) this.analyzers.delete(res.id) // completado natural → ya no llegan más chunks
         }
         break
@@ -107,8 +110,13 @@ export class WorkerEngine implements Engine {
           this.pending.delete(res.id)
           p.reject(new Error(res.message))
         } else {
-          // Error durante un `analyze`: dejar de escuchar ese id.
-          this.analyzers.delete(res.id)
+          // Error durante un `analyze`: informar al caller de ESTA llamada (Fase 3a Task 1, M-2) en
+          // vez de sólo borrar el callback en silencio.
+          const entry = this.analyzers.get(res.id)
+          if (entry !== undefined) {
+            this.analyzers.delete(res.id)
+            entry.onError?.(new Error(res.message))
+          }
         }
         break
       }
