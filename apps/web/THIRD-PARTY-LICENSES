@@ -60,6 +60,15 @@ la licencia MIT original del proyecto:
     web-katrain. Consumido por src/analysis/gameReview.ts (nativo, no
     portado), que expone su resultado a través de `GameReview.progress()`)
 
+  - src/analysis/guessAgainstEngine.ts (origen: src/utils/guessMove.ts —
+    SOLO scoreGuess/guessVerdict portados verbatim; expected: Move → {x,y}
+    simplificado, ya que scoreGuess nunca lee .player. buildGuessPositions/
+    GuessPosition/GuessPlayerFilter/playerLabel deliberadamente NO se portan:
+    son la maquinaria de "extraer la jugada real del kifu" como insumo del
+    guess, que este archivo reemplaza por completo por ReviewScheduler
+    (Task 6) — portarlos sería código muerto garantizado, no un archivo
+    completo con consumidores futuros razonables como en Tasks 3/4)
+
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
 releases de upstream se documentan en
