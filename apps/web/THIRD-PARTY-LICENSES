@@ -47,6 +47,13 @@ la licencia MIT original del proyecto:
     (branchNavigation.ts, excluido) — children se tipa localmente en este
     archivo (GameNodeWithChildren), no en types.ts. Resto verbatim)
 
+  - src/analysis/vendor/web-katrain/analysisQueue.ts (origen:
+    src/utils/analysisQueue.ts — verbatim, autocontenido (sin dependencias
+    externas ni tipos de web-katrain, genérico vía <T>). ÚNICA adaptación: se
+    omite la última línea del original, `export const analysisQueue = new
+    AnalysisQueue();` — un singleton de módulo; `reviewScheduler.ts` (nativo,
+    no portado) instancia su propia AnalysisQueue por sesión de Analizar)
+
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
 releases de upstream se documentan en
