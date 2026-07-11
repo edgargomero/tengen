@@ -48,3 +48,41 @@ describe('GET /models/:filename', () => {
     await res.arrayBuffer()
   })
 })
+
+describe('GET /ort-dist/:filename', () => {
+  beforeEach(async () => {
+    await env.MODELS.put('ort-dist/ort-wasm-simd-threaded.jsep.mjs', new TextEncoder().encode('contenido-mjs'))
+    await env.MODELS.put('ort-dist/ort-wasm-simd-threaded.jsep.wasm', new TextEncoder().encode('contenido-wasm'))
+  })
+
+  afterEach(async () => {
+    await env.MODELS.delete('ort-dist/ort-wasm-simd-threaded.jsep.mjs')
+    await env.MODELS.delete('ort-dist/ort-wasm-simd-threaded.jsep.wasm')
+  })
+
+  it('devuelve el .mjs con Content-Type text/javascript y COEP require-corp', async () => {
+    const res = await app.request('/ort-dist/ort-wasm-simd-threaded.jsep.mjs', {}, env)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('text/javascript')
+    expect(res.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp')
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+    await res.arrayBuffer()
+  })
+
+  it('devuelve el .wasm con Content-Type application/wasm', async () => {
+    const res = await app.request('/ort-dist/ort-wasm-simd-threaded.jsep.wasm', {}, env)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('application/wasm')
+    await res.arrayBuffer()
+  })
+
+  it('devuelve 404 si el archivo no existe bajo el prefijo ort-dist/', async () => {
+    const res = await app.request('/ort-dist/no-existe.mjs', {}, env)
+    expect(res.status).toBe(404)
+  })
+
+  it('no responde a /models/:filename para keys bajo el prefijo ort-dist/ (namespaces separados)', async () => {
+    const res = await app.request('/models/ort-wasm-simd-threaded.jsep.mjs', {}, env)
+    expect(res.status).toBe(404)
+  })
+})

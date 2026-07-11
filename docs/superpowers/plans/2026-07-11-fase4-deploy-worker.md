@@ -53,6 +53,24 @@ Export condition **oficial del propio paquete** onnxruntime-web (confirmada en s
 
 ---
 
+## Hallazgo crítico #3 (descubierto EN EJECUCIÓN, durante Task 3 — ya resuelto)
+
+**Verificado empíricamente por el implementador de Task 3 y reproducido de forma independiente por el controlador** (`wrangler deploy --dry-run` real, dos veces): el archivo REAL que Task 3 copia a `dist/ort-dist/` (`ort-wasm-simd-threaded.jsep.wasm`, el binario del runtime WASM de onnxruntime-web — no la copia muerta del Hallazgo #2, sino el archivo que el motor efectivamente necesita) pesa **25.6 MiB**, por encima del límite de **25 MiB por archivo** de Cloudflare Workers Static Assets. A diferencia del Hallazgo #2 (una copia duplicada e inerte que se podía eliminar), este archivo es indispensable — no hay forma de "arreglarlo" con una export condition o un truco de bundling: el binario del runtime de ONNX Runtime pesa lo que pesa.
+
+**Fix aplicado (dentro del alcance de Task 3, mismo commit que el resto de la task):** reusar el patrón que Task 2 ya estableció para los `.onnx` (que pesan 100+ MB) — servir el archivo desde R2 vía una ruta propia del Worker, no vía el binding de static assets (que SÍ tiene el límite de 25 MiB; R2 no):
+
+1. `apps/web/public/.assetsignore` (nuevo, formato gitignore, mecanismo sancionado por Cloudflare — confirmado contra su documentación oficial): `ort-dist/*`. Excluye el directorio del escaneo de static assets de Wrangler/Miniflare SIN dejar de generarlo físicamente en `dist/ort-dist/` (necesario para que la verificación local con `vite preview` de Task 3 Step 3 siga funcionando tal cual está escrita — `vite preview` no sabe nada de Workers ni de `.assetsignore`, sirve `dist/` tal cual).
+2. `apps/worker/src/index.ts`: nueva ruta `GET /ort-dist/:filename`, calcada de `GET /models/:filename` (Task 2) pero contra el prefijo de key `ort-dist/` en el mismo bucket `MODELS` — sin bucket nuevo, sin binding nuevo. Fija `Content-Type` por extensión (`.mjs`→`text/javascript`, `.wasm`→`application/wasm`, igual que el middleware de dev) y **`Cross-Origin-Embedder-Policy: require-corp`** explícito (el mismo motivo que ya documenta `vite.config.ts`: el `.mjs` se carga como script de un dedicated worker bajo `crossOriginIsolated` y Chrome lo bloquea sin ese header por-archivo).
+3. 4 tests nuevos en `apps/worker/tests/index.test.ts` (mismo archivo que Task 2), mismo patrón — bindings reales de Miniflare, no mocks.
+
+**Verificado:** `npm test -w @tengen/worker` 9/9 (5 de Task 1+2 + 4 nuevos); `tsc --noEmit` de `apps/worker` y `apps/web` limpios; **`wrangler deploy --dry-run` (que antes fallaba con "Asset too large") ahora pasa** — 10 archivos, 64.47 KiB de upload total (el `.wasm` de 25.6 MiB ya no se escanea como static asset); suite completa del monorepo 352/352 sin regresión.
+
+**Impacto en Task 4 (`_headers`):** la regla `/ort-dist/* → Cross-Origin-Embedder-Policy: require-corp` que Task 4 iba a agregar a `apps/web/public/_headers` queda **inerte/redundante** para ese path específico — como `/ort-dist/*` ahora lo sirve el Worker directamente (no el binding de static assets), `_headers` nunca se evalúa para esas requests; el header ya lo pone la ruta del Worker (punto 2 arriba). No hace falta borrar la regla de `_headers` (es inocua, y cubre el caso hipotético de que algún día ese path vuelva a servirse como static asset) — Task 4 debe simplemente saber que no es la pieza que hace el trabajo real.
+
+**Nota de proceso:** implementado directamente por el controlador (no por un subagente implementer) a pedido explícito de Edgar, después de que el diagnóstico (verificado independientemente por el controlador, no solo tomado del reporte del implementador de Task 3) dejara claro que el fix era mecánico y de bajo riesgo — mismo patrón ya probado en Task 2, sin necesidad de otro ciclo completo de implementer+reviewer.
+
+---
+
 ### Task 1: Scaffold `apps/worker` — Hono + static assets, verificado con `wrangler dev`
 
 **Files:**
@@ -506,6 +524,12 @@ git commit -m "feat(web): _headers COOP/COEP para producción (Cloudflare Worker
    ```bash
    npx wrangler r2 object put tengen-models/b18c384nbt-kata1.fp32.onnx --file packages/engine/models/b18c384nbt-kata1.fp32.onnx
    npx wrangler r2 object put tengen-models/b18c384nbt-humanv0.fp32.onnx --file packages/engine/models/b18c384nbt-humanv0.fp32.onnx
+   ```
+
+2b. **Subir el runtime de onnxruntime-web bajo el prefijo `ort-dist/`** (Hallazgo crítico #3 — sin esto, `GET /ort-dist/:filename` de Task 3 devuelve 404 y el motor no inicializa en `tengen.kntor.io` aunque el resto del deploy esté bien; source: `node_modules/onnxruntime-web/dist/`, resuelto vía `require.resolve('onnxruntime-web')`):
+   ```bash
+   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.mjs --file node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs
+   npx wrangler r2 object put tengen-models/ort-dist/ort-wasm-simd-threaded.jsep.wasm --file node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm
    ```
 
 3. **Build + deploy del Worker:**
