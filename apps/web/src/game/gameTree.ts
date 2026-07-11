@@ -200,4 +200,23 @@ export class GameTree {
   currentTurnAt(cursor: GameNode = this.current): StoneColor {
     return currentTurn(this.meta.handicap, this.movesTo(cursor))
   }
+
+  // ── Frente de la partida "viva" (Fase 2, Task 5: modo exploración) ─────────────────────────
+
+  /**
+   * true si el cursor está en el TIP de la línea principal (el último nodo de `mainLine()`, o la
+   * raíz si aún no hay jugadas) — el frente de la partida que humano/IA siguen jugando en vivo.
+   *
+   * NO es lo mismo que "el cursor está en una hoja" (`current.children.length === 0`): un nodo de
+   * variación recién creado TAMBIÉN es una hoja (aún no tiene hijos), pero nunca es el tip vivo
+   * (las variaciones se appendean SIEMPRE como hijos no-primeros — ver `appendChild`/`addMove` — así
+   * que jamás entran en `mainLine()`). Confundir "hoja" con "tip vivo" deja que, tras la PRIMERA
+   * jugada de una variación, el siguiente clic se trate otra vez como partida en vivo (dispara la
+   * IA o se ignora en silencio) — el caller (`PlayView.isExploring`) usa este método en vez de esa
+   * heurística de hoja, precisamente para no reintroducir ese bug.
+   */
+  isAtLiveTip(): boolean {
+    const liveTip = this.mainLine().at(-1) ?? this.root
+    return this.current === liveTip
+  }
 }

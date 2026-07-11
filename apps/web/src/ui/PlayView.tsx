@@ -1,26 +1,32 @@
-// Pantalla de juego (Fase 2, Task 4): tablero Shudan + panel lateral + bucle de juego
-// usuario(Negro)↔IA(Blanco). Decisiones fijadas (ver brief de Task 4 / plan de fase engine):
-// humano=Negro fijo, handicap≥2 arranca Blanco, navegación view-only fuera del tip.
+// Pantalla de juego (Fase 2, Task 4 + Task 5): tablero Shudan + panel lateral + bucle de juego
+// usuario(Negro)↔IA(Blanco), árbol de variaciones, Export/Import SGF y persistencia automática.
+// Decisiones fijadas (ver brief de Task 4/5 / plan de fase engine): humano=Negro fijo, handicap≥2
+// arranca Blanco.
 //
 // ── Ciclo de vida ────────────────────────────────────────────────────────────────────────────
 // El `GameTree` y el `EngineManager` viven en refs creados UNA sola vez (no en cada render).
 // Preact no re-renderiza porque se mute un ref, así que cada mutación del árbol (jugada o
 // navegación) va seguida de `bump()` (un contador en useState que solo existe para forzar el
 // repintado); el tablero/turno/capturas se derivan en cada render leyendo `tree.current` fresco —
-// no hay estado duplicado del árbol.
+// no hay estado duplicado del árbol. `initialTree` (Task 5) es el árbol de partida: si viene
+// (restauración desde localStorage o import de SGF), el ref arranca en ÉL en vez de un árbol fresco
+// desde `config`; el remonte que produce ese árbol nuevo lo maneja `main.tsx` con `key` (ver ese
+// archivo — Task 5 R4).
 //
 // `staleRef` sigue el mismo patrón que `ModelGate`: marca el componente desmontado. Toda
 // continuación async (tras `await` a `ensureReady`/`genMove`/`analyzeToScore`) lo comprueba antes
 // de tocar el árbol o el estado, para no mutar un árbol ya descartado (p.ej. "Nueva partida" a
 // mitad de la jugada de la IA) ni actualizar un componente ya desmontado.
 //
-// ── Por qué la navegación se deshabilita mientras `busy` ────────────────────────────────────
-// `GameTree.addMove` opera siempre desde `tree.current` (el cursor). Si se permitiera navegar
-// MIENTRAS la IA está pensando, el cursor podría alejarse del tip antes de que el `genMove` en
-// vuelo resuelva; al llegar la jugada de la IA, `addMove` la colgaría de donde quedó el cursor (no
-// del tip real), corrompiendo el árbol con una variación no pedida. Esta Task no implementa
-// variaciones (YAGNI: Task 5), así que la invariante que mantenemos es simple: mientras `busy` es
-// true, el cursor SIEMPRE está en el tip; alcanza con deshabilitar la navegación durante `busy`.
+// ── Modo exploración (Task 5) ───────────────────────────────────────────────────────────────
+// Task 4 solo permitía jugar en el tip de una partida viva (navegar fuera de él era view-only).
+// Task 5 añade variaciones: cuando el cursor está FUERA del tip de su rama, O la partida ya
+// TERMINÓ (`endedRef`), un clic legal (o "Pasar") agrega una jugada del color que le toca al
+// CURSOR (`currentTurnAt`, no necesariamente Negro) — dedup/ramifica vía `addMove` — y avanza el
+// cursor SIN disparar la IA: así se construyen variaciones a mano, alternando colores libremente.
+// Fuera de ese modo (partida viva, cursor en el tip) rige el comportamiento de Task 4 sin cambios:
+// solo Negro humano juega, y tras su jugada la IA responde si le toca. `isExploring()` centraliza
+// esa condición (se llama fresca en cada handler y en el render, nunca se cachea en un state).
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Goban } from '@sabaki/shudan'
 import type { Marker } from '@sabaki/shudan'
@@ -29,15 +35,24 @@ import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
 import type { GameConfig } from '../game/gameConfig'
-import { networkForOpponent } from '../game/gameConfig'
-import { GameTree } from '../game/gameTree'
+import { networkForOpponent, validateConfig } from '../game/gameConfig'
+import { GameTree, type GameNode } from '../game/gameTree'
+import { saveGame } from '../game/persistence'
 import { capturesOf, signMapOf, validateMove } from '../game/rules'
+import { exportSgf, importSgf } from '../game/sgf'
 import { engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
+import { GameTreePanel } from './GameTreePanel'
 
 interface PlayViewProps {
   config: GameConfig
+  /** Árbol inicial (Task 5): restauración desde localStorage o import de SGF. Si no viene, se crea
+   * un árbol fresco desde `config` (comportamiento de Task 4). */
+  initialTree?: GameTree
   onNewGame(): void
+  /** Bubblea un SGF importado hacia `main.tsx`, que remonta este componente con el árbol nuevo
+   * (ver Task 5 R4: el remonte real ocurre por `key`, no por un cambio de props). */
+  onImport(config: GameConfig, tree: GameTree): void
 }
 
 /** Visitas fijas para la estimación de score de fin de partida (`analyzeToScore`). Valor modesto:
@@ -56,28 +71,37 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
+/** Fecha del navegador en YYYY-MM-DD, para el nombre del archivo `.sgf` exportado. */
+function formatDateForFilename(d: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
  * antes de montar nada que asuma el modelo listo (`ReadyPlayView`). */
-export function PlayView({ config, onNewGame }: PlayViewProps) {
+export function PlayView({ config, initialTree, onNewGame, onImport }: PlayViewProps) {
   const net = networkForOpponent(config.opponent)
   return (
     <ModelGate net={net}>
-      <ReadyPlayView config={config} net={net} onNewGame={onNewGame} />
+      <ReadyPlayView config={config} initialTree={initialTree} net={net} onNewGame={onNewGame} onImport={onImport} />
     </ModelGate>
   )
 }
 
 interface ReadyPlayViewProps {
   config: GameConfig
+  initialTree?: GameTree
   net: NetworkId
   onNewGame(): void
+  onImport(config: GameConfig, tree: GameTree): void
 }
 
-function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
+function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyPlayViewProps) {
   // Árbol y motor: UNA instancia por montaje (una partida = un ReadyPlayView montado; "Nueva
-  // partida" desmonta este árbol vía main.tsx y monta uno nuevo desde cero).
+  // partida"/import/restore desmontan este árbol vía main.tsx —con un `key` distinto— y montan uno
+  // nuevo desde cero).
   const treeRef = useRef<GameTree | null>(null)
-  if (!treeRef.current) treeRef.current = GameTree.fromConfig(config)
+  if (!treeRef.current) treeRef.current = initialTree ?? GameTree.fromConfig(config)
   const tree = treeRef.current
 
   const managerRef = useRef<EngineManager | null>(null)
@@ -92,17 +116,53 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
   // estima el score final) dejaría que esa operación en vuelo, al resolver, añadiera una jugada
   // post-resign o sobreescribiera el resultado. Los handlers síncronos (click/pasar/resign) la
   // usan como única fuente de verdad en vez de leer `result` (que puede ir un render por detrás).
-  const endedRef = useRef(false)
+  // Se inicializa desde `tree.meta.result` (Task 5): una partida restaurada/importada ya terminada
+  // arranca marcada como terminada, sin pasar por resign/finishTurn de nuevo.
+  const endedRef = useRef(tree.meta.result !== undefined)
   // Contador puramente para forzar el repintado tras mutar `tree` (ver nota de ciclo de vida
   // arriba); el valor en sí no se lee nunca.
   const [, setTick] = useState(0)
   const bump = (): void => setTick((t) => t + 1)
   const [busy, setBusy] = useState(true) // arranca ocupado: hasta que ensureReady (+ apertura IA) resuelva
+  // `booting` distingue la fase de arranque (`ensureReady` del motor) de un turno real de la IA
+  // (fix del Minor #1 de Task 4): mientras es true, el panel muestra "Preparando motor…" en vez de
+  // "IA pensando…" aunque `busy` también sea true durante esa fase.
+  const [booting, setBooting] = useState(true)
   const [scoring, setScoring] = useState(false) // solo para el texto del panel ("Estimando…" vs "IA pensando…")
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(tree.meta.result ?? null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  /** Llamar SIEMPRE justo después de aplicar una jugada (humana o de la IA) y su `bump()`. */
+  /** true si el cursor está fuera del TIP VIVO (`tree.isAtLiveTip()`), o la partida ya terminó: en
+   * ese caso, jugar construye una VARIACIÓN a mano en vez de continuar/responder la partida viva
+   * (ver nota de "Modo exploración" en la cabecera del archivo). Se llama fresca cada vez (nunca
+   * cacheada).
+   *
+   * OJO (bug real, ya corregido): "tip vivo" NO es lo mismo que "el cursor está en una hoja"
+   * (`current.children.length === 0`). Un nodo de variación recién creado TAMBIÉN es una hoja
+   * (aún no tiene hijos) pero nunca es el tip vivo — con la heurística de hoja, tras la PRIMERA
+   * jugada de una variación este método volvía a dar `false`, y el SEGUNDO clic de esa misma
+   * variación se trataba como partida en vivo (la IA jugaba dentro de la variación, o el clic se
+   * ignoraba en silencio si no era turno de Negro). `isAtLiveTip()` (gameTree.ts, con test propio)
+   * resuelve esto comparando contra el tip real de `mainLine()`, no contra "sin hijos". */
+  function isExploring(): boolean {
+    return endedRef.current || !tree.isAtLiveTip()
+  }
+
+  /** Persiste la partida tras CADA jugada aplicada (humana, IA, o de exploración). Best-effort: un
+   * storage bloqueado/lleno no debe romper el juego (ver `persistence.ts`, mismo espíritu que su
+   * propio try/catch de lectura). */
+  function persist(): void {
+    try {
+      saveGame(window.localStorage, config.opponent, tree)
+    } catch {
+      // Fallo de guardado silencioso a propósito: no es un error del juego en sí.
+    }
+  }
+
+  /** Llamar SIEMPRE justo después de aplicar una jugada de la partida VIVA (humana o de la IA) y su
+   * `bump()`. NO se usa en modo exploración (ese camino nunca dispara la IA ni el marcador de fin). */
   async function finishTurn(): Promise<void> {
     if (isGameOverByTwoPasses(tree.movesTo())) {
       setScoring(true)
@@ -110,10 +170,14 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
         const analysis = await manager.analyzeToScore(tree.positionAt(), SCORE_VISITS)
         if (staleRef.current || endedRef.current) return
         endedRef.current = true
-        setResult(formatResult(analysis.scoreLead))
+        const resultStr = formatResult(analysis.scoreLead)
+        tree.meta.result = resultStr // Task 5 R2: persistir el fin de partida vía el canal RE del árbol.
+        setResult(resultStr)
+        persist()
       } catch {
         if (staleRef.current || endedRef.current) return
         endedRef.current = true
+        // "No se pudo estimar…" NO es un RE válido: queda solo en estado local, `meta.result` sin setear.
         setResult('No se pudo estimar el resultado.')
       } finally {
         if (!staleRef.current) {
@@ -138,6 +202,7 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
       if (staleRef.current || endedRef.current) return
       tree.addMove(move)
       bump()
+      persist()
       await finishTurn()
     } catch (e) {
       if (staleRef.current || endedRef.current) return
@@ -152,18 +217,28 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
     async function boot(): Promise<void> {
       try {
         await manager.ensureReady(net, config.boardSize)
-        // `endedRef` también se comprueba aquí: si el usuario se rinde MIENTRAS el motor todavía
-        // inicializa (posible en una partida con handicap, donde este bloque dispararía la
-        // apertura de la IA), no hay que arrancar `aiTurn` sobre una partida ya terminada.
-        if (staleRef.current || endedRef.current) return
-        if (tree.currentTurnAt() === 'white') {
-          await aiTurn() // handicap≥2: la IA (Blanco) abre la partida
+        if (staleRef.current) return
+        setBooting(false)
+        // Task 5 R1: con un árbol restaurado/importado, el cursor puede NO estar en el tip, o la
+        // partida puede ya estar terminada. Arrancar la IA en cualquiera de esos casos corrompería
+        // el árbol (addMove desde un cursor que no es el tip) o revivi­ría una partida terminada.
+        //
+        // R1 (brief) describe el guard como `children.length===0`; usamos `tree.isAtLiveTip()` en
+        // su lugar a propósito (mismo predicado que `isExploring`, ver su comentario): si la
+        // partida se guardó a media exploración (cursor en una variación, que puede ser una hoja
+        // sin serlo del tip vivo), `children.length===0` dispararía la IA DENTRO de esa variación
+        // al recargar — el mismo bug de raíz que `isExploring`, aplicado al arranque. `isAtLiveTip`
+        // cubre el caso que R1 pide (no revivir una partida terminada, no corromper el árbol) y
+        // además el caso restaurado-en-variación que la redacción literal de R1 no contemplaba.
+        if (!endedRef.current && tree.isAtLiveTip() && tree.currentTurnAt() === 'white') {
+          await aiTurn() // handicap≥2 (o restauración a media mano): la IA (Blanco) sigue/abre
         } else {
           setBusy(false)
         }
       } catch (e) {
         if (staleRef.current) return
         setErrorMsg(`No se pudo inicializar el motor (${errorMessage(e)}). Puedes iniciar una nueva partida.`)
+        setBooting(false)
         setBusy(false)
       }
     }
@@ -178,24 +253,45 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
   }, [])
 
   function handleVertexClick(v: [number, number]): void {
-    if (busy || endedRef.current) return
-    if (tree.current.children.length !== 0) return // view-only: solo se juega parado en el tip
-    if (tree.currentTurnAt() !== 'black') return
+    if (busy) return
     const vertex = sabakiToEngineVertex(v)
+    const turnAtCursor = tree.currentTurnAt()
+
+    if (isExploring()) {
+      const validation = validateMove(tree.boardAt(), turnAtCursor, vertex)
+      if (!validation.legal) return
+      tree.addMove({ color: turnAtCursor, vertex })
+      bump()
+      persist()
+      return // modo exploración: nunca dispara la IA
+    }
+
+    // Partida viva, en el tip: comportamiento de Task 4 intacto (solo Negro humano juega).
+    if (turnAtCursor !== 'black') return
     const validation = validateMove(tree.boardAt(), 'black', vertex)
     if (!validation.legal) return // jugada ilegal: se ignora en silencio (sin feedback por ahora)
     tree.addMove({ color: 'black', vertex })
     bump()
+    persist()
     setBusy(true)
     void finishTurn()
   }
 
   function handlePass(): void {
-    if (busy || endedRef.current) return
-    if (tree.current.children.length !== 0) return
-    if (tree.currentTurnAt() !== 'black') return
+    if (busy) return
+    const turnAtCursor = tree.currentTurnAt()
+
+    if (isExploring()) {
+      tree.addMove({ color: turnAtCursor, vertex: 'pass' })
+      bump()
+      persist()
+      return
+    }
+
+    if (turnAtCursor !== 'black') return
     tree.addMove({ color: 'black', vertex: 'pass' })
     bump()
+    persist()
     setBusy(true)
     void finishTurn()
   }
@@ -210,8 +306,11 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
     // llegar a su propio `setBusy(false)` — sin esto, `busy` quedaría pegado en true para siempre
     // (tablero/nav deshabilitados en una partida ya terminada).
     endedRef.current = true
-    setResult(formatResult(0, 'black'))
+    const resultStr = formatResult(0, 'black')
+    tree.meta.result = resultStr // Task 5 R2: mismo canal RE que la rama de score.
+    setResult(resultStr)
     setBusy(false)
+    persist()
   }
 
   function goFirst(): void {
@@ -229,12 +328,56 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
     while (tree.toChild(0)) moved = true
     if (moved) bump()
   }
+  function handleTreeNavigate(node: GameNode): void {
+    if (busy) return
+    if (tree.navigateToPath(tree.pathTo(node))) bump()
+  }
+
+  function handleExportSgf(): void {
+    const text = exportSgf(tree)
+    const blob = new Blob([text], { type: 'application/x-go-sgf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tengen-${formatDateForFilename(new Date())}.sgf`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleImportFile(evt: Event): Promise<void> {
+    const input = evt.target as HTMLInputElement
+    const file = input.files?.[0] ?? null
+    input.value = '' // permite reimportar el mismo archivo dos veces seguidas
+    if (!file) return
+    setImportError(null)
+    try {
+      const text = await file.text()
+      const importedTree = importSgf(text)
+      // El SGF no lleva `opponent` (decisión de Task 5): se conserva el de la partida actual.
+      const importedConfig = validateConfig({
+        boardSize: importedTree.meta.boardSize,
+        komi: importedTree.meta.komi,
+        rules: importedTree.meta.rules,
+        handicap: importedTree.meta.handicap,
+        opponent: config.opponent,
+      })
+      // UX: dejar el cursor al final de la línea principal (la posición final de la partida
+      // importada), no en la raíz — así se ve la partida completa de inmediato en vez de un
+      // tablero vacío. `importSgf` deja el cursor en la raíz por contrato; lo avanzamos aquí.
+      while (importedTree.toChild(0)) {
+        /* avanza hasta el tip de la línea principal */
+      }
+      onImport(importedConfig, importedTree)
+    } catch (e) {
+      setImportError(`No se pudo importar el SGF (${errorMessage(e)}).`)
+    }
+  }
 
   const board = tree.boardAt()
   const signMap = signMapOf(board)
   const captures = capturesOf(board)
   const turn = tree.currentTurnAt()
-  const atTip = tree.current.children.length === 0
+  const exploring = isExploring()
   const markerMap = buildMarkerMap(config.boardSize, tree.current.move)
 
   return (
@@ -256,21 +399,24 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
             ? 'Partida terminada'
             : scoring
               ? 'Estimando resultado…'
-              : busy
-                ? 'IA pensando…'
-                : turn === 'black'
-                  ? 'Tu turno (Negro)'
-                  : 'Turno de la IA (Blanco)'}
+              : booting
+                ? 'Preparando motor…'
+                : busy
+                  ? 'IA pensando…'
+                  : turn === 'black'
+                    ? 'Tu turno (Negro)'
+                    : 'Turno de la IA (Blanco)'}
         </p>
         <p class="play-captures">
           Capturas — Negro: {captures.black} · Blanco: {captures.white}
         </p>
+        {exploring && result === null && <p class="play-exploring">Modo exploración: construyendo variación.</p>}
 
         {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
         {result !== null && <p class="play-result">Resultado: {result}</p>}
 
         <div class="play-controls">
-          <button onClick={handlePass} disabled={busy || result !== null || !atTip || turn !== 'black'}>
+          <button onClick={handlePass} disabled={busy || (!exploring && turn !== 'black')}>
             Pasar
           </button>
           <button onClick={handleResign} disabled={result !== null}>
@@ -293,11 +439,26 @@ function ReadyPlayView({ config, net, onNewGame }: ReadyPlayViewProps) {
           </button>
         </div>
 
+        <div class="play-io">
+          <button onClick={handleExportSgf}>Exportar SGF</button>
+          <button onClick={() => fileInputRef.current?.click()} disabled={busy}>
+            Importar SGF
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".sgf"
+            style="display: none"
+            onChange={(e) => void handleImportFile(e)}
+          />
+        </div>
+        {importError !== null && <p class="play-error">{importError}</p>}
+
         <button class="play-new-game" onClick={onNewGame}>
           Nueva partida
         </button>
 
-        {/* Task 5: exportar/importar SGF + panel de árbol de variaciones va aquí. */}
+        <GameTreePanel tree={tree} onNavigate={handleTreeNavigate} disabled={busy} />
       </aside>
     </div>
   )

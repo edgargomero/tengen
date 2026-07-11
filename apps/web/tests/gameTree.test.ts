@@ -197,3 +197,64 @@ describe('GameTree — helpers de display (delegan en rules)', () => {
     expect(th.currentTurnAt(th.root)).toBe('white')
   })
 })
+
+describe('GameTree — isAtLiveTip (Fase 2, Task 5: guard del modo exploración)', () => {
+  it('árbol vacío, cursor en la raíz → true (la raíz ES el tip vivo sin jugadas)', () => {
+    expect(tree9().isAtLiveTip()).toBe(true)
+  })
+
+  it('cursor en el tip de la línea principal tras jugar → true', () => {
+    const t = tree9()
+    t.addMove(B(2, 2))
+    t.addMove(W(6, 6))
+    expect(t.isAtLiveTip()).toBe(true)
+  })
+
+  it('retroceder (toParent) desde el tip → false, aunque el nodo no sea una hoja', () => {
+    const t = tree9()
+    t.addMove(B(2, 2))
+    t.addMove(W(6, 6))
+    t.toParent()
+    expect(t.isAtLiveTip()).toBe(false)
+  })
+
+  it('CRÍTICO: tras jugar la PRIMERA jugada de una variación (nodo nuevo, SIN hijos, por tanto ' +
+    'una hoja) sigue siendo false — "hoja" no es sinónimo de "tip vivo"', () => {
+    const t = tree9()
+    t.addMove(B(2, 2))
+    t.addMove(W(6, 6)) // línea principal: tip real
+    t.toParent() // cursor vuelve a B(2,2), que YA tiene un hijo (línea principal)
+    const variationNode = t.addMove(B(4, 4)) // jugada distinta → variación (segundo hijo)
+    expect(t.current).toBe(variationNode)
+    expect(variationNode.children).toHaveLength(0) // es una hoja...
+    expect(t.isAtLiveTip()).toBe(false) // ...pero NO es el tip vivo (la variación nunca lo es)
+  })
+
+  it('CRÍTICO: sigue siendo false tras una SEGUNDA jugada dentro de la misma variación (el bug ' +
+    'real: la exploración debe seguir activa más allá de la primera jugada)', () => {
+    const t = tree9()
+    t.addMove(B(2, 2))
+    t.addMove(W(6, 6))
+    t.toParent()
+    t.addMove(B(4, 4)) // 1ª jugada de la variación
+    const secondVariationMove = t.addMove(W(5, 5)) // 2ª jugada de la MISMA variación
+    expect(t.current).toBe(secondVariationMove)
+    expect(t.isAtLiveTip()).toBe(false)
+  })
+
+  it('reencontrar la línea principal (re-jugar la misma jugada real) vuelve a dar true', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    const n2 = t.addMove(W(6, 6)) // tip real
+    t.toParent() // cursor en n1 (fuera del tip)
+    expect(t.isAtLiveTip()).toBe(false)
+    const rejoined = t.addMove(W(6, 6)) // misma jugada que n2: addMove dedup-navega, no ramifica
+    expect(rejoined).toBe(n2)
+    expect(t.isAtLiveTip()).toBe(true)
+  })
+
+  it('partida con handicap: cursor en la raíz (sin jugadas aún) → true', () => {
+    const th = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    expect(th.isAtLiveTip()).toBe(true)
+  })
+})
