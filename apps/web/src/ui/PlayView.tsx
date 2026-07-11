@@ -415,7 +415,16 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
       // partida importada y recargada antes de la primera jugada se perdía (localStorage seguía
       // apuntando a la partida anterior). SECUENCIA OBLIGATORIA: validar (arriba) → saveGame →
       // onImport, para nunca persistir un árbol que la validación habría rechazado.
-      saveGame(window.localStorage, importedConfig.opponent, importedTree)
+      //
+      // El guardado es best-effort (igual que `persist()`): un fallo de storage (modo privado / quota)
+      // en un import VÁLIDO no debe abortarlo cayendo al `catch` de abajo con el mensaje engañoso "No
+      // se pudo importar el SGF" — el SGF estaba bien, lo que falló fue la persistencia. Al recargar
+      // se perdería el import (revierte a la partida anterior), mismo trade-off que `persist()`.
+      try {
+        saveGame(window.localStorage, importedConfig.opponent, importedTree)
+      } catch {
+        // Guardado silencioso: no bloquea el import válido.
+      }
       onImport(importedConfig, importedTree)
     } catch (e) {
       setImportError(`No se pudo importar el SGF (${errorMessage(e)}).`)

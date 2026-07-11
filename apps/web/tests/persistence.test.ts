@@ -1,5 +1,6 @@
 import type { Move, RankLevel } from '@tengen/engine'
 import { describe, expect, it } from 'vitest'
+import { isGameOverByTwoPasses } from '../src/game/endgame'
 import { GameTree } from '../src/game/gameTree'
 import { type StorageLike, clearGame, loadGame, saveGame } from '../src/game/persistence'
 
@@ -63,6 +64,25 @@ describe('persistence — save/load round-trip', () => {
     saveGame(storage, KATA_OPPONENT, t)
     const loaded = loadGame(storage)
     expect(loaded!.tree.current).toBe(loaded!.tree.root)
+  })
+
+  // FIX 2 (fix wave post-Fase 2): cuando `analyzeToScore` falla, `finishTurn` persiste `meta.result='Void'`
+  // (un RE válido de SGF) para que memoria y storage no diverjan. Al restaurar, `meta.result` presente
+  // hace nacer `endedRef` en true → la partida NO revive. Este test fija ese contrato en el canal de
+  // persistencia (round-trip de `meta.result` vía el `RE` del SGF) + que los dos pases finales
+  // sobreviven (el input que `boot()` inspecciona con `isGameOverByTwoPasses`).
+  it("preserva meta.result='Void' y los dos pases finales de una partida terminada (FIX 2)", () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(4, 4))
+    t.addMove({ color: 'white', vertex: 'pass' })
+    t.addMove({ color: 'black', vertex: 'pass' })
+    t.meta.result = 'Void'
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.tree.meta.result).toBe('Void')
+    expect(isGameOverByTwoPasses(loaded!.tree.movesTo())).toBe(true)
   })
 })
 
