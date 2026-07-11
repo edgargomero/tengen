@@ -9,6 +9,14 @@
 //   crossOriginIsolated DEBE llegar con COEP: require-corp por-archivo o Chrome lo bloquea.
 // COOP/COEP a nivel server habilitan crossOriginIsolated (WASM multihilo); WebGPU no los necesita pero
 // no estorban.
+// resolve.conditions (OBLIGATORIO, ver Fase 4 "Hallazgo crítico #2"): sin esto, `import * as ort from
+// 'onnxruntime-web'` resuelve a la variante `ort.bundle.min.mjs`, que trae un `new URL(archivo.wasm,
+// import.meta.url)` interno. Vite bundlea ESE patrón siempre que aparece en el texto, sin analizar si la
+// rama se ejecuta — y como session.ts fija wasmPaths='/ort-dist/' antes de crear cualquier sesión, esa
+// rama nunca corre: el resultado es una copia hasheada de 26.8 MB en dist/assets/ que nadie fetchea nunca,
+// y que excede el límite de 25 MiB por archivo de Cloudflare Workers Static Assets. La condición
+// 'onnxruntime-web-use-extern-wasm' (export condition oficial del propio paquete) resuelve en cambio a
+// `ort.min.mjs`, que no trae ese new URL() embebido — wasmPaths sigue funcionando exactamente igual.
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -27,6 +35,7 @@ const ORT_DIST_CONTENT_TYPES: Record<string, string> = {
 }
 
 export default defineConfig({
+  resolve: { conditions: ['onnxruntime-web-use-extern-wasm'] },
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
   server: {
     headers: {

@@ -33,6 +33,26 @@
 
 ---
 
+## Hallazgo crítico #2 (descubierto EN EJECUCIÓN, durante Task 1 — ya resuelto, aplicado antes de Task 1)
+
+**Verificado empíricamente, dos veces por separado** (un workflow de diagnóstico de 3 agentes + reproducción directa del controlador, ambos con reversión limpia — `git status` sin diff): un build limpio de `apps/web` (`npm run build -w @tengen/web`, ANTES de cualquier cambio de esta fase) produce `apps/web/dist/assets/ort-wasm-simd-threaded.jsep-<hash>.wasm` de **26.8 MB**, que excede el límite duro de **25 MiB por archivo** de Cloudflare Workers Static Assets — bloquea `wrangler dev`/`wrangler deploy` con `Asset too large`. Este bug NO estaba contemplado en el plan original (surgió al ejecutar el Step 9 de Task 1, primera vez que algo en el flujo ejerce el binding de assets real de Cloudflare — la verificación en navegador de la sesión de brainstorm usó `vite preview`, que nunca valida tamaños de archivo).
+
+**Causa raíz:** `import * as ort from 'onnxruntime-web'` (en `packages/engine/src/nn/session.ts`/`evaluator.ts`) resuelve por defecto a la variante `ort.bundle.min.mjs`, que trae un `new URL("ort-wasm-simd-threaded.jsep.wasm", import.meta.url)` interno usado solo como fallback si nadie fijó `locateFile`. Vite/Rollup bundlea ese patrón como asset con hash **siempre que aparece sintácticamente en el grafo de módulos, sin análisis de alcanzabilidad de rama** (confirmado contra la documentación de Vite). En tengen esa rama nunca corre — `configureOrt()` fija `wasmPaths='/ort-dist/'` (string) antes de crear cualquier sesión, lo que arma un `locateFile` que cubre la carga real — así que el archivo de 26.8 MB en `dist/assets/` es una **copia muerta, nunca fetcheada**, y es un artefacto DISTINTO de los archivos reales que el motor pide en runtime (`/ort-dist/ort-wasm-simd-threaded.jsep.{mjs,wasm}`, servidos en dev por el middleware existente y en prod por el plugin `copy-ort-dist-prod` de la Task 3 de abajo).
+
+**Fix aplicado (commit previo a Task 1, ver ledger):** una línea en `apps/web/vite.config.ts`, dentro de `defineConfig({...})`:
+```ts
+resolve: { conditions: ['onnxruntime-web-use-extern-wasm'] },
+```
+Export condition **oficial del propio paquete** onnxruntime-web (confirmada en su `package.json`, no es un hack de terceros) — resuelve `onnxruntime-web` a `ort.min.mjs` en vez de `ort.bundle.min.mjs`; esa variante no trae el `new URL()` problemático pero respeta `ort.env.wasm.*`/`wasmPaths` de forma idéntica. **No requiere ningún cambio en `packages/engine`.**
+
+**Verificado (controlador, antes de retomar Task 1):** build limpio → el `.wasm` de 26.8 MB desaparece por completo de `dist/assets/` (los chunks JS además bajan de tamaño); `find apps/web/dist/assets -name '*.wasm' -size +1M` → vacío; `npx -w @tengen/web tsc --noEmit` → 0 errores; smoke de `vite dev` (el cambio afecta dev además de build) → `index.html` 200, `/ort-dist/ort-wasm-simd-threaded.jsep.mjs` vía el middleware existente → 200.
+
+**Relación con Task 3 (abajo):** son fixes ORTOGONALES sobre el mismo archivo, ninguno reemplaza al otro — `resolve.conditions` evita que Vite genere la copia muerta con hash que rompía el límite de tamaño; el plugin `copy-ort-dist-prod` de Task 3 sigue siendo necesario para que los archivos REALES que pide `/ort-dist/` en runtime existan en `dist/` en producción (`vite build` no corre el middleware de dev). El Step 1 de Task 3 ya incluye esta línea en su bloque de código (ambos fixes conviven en el mismo `defineConfig`) — si al ejecutar Task 3 el implementador encuentra `resolve.conditions` ya presente en el archivo, es esperado, no una desviación suya.
+
+**Nota de proceso:** no pasó por el ciclo completo de implementer+task-reviewer (una línea, dos verificaciones independientes con evidencia — workflow de 3 agentes + reproducción directa del controlador con reversión limpia — ya superan el nivel de escrutinio de una review por-task normal); Edgar confirmó explícitamente antes de aplicarlo. Un subagente del workflow de diagnóstico reportó un intento de prompt injection durante su investigación (un resultado de herramienta con contenido fabricado + una instrucción falsa de no mencionarlo); lo verificó contra `git diff`/`git show` (árbol limpio) y lo reportó igual — no afectó la conclusión, que descansa en la reproducción empírica directa, no en ningún texto sugerido.
+
+---
+
 ### Task 1: Scaffold `apps/worker` — Hono + static assets, verificado con `wrangler dev`
 
 **Files:**
@@ -347,6 +367,9 @@ const ortDist = path.dirname(createRequire(import.meta.url).resolve('onnxruntime
 const ORT_DIST_PROD_FILES = ['ort-wasm-simd-threaded.jsep.mjs', 'ort-wasm-simd-threaded.jsep.wasm']
 
 export default defineConfig({
+  // OJO: si esta línea ya está presente en el archivo al llegar a esta task, es esperado — se aplicó
+  // como fix previo a Task 1 (ver "Hallazgo crítico #2" arriba). No es una desviación tuya, no la quites.
+  resolve: { conditions: ['onnxruntime-web-use-extern-wasm'] },
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
   server: {
     headers: {
@@ -379,16 +402,17 @@ export default defineConfig({
 })
 ```
 
-(El resto del archivo — el middleware `serve-models` completo y el `serve-ort-dist` de dev — se mantiene EXACTAMENTE igual, no se toca; solo se agrega el tercer plugin. No confundir `serve-ort-dist`, que sigue existiendo para dev, con `copy-ort-dist-prod`, nuevo y exclusivo de build.)
+(El resto del archivo — el middleware `serve-models` completo y el `serve-ort-dist` de dev — se mantiene EXACTAMENTE igual, no se toca; solo se agrega el tercer plugin. No confundir `serve-ort-dist`, que sigue existiendo para dev, con `copy-ort-dist-prod`, nuevo y exclusivo de build. `resolve.conditions` y `copy-ort-dist-prod` son fixes ortogonales del mismo "Hallazgo crítico #2"/"Hallazgo crítico" — uno evita una copia muerta con hash que rompía el límite de tamaño de Cloudflare, el otro sirve el archivo real que el runtime pide; ninguno reemplaza al otro.)
 
 - [ ] **Step 2: Build y verificar que los archivos existen**
 
 ```bash
 npm run build -w @tengen/web
 ls -la apps/web/dist/ort-dist/
+find apps/web/dist/assets -name '*.wasm' -size +1M
 ```
 
-Expected: `ort-wasm-simd-threaded.jsep.mjs` y `ort-wasm-simd-threaded.jsep.wasm` presentes (el `.wasm` debe pesar ~26 MB — si pesa unos KB, se copió el archivo equivocado).
+Expected: `ort-wasm-simd-threaded.jsep.mjs` y `ort-wasm-simd-threaded.jsep.wasm` presentes en `dist/ort-dist/` (el `.wasm` debe pesar ~26 MB — si pesa unos KB, se copió el archivo equivocado). El `find` sobre `dist/assets/` debe salir VACÍO — es la guarda de regresión del "Hallazgo crítico #2": si algún día una versión nueva de onnxruntime-web descontinúa la export condition `onnxruntime-web-use-extern-wasm`, este comando detecta que la copia muerta con hash volvió, en vez de dejar que reinfle `dist/` en silencio.
 
 - [ ] **Step 3: Verificación en navegador real — reproducir el fix del hallazgo crítico**
 
