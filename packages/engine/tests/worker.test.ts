@@ -179,6 +179,47 @@ describe('WorkerEngine round-trip (canal mock, sin Worker real)', () => {
     expect(rawLog.some((m) => m.type === 'analysis' && m.id === 3)).toBe(false)
   })
 
+  it('cancelar el analyze en curso deja que el siguiente en cola complete normalmente', async () => {
+    // Escenario positivo del brief ("verificar que el [otro] llega a completarse normalmente"): cancelar
+    // la operación ACTIVA (A) libera la cola de inmediato y deja que la encolada detrás (B, con visits
+    // FINITAS) arranque y complete hasta su `final:true` sin verse afectada por la cancelación de A.
+    const we = connect(async (_n, N) => makeMock(N))
+    await we.init({ network: 'b18', boardSize: 9 })
+
+    const POS_B: Position = {
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      moves: [{ color: 'black', vertex: { x: 4, y: 4 } }],
+    }
+
+    const updatesA: Analysis[] = []
+    const updatesB: Analysis[] = []
+    const cancelA = we.analyze(EMPTY_9, { visits: 100_000 }, (a) => updatesA.push(a))
+    await until(() => updatesA.length >= 1) // A en curso, ocupa la cola
+
+    we.analyze(POS_B, { visits: 100 }, (a) => updatesB.push(a)) // B encolado detrás, visits FINITAS
+    cancelA() // cancela A (el activo): libera la cola para que B arranque
+
+    await until(() => updatesB.some((a) => a.visits >= 100)) // B completa normalmente hasta su target
+  })
+
+  it('propaga un error del engine al `onError` de un analyze (analyze sin init)', async () => {
+    // Cobertura dedicada de M-2 (canal de error público): a diferencia de genMove (que rechaza una
+    // promesa), un `analyze` fallido debe llegar por el 4º parámetro `onError`, no perderse en silencio.
+    const we = connect(async (_n, N) => makeMock(N))
+    // Sin init previo: LocalEngine.analyze lanza dentro de su try/catch (requireInit) → el Worker lo
+    // traduce a un mensaje 'error' → el cliente invoca `onError` de esta llamada específica.
+    const updates: Analysis[] = []
+    const errors: unknown[] = []
+    we.analyze(EMPTY_9, { visits: 10 }, (a) => updates.push(a), (e) => errors.push(e))
+    await until(() => errors.length >= 1)
+    expect(updates.length).toBe(0)
+    expect(errors[0]).toBeInstanceOf(Error)
+    expect((errors[0] as Error).message).toMatch(/init/)
+  })
+
   it('propaga un error del engine como rechazo de la promesa (genMove sin init)', async () => {
     const we = connect(async (_n, N) => makeMock(N))
     // Sin init previo: LocalEngine.genMove lanza; el Worker lo traduce a 'error' y el cliente rechaza.

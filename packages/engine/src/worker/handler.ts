@@ -35,11 +35,14 @@ function errorMessage(e: unknown): string {
  * `engine.analyze`. `stopAll` es el comportamiento global de antes (teardown/crash-recovery): corta
  * TODO lo activo vía `engine.stop()` + drena todos los resolutores en vuelo + limpia los tres registros.
  *
- * Nota (sub-especificado, heredado del diseño de Task 13): una operación DISTINTA que arranca justo
- * tras cancelar la activa puede resetear el token cooperativo de esta última mientras su IIFE aún se
- * desenrolla. Al ser JS mono-hilo no hay corrupción de datos entre tokens (cada `analyze` tiene el
- * suyo); el residuo es lógico (un `onUpdate` tardío para un id ya detenido, que el cliente ignora
- * porque borró su callback).
+ * Nota (sub-especificado, heredado del diseño de Task 13): cancelar la operación ACTIVA libera su
+ * entrada de cola de inmediato (vía `finish()`), lo que puede dejar arrancar a la siguiente encolada
+ * ANTES de que el IIFE de la cancelada termine de desenrollarse (aún no llegó a su próximo chequeo de
+ * `shouldAbort`). Al ser JS mono-hilo esto NO corrompe el scratch del MCTS (`expandScratch`, global y
+ * no reentrante): cada uso del scratch es una sección síncrona sin `await` en su ventana viva, así que
+ * dos operaciones nunca lo tocan A LA VEZ, sólo en sucesión — el residuo es lógico (un `onUpdate`
+ * tardío para un id ya detenido, que el cliente ignora porque borró su callback), no de datos
+ * compartidos.
  */
 export function createWorkerHandler(engine: LocalEngine, post: PostFn): (req: WorkerRequest) => void {
   let queue: Promise<void> = Promise.resolve()
