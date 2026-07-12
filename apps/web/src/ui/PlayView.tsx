@@ -29,7 +29,7 @@
 // esa condición (se llama fresca en cada handler y en el render, nunca se cachea en un state).
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Goban } from '@sabaki/shudan'
-import type { Marker } from '@sabaki/shudan'
+import type { GhostStone, Marker } from '@sabaki/shudan'
 import type { BoardSize, Move, NetworkId, RankLevel } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
@@ -40,7 +40,7 @@ import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
 import { capturesOf, isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
-import { engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
+import { colorToSign, engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
 
@@ -70,6 +70,18 @@ function opponentLabel(opponent: RankLevel): string {
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
+}
+
+/** Texto de feedback para una jugada rechazada por `validateMove`. */
+function illegalMoveMessage(reason: 'ko' | 'suicide' | 'overwrite'): string {
+  switch (reason) {
+    case 'ko':
+      return 'Jugada ilegal: retoma un ko.'
+    case 'suicide':
+      return 'Jugada ilegal: es un suicidio.'
+    case 'overwrite':
+      return 'Jugada ilegal: esa intersección ya tiene una piedra.'
+  }
 }
 
 /** Fecha del navegador en YYYY-MM-DD, para el nombre del archivo `.sgf` exportado. */
@@ -141,6 +153,8 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
   const [result, setResult] = useState<string | null>(tree.meta.result ?? null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
+  const [hoveredVertex, setHoveredVertex] = useState<[number, number] | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   /** true si el cursor está fuera del TIP VIVO (`tree.isAtLiveTip()`), o la partida ya terminó: en
@@ -297,7 +311,11 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
 
     if (isExploring()) {
       const validation = validateMove(tree.boardAt(), turnAtCursor, vertex)
-      if (!validation.legal) return
+      if (!validation.legal) {
+        setIllegalMoveHint(illegalMoveMessage(validation.reason!))
+        return
+      }
+      setIllegalMoveHint(null)
       tree.addMove({ color: turnAtCursor, vertex })
       bump()
       persist()
@@ -307,7 +325,11 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
     // Partida viva, en el tip: comportamiento de Task 4 intacto (solo Negro humano juega).
     if (turnAtCursor !== 'black') return
     const validation = validateMove(tree.boardAt(), 'black', vertex)
-    if (!validation.legal) return // jugada ilegal: se ignora en silencio (sin feedback por ahora)
+    if (!validation.legal) {
+      setIllegalMoveHint(illegalMoveMessage(validation.reason!))
+      return
+    }
+    setIllegalMoveHint(null)
     tree.addMove({ color: 'black', vertex })
     bump()
     persist()
@@ -446,6 +468,16 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
   const turn = tree.currentTurnAt()
   const exploring = isExploring()
   const markerMap = buildMarkerMap(config.boardSize, tree.current.move)
+  // Piedra fantasma en hover: solo si un clic ahí realmente jugaría algo (mismo gate que
+  // handleVertexClick — en exploración cualquier color puede jugar; en partida viva solo Negro).
+  const canHoverPlace = !busy && (exploring || turn === 'black')
+  const hoverVertexEmpty =
+    hoveredVertex !== null && signMap[hoveredVertex[1]]?.[hoveredVertex[0]] === 0
+  const ghostStoneMap = buildHoverGhostStoneMap(
+    config.boardSize,
+    canHoverPlace && hoverVertexEmpty ? hoveredVertex : null,
+    colorToSign(turn),
+  )
 
   return (
     <div class="play-view">
@@ -453,10 +485,13 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
         <Goban
           signMap={signMap}
           markerMap={markerMap}
+          ghostStoneMap={ghostStoneMap}
           vertexSize={VERTEX_SIZE[config.boardSize]}
           showCoordinates
           busy={busy}
           onVertexClick={(_evt, v) => handleVertexClick(v)}
+          onVertexMouseEnter={(_evt, v) => setHoveredVertex(v)}
+          onVertexMouseLeave={() => setHoveredVertex(null)}
         />
       </div>
       <aside class="play-panel">
@@ -480,6 +515,7 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
         {exploring && result === null && <p class="play-exploring">Modo exploración: construyendo variación.</p>}
 
         {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
+        {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
         {result !== null && <p class="play-result">Resultado: {result}</p>}
 
         <div class="play-controls">
@@ -546,5 +582,23 @@ function buildMarkerMap(boardSize: BoardSize, move: Move | null): (Marker | null
     const row = map[y]
     if (row) row[x] = { type: 'circle' }
   }
+  return map
+}
+
+/** ghostStoneMap boardSize×boardSize con una única piedra semitransparente (`faint: true`, mismo
+ * patrón que `buildPvOverlay` de Modo Analizar) en `hovered`, o vacío si `hovered` es null (nada
+ * bajo el cursor, o el gate del caller decidió que ahí no se podría jugar). */
+function buildHoverGhostStoneMap(
+  boardSize: BoardSize,
+  hovered: [number, number] | null,
+  sign: 1 | -1,
+): (GhostStone | null)[][] {
+  const map: (GhostStone | null)[][] = Array.from({ length: boardSize }, () =>
+    Array<GhostStone | null>(boardSize).fill(null),
+  )
+  if (!hovered) return map
+  const [x, y] = hovered
+  const row = map[y]
+  if (row) row[x] = { sign, faint: true }
   return map
 }

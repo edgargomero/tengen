@@ -65,6 +65,19 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
+/** Texto de feedback para una jugada rechazada por `validateMove` — duplicado a propósito de
+ * `PlayView.tsx` (mismo motivo que `VERTEX_SIZE`/`errorMessage`: ese archivo no exporta nada). */
+function illegalMoveMessage(reason: 'ko' | 'suicide' | 'overwrite'): string {
+  switch (reason) {
+    case 'ko':
+      return 'Jugada ilegal: retoma un ko.'
+    case 'suicide':
+      return 'Jugada ilegal: es un suicidio.'
+    case 'overwrite':
+      return 'Jugada ilegal: esa intersección ya tiene una piedra.'
+  }
+}
+
 /** Mismo cálculo que `vertexLabel` (privado) de `GameTreePanel.tsx` — duplicado a propósito, mismo
  * patrón ya aceptado en Task 9 para `VERTEX_SIZE`/`errorMessage` (ese archivo no exporta nada). */
 function formatVertexLabel(v: TengenVertex, boardSize: BoardSize): string {
@@ -218,6 +231,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
   // Mutuamente excluyente con `guessWaiting` — ambos modos consumen el único `onVertexClick` del
   // tablero, ver `handleToggleEditVariation`/`handleGuessStart`.
   const [editingVariation, setEditingVariation] = useState(false)
+  const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
 
   useEffect(() => {
     staleRef.current = false
@@ -367,7 +381,11 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
     const vertex = sabakiToEngineVertex(v)
     const turnAtCursor = tree.currentTurnAt()
     const validation = validateMove(tree.boardAt(), turnAtCursor, vertex)
-    if (!validation.legal) return // jugada ilegal: se ignora en silencio, mismo criterio que PlayView
+    if (!validation.legal) {
+      setIllegalMoveHint(illegalMoveMessage(validation.reason!))
+      return
+    }
+    setIllegalMoveHint(null)
     tree.addMove({ color: turnAtCursor, vertex })
     bump()
   }
@@ -436,6 +454,11 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
   const reviewProgress = review.progress(now)
   const report = review.getLatestReport()
   const turningPoints = report ? getReportTurningPoints(report.moveEntries) : []
+  // 0 si el cursor está fuera de mainLine() (en una variación): prev queda deshabilitado y next
+  // apunta siempre al primer turning point — comportamiento aceptable, ver nota del plan.
+  const currentMoveNumber = tree.mainLine().findIndex((n) => n.id === tree.current.id) + 1
+  const prevMistake = [...turningPoints].reverse().find((e) => e.moveNumber < currentMoveNumber)
+  const nextMistake = turningPoints.find((e) => e.moveNumber > currentMoveNumber)
 
   return (
     <div class="analyze-view">
@@ -479,11 +502,17 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
             Modo edición: le toca a {tree.currentTurnAt() === 'black' ? 'Negro' : 'Blanco'}
           </p>
         )}
+        {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
 
         <div class="analyze-speed">
           <span>Velocidad de análisis:</span>
           {SPEED_LEVELS.map((level) => (
-            <button key={level} onClick={() => onChangeSpeed(level)} disabled={speed === level}>
+            <button
+              key={level}
+              class={speed === level ? 'active' : ''}
+              onClick={() => onChangeSpeed(level)}
+              disabled={speed === level}
+            >
               {speed === level ? `• ${SPEED_LABELS[level]}` : SPEED_LABELS[level]}
             </button>
           ))}
@@ -498,6 +527,8 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
         <GameReviewPanel
           progress={reviewProgress}
           turningPoints={turningPoints}
+          prevMistake={prevMistake}
+          nextMistake={nextMistake}
           onSelectEntry={handleSelectTurningPoint}
         />
         <GuessMovePanel

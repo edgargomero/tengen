@@ -8,15 +8,33 @@ import { summarizePointsLost } from '../analysis/vendor/web-katrain/analysisSumm
 interface GameReviewPanelProps {
   progress: GameAnalysisProgressSummary | null
   turningPoints: MoveReportEntry[]
+  /** Turning point más cercano antes/después de la posición actual (`undefined` = no hay en esa
+   * dirección) — ya resuelto por el caller (`AnalyzeView`, que es quien conoce `tree`). */
+  prevMistake?: MoveReportEntry
+  nextMistake?: MoveReportEntry
   onSelectEntry(entry: MoveReportEntry): void
 }
 
-export function GameReviewPanel({ progress, turningPoints, onSelectEntry }: GameReviewPanelProps) {
+export function GameReviewPanel({
+  progress,
+  turningPoints,
+  prevMistake,
+  nextMistake,
+  onSelectEntry,
+}: GameReviewPanelProps) {
   return (
     <div class="review-panel">
       <p class="review-progress">
         {progress === null ? 'Analizando partida…' : `Review: ${progress.captionLabel}`}
       </p>
+      <div class="play-nav">
+        <button type="button" onClick={() => prevMistake && onSelectEntry(prevMistake)} disabled={!prevMistake}>
+          ◀ Error anterior
+        </button>
+        <button type="button" onClick={() => nextMistake && onSelectEntry(nextMistake)} disabled={!nextMistake}>
+          Error siguiente ▶
+        </button>
+      </div>
       {turningPoints.length === 0 ? (
         <p class="review-empty">Sin saltos grandes detectados todavía.</p>
       ) : (

@@ -5,6 +5,10 @@
 :root {
   color-scheme: light;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Acento de marca: color real de la madera del tablero de Shudan (goban.css
+     --shudan-board-border-color: #CA933A), no un azul genérico inventado. */
+  --tengen-accent: #ca933a;
+  --tengen-accent-hover: #a87527;
 }
 
 body {
@@ -175,8 +179,8 @@ fieldset.field {
 }
 
 .primary {
-  background: #2f6fed;
-  border-color: #2f6fed;
+  background: var(--tengen-accent);
+  border-color: var(--tengen-accent);
   color: #fff;
   font-weight: 600;
   padding: 0.7rem 1.25rem;
@@ -185,7 +189,7 @@ fieldset.field {
 }
 
 .primary:hover:not(:disabled) {
-  background: #2559c4;
+  background: var(--tengen-accent-hover);
 }
 
 /* ── Pantalla de juego ──────────────────────────────────────────────────────────────────────── */
@@ -303,8 +307,8 @@ fieldset.field {
 }
 
 .tree-node-current {
-  background: #2f6fed;
-  border-color: #2f6fed;
+  background: var(--tengen-accent);
+  border-color: var(--tengen-accent);
   color: #fff;
 }
 
@@ -358,12 +362,12 @@ fieldset.field {
 }
 
 .tree-graph-node-halo {
-  stroke: #2f6fed;
+  stroke: var(--tengen-accent);
   stroke-width: 2;
 }
 
 .tree-graph-node:focus-visible {
-  outline: 2px solid #2f6fed;
+  outline: 2px solid var(--tengen-accent);
   outline-offset: 1px;
 }
 
@@ -431,6 +435,15 @@ fieldset.field {
   font-size: 0.85rem;
 }
 
+/* opacity:1 explícito: sin esto, `button:disabled { opacity: 0.5 }` (arriba) pisa el nivel
+   "activo" y lo deja ATENUADO en vez de resaltado — el bug de UX real que este pill corrige. */
+.analyze-speed button.active {
+  opacity: 1;
+  background: var(--tengen-accent);
+  border-color: var(--tengen-accent);
+  color: #fff;
+}
+
 /* ── Paneles del review de fondo (Fase 3a, Task 10) ─────────────────────────────────────────── */
 
 .review-graph {
@@ -449,12 +462,12 @@ fieldset.field {
 }
 
 .review-graph-line {
-  stroke: #2f6fed;
+  stroke: var(--tengen-accent);
   stroke-width: 1.5;
 }
 
 .review-graph-point {
-  fill: #2f6fed;
+  fill: var(--tengen-accent);
   cursor: pointer;
 }
 
