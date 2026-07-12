@@ -20,8 +20,9 @@ import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engin
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import { GameTree, type GameNode } from '../game/gameTree'
-import { isMoveSequenceLegal, signMapOf } from '../game/rules'
-import { importSgf } from '../game/sgf'
+import { isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
+import { exportSgf, importSgf } from '../game/sgf'
+import { sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { AnalysisStore } from '../analysis/analysisStore'
 import { ReviewScheduler } from '../analysis/reviewScheduler'
@@ -36,7 +37,7 @@ import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
 import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
 import type { AnalyzeSpeed } from '../analysis/speedPreference'
-import { GameTreePanel } from './GameTreePanel'
+import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
 import { GuessMovePanel } from './GuessMovePanel'
@@ -71,6 +72,13 @@ function formatVertexLabel(v: TengenVertex, boardSize: BoardSize): string {
   const col = GTP_COLUMNS.charAt(v.x) || '?'
   const row = boardSize - v.y
   return `${col}${row}`
+}
+
+/** Fecha del navegador en YYYY-MM-DD, para el nombre del `.sgf` exportado — mismo cálculo que
+ * `PlayView.tsx` (privado ahí, se duplica aquí por el mismo motivo que `VERTEX_SIZE`/`errorMessage`). */
+function formatDateForFilename(d: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 interface AnalyzeViewProps {
@@ -204,6 +212,12 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
   // staleness por-nodo en `handleBoardGuessClick`.
   const [guessNodeId, setGuessNodeId] = useState<number | null>(null)
 
+  // Editor de variaciones (spec 2026-07-12-analyze-editor-variaciones.md): true = el próximo clic en
+  // el tablero juega una piedra (ambos colores, reglas normales) en vez de contar como adivinanza.
+  // Mutuamente excluyente con `guessWaiting` — ambos modos consumen el único `onVertexClick` del
+  // tablero, ver `handleToggleEditVariation`/`handleGuessStart`.
+  const [editingVariation, setEditingVariation] = useState(false)
+
   useEffect(() => {
     staleRef.current = false
     manager
@@ -330,9 +344,42 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
   }
 
   function handleGuessStart(): void {
+    setEditingVariation(false) // mutuamente excluyente con el editor de variaciones
     setGuessWaiting(true)
     setGuessResult(null)
     setGuessErrorMsg(null)
+  }
+
+  function handleToggleEditVariation(): void {
+    setEditingVariation((current) => {
+      const next = !current
+      if (next) setGuessWaiting(false) // mutuamente excluyente con el modo adivinanza
+      return next
+    })
+  }
+
+  /** Jugar una piedra en el editor de variaciones: valida contra el oráculo `go-board` y, si es
+   * legal, la agrega al árbol vía `GameTree.addMove` (crea una variación si el cursor no está en el
+   * tip). Precedente exacto: `PlayView.tsx` modo exploración (`handleVertexClick`, líneas 284-296),
+   * sin `persist()` (Modo Analizar no persiste a localStorage) y sin turno de IA. */
+  function handleEditVertexClick(v: [number, number]): void {
+    const vertex = sabakiToEngineVertex(v)
+    const turnAtCursor = tree.currentTurnAt()
+    const validation = validateMove(tree.boardAt(), turnAtCursor, vertex)
+    if (!validation.legal) return // jugada ilegal: se ignora en silencio, mismo criterio que PlayView
+    tree.addMove({ color: turnAtCursor, vertex })
+    bump()
+  }
+
+  function handleExportSgf(): void {
+    const text = exportSgf(tree)
+    const blob = new Blob([text], { type: 'application/x-go-sgf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tengen-analyze-${formatDateForFilename(new Date())}.sgf`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function handleGuessCancel(): void {
@@ -399,7 +446,13 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
           markerMap={pvOverlay?.markerMap}
           vertexSize={VERTEX_SIZE[boardSize]}
           showCoordinates
-          onVertexClick={guessWaiting ? (_evt, v) => handleBoardGuessClick(v) : undefined}
+          onVertexClick={
+            editingVariation
+              ? (_evt, v) => handleEditVertexClick(v)
+              : guessWaiting
+                ? (_evt, v) => handleBoardGuessClick(v)
+                : undefined
+          }
         />
       </div>
       <aside class="analyze-panel">
@@ -416,6 +469,15 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
           {analyzing ? 'Analizando…' : 'Analizar esta posición'}
         </button>
         {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
+
+        <button onClick={handleToggleEditVariation} disabled={booting}>
+          {editingVariation ? 'Dejar de editar' : 'Editar variación'}
+        </button>
+        {editingVariation && (
+          <p class="analyze-editing">
+            Modo edición: le toca a {tree.currentTurnAt() === 'black' ? 'Negro' : 'Blanco'}
+          </p>
+        )}
 
         <div class="analyze-speed">
           <span>Velocidad de análisis:</span>
@@ -462,10 +524,11 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
           </button>
         </div>
 
+        <button onClick={handleExportSgf}>Exportar SGF</button>
         <button onClick={onLoadAnother}>Cargar otro SGF</button>
         <button onClick={onBack}>Volver</button>
 
-        <GameTreePanel
+        <GameTreeGraph
           tree={tree}
           onNavigate={handleTreeNavigate}
           annotationFor={(node) => (store.has(node.id) ? '•' : undefined)}

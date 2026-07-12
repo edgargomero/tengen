@@ -277,6 +277,65 @@ button.primary:hover:not(:disabled) {
   color: #fff;
 }
 
+/* ── Árbol de jugadas como grafo SVG (spec 2026-07-12, solo Modo Analizar) ─────────────────────
+   Paralelo a `.tree-*` de arriba, que sigue intacto y en uso por `PlayView.tsx`/`GameTreePanel.tsx`. */
+
+.tree-graph-container {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e0e0e0;
+  max-height: 16rem;
+  overflow: auto; /* AMBOS ejes — un árbol de 100+ jugadas es más ancho que el panel lateral */
+}
+
+.tree-graph-disabled {
+  opacity: 0.6;
+}
+
+.tree-graph-svg {
+  display: block;
+}
+
+.tree-graph-edge {
+  stroke: #c7c7c7;
+  stroke-width: 1;
+}
+
+.tree-graph-node {
+  cursor: pointer;
+  stroke-width: 1.5;
+}
+
+.tree-graph-node-black {
+  fill: #1a1a1a;
+  stroke: #1a1a1a;
+}
+
+.tree-graph-node-white {
+  fill: #fff;
+  stroke: #555;
+}
+
+.tree-graph-node-root {
+  fill: #999;
+  stroke: #777;
+}
+
+.tree-graph-node-annotated {
+  stroke: #14b8a6;
+  stroke-width: 2.5;
+}
+
+.tree-graph-node-halo {
+  stroke: #2f6fed;
+  stroke-width: 2;
+}
+
+.tree-graph-node:focus-visible {
+  outline: 2px solid #2f6fed;
+  outline-offset: 1px;
+}
+
 /* ── Pantalla de análisis (Fase 3a, Task 9) ─────────────────────────────────────────────────── */
 
 .analyze-view {
@@ -329,6 +388,15 @@ button.primary:hover:not(:disabled) {
 
 .analyze-score-hint {
   color: #777;
+  font-size: 0.85rem;
+}
+
+.analyze-editing {
+  color: #7a5b00;
+  background: #fff6dd;
+  border: 1px solid #f0dea0;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
 }
 

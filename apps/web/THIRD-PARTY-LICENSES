@@ -69,6 +69,21 @@ la licencia MIT original del proyecto:
     (Task 6) — portarlos sería código muerto garantizado, no un archivo
     completo con consumidores futuros razonables como en Tasks 3/4)
 
+  - src/ui/vendor/web-katrain/moveTreeLayout.ts (origen: src/utils/moveTreeLayout.ts
+    — computeMoveTreeLayout y sus tipos/constantes portados VERBATIM;
+    `import type { GameNode, Player } from '../types'` → `type Player =
+    'black' | 'white'` local. flattenMoveTree/moveTreeNodeLabel NO se portan
+    (acoplados al GameNode de web-katrain — reemplazados por el adaptador
+    nativo `apps/web/src/ui/gameTreeGraphAdapter.ts`), tampoco el minimapa/
+    culling/worker (getVisibleMoveTreeItems y el resto de esa familia —
+    YAGNI para un panel con scroll normal)
+
+  - src/ui/vendor/web-katrain/moveTreeKeyboard.ts (origen:
+    src/utils/moveTreeKeyboard.ts — verbatim, sin cambios de lógica; el
+    `GameNode` real de tengen ya satisface `MoveTreeKeyboardNode<T>`
+    estructuralmente. Único cambio: un `!` en `mainLineLeaf`, exigido por
+    `noUncheckedIndexedAccess`)
+
 Cada archivo lleva una cabecera de atribución individual. Los cambios de
 adaptación introducidos por tengen y el procedimiento de re-sync ante
 releases de upstream se documentan en
