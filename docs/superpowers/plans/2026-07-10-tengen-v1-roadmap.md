@@ -32,9 +32,9 @@
 | 2 · Jugar bien | flujo de partida completo (Shudan + go-board + WorkerEngine) | detallado aquí |
 | 3a · Analizar (núcleo) | SGF + overlays + review progresivo (porta lógica web-katrain) | **COMPLETA** — [plan](2026-07-11-fase3a-analizar.md), ledger `.superpowers/sdd/progress.md` |
 | 3b · Analizar (comentarios + biblioteca local) | comentarios de posición, biblioteca local de partidas | sin planear, fase separada |
-| 4 · apps/worker base | Worker Hono: static assets + R2 para redes; deploy `tengen.kntor.io` | **spec + plan escritos (2026-07-11), EN EJECUCIÓN** — [spec](../specs/2026-07-11-fase4-deploy-worker.md), [plan](2026-07-11-fase4-deploy-worker.md) |
+| 4 · apps/worker base | Worker Hono: static assets + R2 para redes; deploy `tengen.kntor.io` | **COMPLETA y DESPLEGADA (2026-07-11)** — app pública viva en https://tengen.kntor.io (cuenta `kntor-dev`) — [spec](../specs/2026-07-11-fase4-deploy-worker.md), [plan](2026-07-11-fase4-deploy-worker.md), ledger `.superpowers/sdd/progress.md`. Pendiente: gate manual de Edgar en navegador real (WebGPU) |
 | 5 · Cuentas + nube | D1 + better-auth (Google) + Turnstile + guardado/listado | alcance + decisiones; spec propio |
-| 6 · Deploy + CI | Cloudflare (Worker+R2+D1) + Renovate + watcher upstream + Playwright | alcance |
+| 6 · CI + monitoreo upstream | Renovate + watcher upstream + Playwright (el deploy en sí ya pasó a Fase 4) | alcance |
 
 La deuda del motor se cierra **en el borde de la app**, no como fase aparte: M-4 handicap + Task 13a (`visits<=0`) en Fase 2; M-1 (cancelación por-`id`) + M-2 (canal de error de `analyze`) en Fase 3.
 
@@ -80,8 +80,11 @@ La deuda del motor se cierra **en el borde de la app**, no como fase aparte: M-4
 - **Auth:** better-auth con Google OAuth; **Turnstile** en el registro. API JSON (Hono) para guardar/listar/reabrir; **rate limiting** por usuario/IP (protege D1). Offline-first: guardar en la nube falla con aviso y reintento, el SGF local nunca se pierde.
 - **Decisiones abiertas (para su spec):** estrategia de sesión/cookies de better-auth, claves de Turnstile, versión de better-auth/hono, migraciones de D1.
 
-### Fase 6 — Deploy + CI + monitoreo upstream — *alcance*
-- Desplegar Worker + R2 + D1 a Cloudflare (workers.dev primero; **dominio propio se decide al desplegar** — pregunta abierta #4). Secrets (Google OAuth, Turnstile) vía wrangler.
+### Fase 6 — CI + monitoreo upstream — *alcance*
+
+> **Nota (2026-07-11):** el deploy (Worker + R2 + dominio custom `tengen.kntor.io`) ya se hizo en Fase 4 — no se esperó a esta fase (decisión de Edgar, ver plan de Fase 4). Lo que queda acá es CI + monitoreo + Playwright; cuando D1 exista (Fase 5) esta fase agrega sus secrets/deploy incremental, no un deploy desde cero.
+
+- ~~Desplegar Worker + R2 + D1 a Cloudflare (workers.dev primero; dominio propio se decide al desplegar)~~ — Worker + R2 + dominio YA desplegados en Fase 4; D1 se agrega cuando exista Fase 5. Secrets (Google OAuth, Turnstile) vía wrangler, a agregar con Fase 5.
 - **CI:** Renovate/Dependabot (npm) + watcher de `releases.atom` para lo no-npm (KataGo, web-katrain, katago-onnx, redes) — spec §Monitoreo, requisito permanente de Edgar; incluir el gate `test:nn` tras re-syncs.
 - **Playwright** smoke e2e: abrir app, jugar una jugada vs nivel débil, cargar un SGF.
 
