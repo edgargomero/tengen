@@ -15,6 +15,7 @@
 // pintado se DERIVA de `tree`/`store` frescos en cada render — nunca hay estado duplicado del árbol
 // ni del análisis.
 import { useEffect, useRef, useState } from 'preact/hooks'
+import type { RoutableProps } from 'preact-router'
 import { Goban } from '@sabaki/shudan'
 import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
@@ -81,8 +82,8 @@ function formatDateForFilename(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-interface AnalyzeViewProps {
-  /** Vuelve al menú/selector de modo (lo cablea Task 11 en main.tsx; hoy nadie pasa esta prop). */
+interface AnalyzeViewProps extends RoutableProps {
+  /** Vuelve al menú/selector de modo (cableado en main.tsx vía `route('/')`). */
   onBack(): void
 }
 

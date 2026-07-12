@@ -10,6 +10,7 @@ import { validateConfig } from '../game/gameConfig'
 
 interface NewGameFormProps {
   onStart(config: GameConfig): void
+  onBack(): void
 }
 
 const BOARD_SIZES: BoardSize[] = [9, 13, 19]
@@ -22,7 +23,7 @@ function defaultKomi(rules: Rules): number {
   return rules === 'chinese' ? 7 : 6.5
 }
 
-export function NewGameForm({ onStart }: NewGameFormProps) {
+export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   // Tamaño por defecto: 9×9 (partida más corta y rápida — mejor primera experiencia jugable que
   // 19×19; además el usuario puede subir de tamaño cuando quiera).
   const [boardSize, setBoardSize] = useState<BoardSize>(9)
@@ -62,106 +63,113 @@ export function NewGameForm({ onStart }: NewGameFormProps) {
 
   return (
     <form class="new-game-form" onSubmit={handleSubmit}>
+      <button type="button" onClick={onBack}>
+        Volver
+      </button>
       <h1>tengen</h1>
       <p class="new-game-subtitle">Nueva partida contra la IA (tú juegas Negro).</p>
 
-      <label class="field">
-        Tamaño del tablero
-        <select
-          value={boardSize}
-          onChange={(e) => handleBoardSizeChange(Number((e.target as HTMLSelectElement).value) as BoardSize)}
-        >
-          {BOARD_SIZES.map((size) => (
-            <option key={size} value={size}>
-              {size}×{size}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <fieldset class="field">
-        <legend>Oponente</legend>
-        <label class="radio-option">
-          <input
-            type="radio"
-            name="opponentKind"
-            checked={opponentKind === 'kata'}
-            onChange={() => setOpponentKind('kata')}
-          />
-          KataGo
-        </label>
-        {opponentKind === 'kata' && (
+      <div class="field-group">
+        <label class="field">
+          Tamaño del tablero
           <select
-            value={kataVisits}
-            onChange={(e) => setKataVisits(Number((e.target as HTMLSelectElement).value))}
+            value={boardSize}
+            onChange={(e) => handleBoardSizeChange(Number((e.target as HTMLSelectElement).value) as BoardSize)}
           >
-            {KATA_VISIT_PRESETS.map((visits) => (
-              <option key={visits} value={visits}>
-                {visits} visitas
+            {BOARD_SIZES.map((size) => (
+              <option key={size} value={size}>
+                {size}×{size}
               </option>
             ))}
           </select>
-        )}
-
-        <label class="radio-option">
-          <input
-            type="radio"
-            name="opponentKind"
-            checked={opponentKind === 'human'}
-            onChange={() => setOpponentKind('human')}
-          />
-          Human SL (estilo humano)
         </label>
-        {opponentKind === 'human' && (
+
+        <fieldset class="field">
+          <legend>Oponente</legend>
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="opponentKind"
+              checked={opponentKind === 'kata'}
+              onChange={() => setOpponentKind('kata')}
+            />
+            KataGo
+          </label>
+          {opponentKind === 'kata' && (
+            <select
+              value={kataVisits}
+              onChange={(e) => setKataVisits(Number((e.target as HTMLSelectElement).value))}
+            >
+              {KATA_VISIT_PRESETS.map((visits) => (
+                <option key={visits} value={visits}>
+                  {visits} visitas
+                </option>
+              ))}
+            </select>
+          )}
+
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="opponentKind"
+              checked={opponentKind === 'human'}
+              onChange={() => setOpponentKind('human')}
+            />
+            Human SL (estilo humano)
+          </label>
+          {opponentKind === 'human' && (
+            <select
+              value={humanRank}
+              onChange={(e) => setHumanRank((e.target as HTMLSelectElement).value as HumanRank)}
+            >
+              {HUMAN_RANKS.map((rank) => (
+                <option key={rank} value={rank}>
+                  {rank}
+                </option>
+              ))}
+            </select>
+          )}
+        </fieldset>
+      </div>
+
+      <div class="field-group">
+        <label class="field">
+          Reglas
+          <select value={rules} onChange={(e) => handleRulesChange((e.target as HTMLSelectElement).value as Rules)}>
+            <option value="chinese">Chinas</option>
+            <option value="japanese">Japonesas</option>
+          </select>
+        </label>
+
+        <label class="field">
+          Komi
+          <input
+            type="number"
+            step="0.5"
+            value={komi}
+            onChange={(e) => {
+              setKomiTouched(true)
+              setKomi(Number((e.target as HTMLInputElement).value))
+            }}
+          />
+        </label>
+
+        <label class="field">
+          Handicap
           <select
-            value={humanRank}
-            onChange={(e) => setHumanRank((e.target as HTMLSelectElement).value as HumanRank)}
+            value={handicap}
+            disabled={!handicapAllowed}
+            onChange={(e) => setHandicap(Number((e.target as HTMLSelectElement).value))}
           >
-            {HUMAN_RANKS.map((rank) => (
-              <option key={rank} value={rank}>
-                {rank}
+            {(handicapAllowed ? HANDICAP_OPTIONS_19 : [0]).map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? 'Sin handicap' : `${n} piedras`}
               </option>
             ))}
           </select>
-        )}
-      </fieldset>
-
-      <label class="field">
-        Reglas
-        <select value={rules} onChange={(e) => handleRulesChange((e.target as HTMLSelectElement).value as Rules)}>
-          <option value="chinese">Chinas</option>
-          <option value="japanese">Japonesas</option>
-        </select>
-      </label>
-
-      <label class="field">
-        Komi
-        <input
-          type="number"
-          step="0.5"
-          value={komi}
-          onChange={(e) => {
-            setKomiTouched(true)
-            setKomi(Number((e.target as HTMLInputElement).value))
-          }}
-        />
-      </label>
-
-      <label class="field">
-        Handicap
-        <select
-          value={handicap}
-          disabled={!handicapAllowed}
-          onChange={(e) => setHandicap(Number((e.target as HTMLSelectElement).value))}
-        >
-          {(handicapAllowed ? HANDICAP_OPTIONS_19 : [0]).map((n) => (
-            <option key={n} value={n}>
-              {n === 0 ? 'Sin handicap' : `${n} piedras`}
-            </option>
-          ))}
-        </select>
-        {!handicapAllowed && <span class="field-hint">Solo disponible en 19×19</span>}
-      </label>
+          {!handicapAllowed && <span class="field-hint">Solo disponible en 19×19</span>}
+        </label>
+      </div>
 
       {errorMsg && <p class="form-error">{errorMsg}</p>}
 

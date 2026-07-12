@@ -88,6 +88,26 @@ input[type='number'] {
   color: #555;
 }
 
+.mode-menu a {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  text-decoration: none;
+}
+
+/* :not(.primary), no .mode-menu a sola, para que estas propiedades no le ganen en especificidad
+   a la regla .primary (border/background/color) en el link "Jugar". */
+.mode-menu a:not(.primary) {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: inherit;
+}
+
+.mode-menu a:not(.primary):hover {
+  background: #f0f0f0;
+}
+
 /* ── Formulario de nueva partida ────────────────────────────────────────────────────────────── */
 
 .new-game-form {
@@ -99,7 +119,15 @@ input[type='number'] {
   border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
 }
 
 .new-game-form h1 {
@@ -146,15 +174,17 @@ fieldset.field {
   margin: 0;
 }
 
-button.primary {
+.primary {
   background: #2f6fed;
   border-color: #2f6fed;
   color: #fff;
   font-weight: 600;
-  padding: 0.6rem 1rem;
+  padding: 0.7rem 1.25rem;
+  font-size: 1.05rem;
+  text-align: center;
 }
 
-button.primary:hover:not(:disabled) {
+.primary:hover:not(:disabled) {
   background: #2559c4;
 }
 
@@ -220,7 +250,8 @@ button.primary:hover:not(:disabled) {
   font-size: 0.85rem;
 }
 
-.play-new-game {
+.play-new-game,
+.play-back {
   align-self: flex-start;
   margin-top: 0.5rem;
 }

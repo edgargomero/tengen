@@ -14,8 +14,10 @@
 // seguirían apuntando al árbol/motor VIEJOS: el import/restore serían un no-op silencioso (con fuga
 // del `EngineManager` viejo, que solo se dispone en el cleanup del desmontaje real).
 import { Component, render } from 'preact'
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
+import { Router, Link as RouterLink, route } from 'preact-router'
+import type { RoutableProps } from 'preact-router'
 import '@sabaki/shudan/css/goban.css'
 import './styles/app.css'
 import type { GameConfig } from './game/gameConfig'
@@ -26,6 +28,11 @@ import { AnalyzeView } from './ui/AnalyzeView'
 import { NewGameForm } from './ui/NewGameForm'
 import { PlayView } from './ui/PlayView'
 import { detectWebGpu } from './webgpu'
+
+// El tipo de `Link` en preact-router@4.1.2 usa `HTMLAttributes` (sin `href`) en vez de
+// `AnchorHTMLAttributes` — desactualizado frente a los tipos más granulares de preact@10.24
+// instalados aquí. Re-tipado local en vez de tocar node_modules.
+const Link = RouterLink as (props: JSX.AnchorHTMLAttributes<HTMLAnchorElement>) => JSX.Element
 
 function NoWebGpu() {
   return (
@@ -68,7 +75,7 @@ function restoreSession(): Session | null {
   }
 }
 
-function PlayApp() {
+function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
   const [session, setSession] = useState<Session | null>(restoreSession)
   // Bumpea en CADA transición de sesión (nueva partida / import / "Nueva partida"): ver nota de
   // cabecera. Arranca en 0 y no importa su valor exacto, solo que cambie.
@@ -95,7 +102,7 @@ function PlayApp() {
   }
 
   if (session === null) {
-    return <NewGameForm onStart={handleStart} />
+    return <NewGameForm onStart={handleStart} onBack={onBack} />
   }
   return (
     <PlayView
@@ -104,6 +111,7 @@ function PlayApp() {
       initialTree={session.initialTree}
       onNewGame={handleNewGame}
       onImport={handleImport}
+      onBack={onBack}
     />
   )
 }
@@ -164,41 +172,30 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoun
   }
 }
 
-// ── Conmutador de modo Jugar/Analizar (Task 11) ────────────────────────────────────────────────
+// ── Conmutador de modo Jugar/Analizar (Task 11), ruteo por URL (navegación + UX) ──────────────
 // Se inserta ENTRE el gate de WebGPU y PlayApp/AnalyzeView: ambos modos lo necesitan, así que el
-// gate sigue siendo lo primero (ver App() más abajo).
-type Mode = 'menu' | 'play' | 'analyze'
-
+// gate sigue siendo lo primero (ver App() más abajo). La ruta decide el modo inicial (en vez de
+// arrancar siempre en el menú); los 3 modos tienen botón "Volver" (`route('/')`), así que ya no
+// hay modo sin salida.
 function ModeApp() {
-  // SIEMPRE arranca en 'menu' — el plan pide el conmutador "antes del formulario actual", es decir
-  // antes de PlayApp/NewGameForm, no solo cuando no hay partida guardada. Una versión anterior de
-  // esta tarea saltaba directo a 'play' si `loadGame()` encontraba una partida guardada (para
-  // preservar el "recargar retoma tu partida" de Fase 2) — pero como Modo Jugar no tiene forma de
-  // volver al menú (asimetría deliberada, ver comentario de ModeApp más abajo), eso dejaba Analizar
-  // INALCANZABLE para cualquier usuario que ya hubiera jugado una vez: cada recarga futura saltaba
-  // el menú para siempre. El costo de arreglarlo es un clic extra para retomar una partida en curso
-  // (menú → "Jugar" → PlayApp.restoreSession() ya la restaura igual, sin pérdida de datos) — trivial
-  // frente a un modo completo inalcanzable.
-  const [mode, setMode] = useState<Mode>('menu')
-
-  if (mode === 'menu') return <ModeMenu onSelect={setMode} />
-  if (mode === 'play') return <PlayApp />
-  return <AnalyzeView onBack={() => setMode('menu')} />
+  return (
+    <Router>
+      <ModeMenu path="/" default />
+      <PlayApp path="/jugar" onBack={() => route('/')} />
+      <AnalyzeView path="/analizar" onBack={() => route('/')} />
+    </Router>
+  )
 }
 
-interface ModeMenuProps {
-  onSelect(mode: Mode): void
-}
-
-function ModeMenu({ onSelect }: ModeMenuProps) {
+function ModeMenu(_props: RoutableProps) {
   return (
     <main class="mode-menu">
       <h1>tengen</h1>
       <p>¿Qué querés hacer?</p>
-      <button class="primary" onClick={() => onSelect('play')}>
+      <Link class="primary" href="/jugar">
         Jugar
-      </button>
-      <button onClick={() => onSelect('analyze')}>Analizar</button>
+      </Link>
+      <Link href="/analizar">Analizar</Link>
     </main>
   )
 }

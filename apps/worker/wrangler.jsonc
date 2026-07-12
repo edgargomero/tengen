@@ -9,7 +9,8 @@
   ],
   "assets": {
     "directory": "../web/dist",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
   },
   "r2_buckets": [
     { "binding": "MODELS", "bucket_name": "tengen-models" }

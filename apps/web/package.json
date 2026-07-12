@@ -14,7 +14,8 @@
     "@sabaki/sgf": "^3.5.0",
     "@sabaki/shudan": "^1.7.1",
     "@tengen/engine": "*",
-    "preact": "^10.24.0"
+    "preact": "^10.24.0",
+    "preact-router": "^4.1.2"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

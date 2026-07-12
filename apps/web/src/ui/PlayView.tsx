@@ -53,6 +53,7 @@ interface PlayViewProps {
   /** Bubblea un SGF importado hacia `main.tsx`, que remonta este componente con el árbol nuevo
    * (ver Task 5 R4: el remonte real ocurre por `key`, no por un cambio de props). */
   onImport(config: GameConfig, tree: GameTree): void
+  onBack(): void
 }
 
 /** Visitas fijas para la estimación de score de fin de partida (`analyzeToScore`). Valor modesto:
@@ -79,11 +80,18 @@ function formatDateForFilename(d: Date): string {
 
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
  * antes de montar nada que asuma el modelo listo (`ReadyPlayView`). */
-export function PlayView({ config, initialTree, onNewGame, onImport }: PlayViewProps) {
+export function PlayView({ config, initialTree, onNewGame, onImport, onBack }: PlayViewProps) {
   const net = networkForOpponent(config.opponent)
   return (
     <ModelGate net={net}>
-      <ReadyPlayView config={config} initialTree={initialTree} net={net} onNewGame={onNewGame} onImport={onImport} />
+      <ReadyPlayView
+        config={config}
+        initialTree={initialTree}
+        net={net}
+        onNewGame={onNewGame}
+        onImport={onImport}
+        onBack={onBack}
+      />
     </ModelGate>
   )
 }
@@ -94,9 +102,10 @@ interface ReadyPlayViewProps {
   net: NetworkId
   onNewGame(): void
   onImport(config: GameConfig, tree: GameTree): void
+  onBack(): void
 }
 
-function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyPlayViewProps) {
+function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }: ReadyPlayViewProps) {
   // Árbol y motor: UNA instancia por montaje (una partida = un ReadyPlayView montado; "Nueva
   // partida"/import/restore desmontan este árbol vía main.tsx —con un `key` distinto— y montan uno
   // nuevo desde cero).
@@ -514,6 +523,9 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport }: ReadyP
 
         <button class="play-new-game" onClick={onNewGame}>
           Nueva partida
+        </button>
+        <button class="play-back" onClick={onBack}>
+          Volver
         </button>
 
         <GameTreePanel tree={tree} onNavigate={handleTreeNavigate} disabled={busy} />
