@@ -17,11 +17,11 @@
 // `ghostStoneMap`) — bajo `strict`+`noUncheckedIndexedAccess` el tipo `T[][]` sin `| null` ni
 // siquiera compilaría con celdas `null`. El tipo de esta función es el HONESTO (y el que Shudan
 // espera directo, sin adaptar nada más en Task 9/10).
-import type { Analysis, BoardSize, MoveAnalysis, Vertex as TengenVertex } from '@tengen/engine'
-import type { GhostStone, HeatVertex, LineMarker, Vertex as ShudanVertex } from '@sabaki/shudan'
+import type { Analysis, BoardSize, MoveAnalysis, StoneColor, Vertex as TengenVertex } from '@tengen/engine'
+import type { GhostStone, HeatVertex, Marker } from '@sabaki/shudan'
 import type { GameNode as TengenGameNode, GameTree } from '../game/gameTree'
 import type { AnalysisStore } from './analysisStore'
-import { colorToSign, engineToSabakiVertex } from '../game/coords'
+import { colorToSign } from '../game/coords'
 import { adaptGameNode } from './katrainAdapter'
 import { getPlayedMoveQuality } from './vendor/web-katrain/playedMoveQuality'
 import type { PointsLostSummary } from './vendor/web-katrain/analysisSummary'
@@ -139,16 +139,27 @@ function buildPvSequence(topMove: MoveAnalysis): TengenVertex[] {
 }
 
 /**
- * Líneas de la variación principal de UNA candidata (`topMove.pv`), típicamente `analysis.moves[0]`
- * — Task 9/10 decide cuál candidata pasar, esta función solo dibuja la que le dan.
+ * Ghost stones NUMERADOS de la variación principal de UNA candidata (`topMove.pv`), típicamente
+ * `analysis.moves[0]` — Task 9/10 decide cuál candidata pasar, esta función solo dibuja la que le dan.
  *
- * Trunca la secuencia en el primer elemento inválido — sea un `'pass'` (un pase no tiene casilla,
- * la PV no puede continuar más allá) o un vértice fuera de `[0,boardSize)` (protección defensiva
- * contra datos corruptos del motor) — de forma INCLUSIVA (el elemento inválido mismo no se dibuja,
- * ni nada después). Si la secuencia útil resultante tiene menos de 2 vértices, no hay nada que
- * conectar → `[]`.
+ * Reemplaza el intento anterior de dibujar la PV como polilínea conectada (`LineMarker`, ver git
+ * history): un PV real de MCTS salta por el tablero sin localidad espacial (jugada táctica en una
+ * zona, respuesta del rival en otra, varios movimientos después) — conectar esos puntos con líneas
+ * rectas produce un cruce ilegible de segmentos, no una "variación" reconocible (bug reportado por
+ * Edgar; confirmado con datos reales del motor: un PV válido de 11 vértices, sin repetidos ni fuera
+ * de rango, ya se ve como un enredo al dibujarlo como polilínea). Reemplazado por el patrón estándar
+ * de KataGo/Lizzie/KaTrain: cada vértice se dibuja como una piedra fantasma que alterna color desde
+ * `toMoveColor` (el jugador al turno en la posición analizada), con una etiqueta 1,2,3… — sin líneas.
+ *
+ * Trunca la secuencia en el primer elemento inválido — sea un `'pass'` (un pase no tiene casilla) o
+ * un vértice fuera de `[0,boardSize)` (protección defensiva contra datos corruptos del motor) — de
+ * forma INCLUSIVA (el elemento inválido mismo no se dibuja, ni nada después).
  */
-export function buildPvLines(topMove: MoveAnalysis, boardSize: BoardSize): LineMarker[] {
+export function buildPvOverlay(
+  topMove: MoveAnalysis,
+  boardSize: BoardSize,
+  toMoveColor: StoneColor,
+): { ghostStoneMap: (GhostStone | null)[][]; markerMap: (Marker | null)[][] } {
   const sequence = buildPvSequence(topMove)
 
   const usable: { x: number; y: number }[] = []
@@ -157,12 +168,40 @@ export function buildPvLines(topMove: MoveAnalysis, boardSize: BoardSize): LineM
     usable.push(v)
   }
 
-  if (usable.length < 2) return []
-
-  const sabakiVertices: ShudanVertex[] = usable.map(engineToSabakiVertex)
-  const lines: LineMarker[] = []
-  for (let i = 0; i < sabakiVertices.length - 1; i++) {
-    lines.push({ v1: sabakiVertices[i]!, v2: sabakiVertices[i + 1]!, type: 'line' })
+  const ghostStoneMap = emptyGrid<GhostStone>(boardSize)
+  const markerMap = emptyGrid<Marker>(boardSize)
+  let sign = colorToSign(toMoveColor)
+  for (let i = 0; i < usable.length; i++) {
+    const v = usable[i]!
+    const gRow = ghostStoneMap[v.y]
+    if (gRow) gRow[v.x] = { sign, faint: true }
+    const mRow = markerMap[v.y]
+    if (mRow) mRow[v.x] = { type: 'label', label: String(i + 1) }
+    sign = sign === 1 ? -1 : 1
   }
-  return lines
+
+  return { ghostStoneMap, markerMap }
+}
+
+/**
+ * Combina el ghost stone de "calidad de la última jugada" (`buildGhostStoneMap`) con el de la
+ * variación principal (`buildPvOverlay`) en una sola grilla — Shudan solo acepta un `ghostStoneMap`
+ * por tablero. Colisión en la misma casilla es un caso de borde teórico (el PV recorre casillas
+ * VACÍAS; la última jugada ya ocupa la suya con una piedra real, no con un ghost stone) — de darse,
+ * gana `played` (un hecho ya sucedido) sobre `pv` (una predicción hipotética).
+ */
+export function mergeGhostStoneMaps(
+  played: (GhostStone | null)[][],
+  pv: (GhostStone | null)[][] | undefined,
+  boardSize: BoardSize,
+): (GhostStone | null)[][] {
+  if (!pv) return played
+  const merged = emptyGrid<GhostStone>(boardSize)
+  for (let y = 0; y < boardSize; y++) {
+    for (let x = 0; x < boardSize; x++) {
+      const mRow = merged[y]
+      if (mRow) mRow[x] = played[y]?.[x] ?? pv[y]?.[x] ?? null
+    }
+  }
+  return merged
 }

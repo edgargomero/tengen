@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Analysis, Move, MoveAnalysis, Vertex } from '@tengen/engine'
+import type { GhostStone } from '@sabaki/shudan'
 import { GameTree } from '../src/game/gameTree'
 import { AnalysisStore } from '../src/analysis/analysisStore'
-import { buildGhostStoneMap, buildHeatMap, buildPvLines, toneToGhostType } from '../src/analysis/overlays'
+import { buildGhostStoneMap, buildHeatMap, buildPvOverlay, mergeGhostStoneMaps, toneToGhostType } from '../src/analysis/overlays'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // El foco real de esta tarea (Task 8): traducir `Analysis`/`GameNode` nativos a las
@@ -25,6 +26,10 @@ function mkMoveAnalysis(vertex: Vertex, overrides: Partial<MoveAnalysis> = {}): 
 
 function mkAnalysis(overrides: Partial<Analysis> = {}): Analysis {
   return { winrate: 0.5, scoreLead: 0, scoreStdev: 1, visits: 50, moves: [], ...overrides }
+}
+
+function emptyGridOf9(): (GhostStone | null)[][] {
+  return Array.from({ length: 9 }, () => new Array<GhostStone | null>(9).fill(null))
 }
 
 describe('buildHeatMap', () => {
@@ -167,60 +172,154 @@ describe('buildGhostStoneMap', () => {
   })
 })
 
-describe('buildPvLines', () => {
-  it('pv YA incluye el vértice de topMove como primer elemento → sin segmento duplicado de largo 0', () => {
-    const topMove = mkMoveAnalysis(
-      { x: 3, y: 3 },
-      { pv: [{ x: 3, y: 3 }, { x: 4, y: 4 }, { x: 5, y: 5 }] }
-    )
+describe('buildPvOverlay', () => {
+  // Fase 3a fix-wave (bug reportado por Edgar): dibujar la PV como polilínea conectada (`LineMarker`,
+  // versión anterior de esta función) produce un enredo ilegible de líneas cruzadas — un PV real de
+  // MCTS salta por el tablero sin localidad espacial (confirmado con datos reales del motor, ver caso
+  // "secuencia real que causó el bug" más abajo). Reemplazado por ghost stones numerados (estilo
+  // KataGo/Lizzie/KaTrain): cada vértice de la PV es una piedra fantasma con label 1,2,3…, alternando
+  // el color a partir de `toMoveColor` (el jugador al turno en la posición analizada).
+  it('numera desde 1 y alterna el color empezando por toMoveColor', () => {
+    const topMove = mkMoveAnalysis({ x: 3, y: 3 }, { pv: [{ x: 4, y: 4 }, { x: 5, y: 5 }] })
 
-    const lines = buildPvLines(topMove, 9)
+    const { ghostStoneMap, markerMap } = buildPvOverlay(topMove, 9, 'white')
 
-    expect(lines).toEqual([
-      { v1: [3, 3], v2: [4, 4], type: 'line' },
-      { v1: [4, 4], v2: [5, 5], type: 'line' },
-    ])
+    expect(ghostStoneMap[3]![3]).toEqual({ sign: -1, faint: true })
+    expect(markerMap[3]![3]).toEqual({ type: 'label', label: '1' })
+    expect(ghostStoneMap[4]![4]).toEqual({ sign: 1, faint: true })
+    expect(markerMap[4]![4]).toEqual({ type: 'label', label: '2' })
+    expect(ghostStoneMap[5]![5]).toEqual({ sign: -1, faint: true })
+    expect(markerMap[5]![5]).toEqual({ type: 'label', label: '3' })
   })
 
-  it('pv NO incluye el vértice de topMove → se antepone correctamente', () => {
-    const topMove = mkMoveAnalysis({ x: 1, y: 1 }, { pv: [{ x: 2, y: 2 }, { x: 3, y: 3 }] })
+  it('pv YA incluye el vértice de topMove como primer elemento → sin duplicado', () => {
+    const topMove = mkMoveAnalysis(
+      { x: 3, y: 3 },
+      { pv: [{ x: 3, y: 3 }, { x: 4, y: 4 }] }
+    )
 
-    const lines = buildPvLines(topMove, 9)
+    const { markerMap } = buildPvOverlay(topMove, 9, 'black')
 
-    expect(lines).toEqual([
-      { v1: [1, 1], v2: [2, 2], type: 'line' },
-      { v1: [2, 2], v2: [3, 3], type: 'line' },
-    ])
+    expect(markerMap[3]![3]).toEqual({ type: 'label', label: '1' })
+    expect(markerMap[4]![4]).toEqual({ type: 'label', label: '2' })
   })
 
   it("pv con un 'pass' en el medio → se trunca ahí (inclusive), no dibuja más allá", () => {
-    const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [{ x: 1, y: 1 }, { x: 2, y: 2 }, 'pass', { x: 8, y: 8 }] })
+    const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [{ x: 1, y: 1 }, 'pass', { x: 8, y: 8 }] })
 
-    const lines = buildPvLines(topMove, 9)
+    const { markerMap } = buildPvOverlay(topMove, 9, 'black')
 
-    expect(lines).toEqual([
-      { v1: [0, 0], v2: [1, 1], type: 'line' },
-      { v1: [1, 1], v2: [2, 2], type: 'line' },
-    ])
+    expect(markerMap[0]![0]).toEqual({ type: 'label', label: '1' })
+    expect(markerMap[1]![1]).toEqual({ type: 'label', label: '2' })
+    expect(markerMap[8]![8]).toBeNull()
   })
 
-  it("topMove.vertex mismo ya es 'pass' (primer elemento pase) → nada que dibujar", () => {
+  it("topMove.vertex mismo ya es 'pass' → grillas vacías", () => {
     const topMove = mkMoveAnalysis('pass', { pv: [{ x: 1, y: 1 }] })
 
-    expect(buildPvLines(topMove, 9)).toEqual([])
+    const { ghostStoneMap, markerMap } = buildPvOverlay(topMove, 9, 'black')
+
+    for (const row of ghostStoneMap) for (const cell of row) expect(cell).toBeNull()
+    for (const row of markerMap) for (const cell of row) expect(cell).toBeNull()
   })
 
-  it('secuencia útil de largo 1 (tras dedup, sin pv) → []', () => {
+  it('secuencia útil de largo 1 (sin pv) → un solo ghost stone numerado "1", no vacío', () => {
     const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [] })
 
-    expect(buildPvLines(topMove, 9)).toEqual([])
+    const { ghostStoneMap, markerMap } = buildPvOverlay(topMove, 9, 'black')
+
+    expect(ghostStoneMap[0]![0]).toEqual({ sign: 1, faint: true })
+    expect(markerMap[0]![0]).toEqual({ type: 'label', label: '1' })
   })
 
-  it('vértice fuera de rango del tablero → se descarta defensivamente y trunca ahí (mismo trato que un pase)', () => {
+  it('vértice fuera de rango del tablero → se descarta defensivamente y trunca ahí', () => {
     const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [{ x: 1, y: 1 }, { x: 99, y: 2 }] })
 
-    const lines = buildPvLines(topMove, 9)
+    const { markerMap } = buildPvOverlay(topMove, 9, 'black')
 
-    expect(lines).toEqual([{ v1: [0, 0], v2: [1, 1], type: 'line' }])
+    expect(markerMap[0]![0]).toEqual({ type: 'label', label: '1' })
+    expect(markerMap[1]![1]).toEqual({ type: 'label', label: '2' })
+    const nonNull = markerMap.flat().filter((c) => c !== null)
+    expect(nonNull).toHaveLength(2)
+  })
+
+  it('secuencia real que causó el bug de líneas enredadas: 11 vértices distintos, todos numerados 1..11', () => {
+    // Datos reales capturados del motor (b18, posición tras F6 en 9x9, SGF de Edgar): PV válido,
+    // sin repetidos ni fuera de rango — el "enredo" era la polilínea, no el dato. GTP D4,E4,E3,F3,D3,
+    // D7,G6,G5,F2,C5,D5 → engine {x,y} vía gtpToVertex(_, 9).
+    const topMove = mkMoveAnalysis(
+      { x: 3, y: 5 },
+      {
+        pv: [
+          { x: 3, y: 5 },
+          { x: 4, y: 5 },
+          { x: 4, y: 6 },
+          { x: 5, y: 6 },
+          { x: 3, y: 6 },
+          { x: 3, y: 2 },
+          { x: 6, y: 3 },
+          { x: 6, y: 4 },
+          { x: 5, y: 7 },
+          { x: 2, y: 4 },
+          { x: 3, y: 4 },
+        ],
+      }
+    )
+
+    const { markerMap } = buildPvOverlay(topMove, 9, 'white')
+
+    // El orden temporal del PV no coincide con el orden espacial de `.flat()` (fila por fila) — es
+    // justamente esa falta de localidad la que rompía el dibujo como polilínea. Se verifica la
+    // asociación vértice→número directamente, no el orden de aparición en la grilla aplanada.
+    const expectedLabels: [number, number, string][] = [
+      [3, 5, '1'],
+      [4, 5, '2'],
+      [4, 6, '3'],
+      [5, 6, '4'],
+      [3, 6, '5'],
+      [3, 2, '6'],
+      [6, 3, '7'],
+      [6, 4, '8'],
+      [5, 7, '9'],
+      [2, 4, '10'],
+      [3, 4, '11'],
+    ]
+    for (const [x, y, label] of expectedLabels) {
+      expect(markerMap[y]![x]).toEqual({ type: 'label', label })
+    }
+    const nonNull = markerMap.flat().filter((c) => c !== null)
+    expect(nonNull).toHaveLength(11)
+  })
+})
+
+describe('mergeGhostStoneMaps', () => {
+  it('sin colisión: combina ambas fuentes en una sola grilla', () => {
+    const played = emptyGridOf9()
+    played[2]![2] = { sign: 1, type: 'good' }
+    const pv = emptyGridOf9()
+    pv[5]![5] = { sign: -1, faint: true }
+
+    const merged = mergeGhostStoneMaps(played, pv, 9)
+
+    expect(merged[2]![2]).toEqual({ sign: 1, type: 'good' })
+    expect(merged[5]![5]).toEqual({ sign: -1, faint: true })
+  })
+
+  it('colisión en la misma casilla: gana la calidad de jugada (hecho ya sucedido) sobre el PV (predicción)', () => {
+    const played = emptyGridOf9()
+    played[4]![4] = { sign: 1, type: 'bad' }
+    const pv = emptyGridOf9()
+    pv[4]![4] = { sign: -1, faint: true }
+
+    const merged = mergeGhostStoneMaps(played, pv, 9)
+
+    expect(merged[4]![4]).toEqual({ sign: 1, type: 'bad' })
+  })
+
+  it('pv undefined → devuelve played sin tocar', () => {
+    const played = emptyGridOf9()
+    played[0]![0] = { sign: 1, type: 'good' }
+
+    expect(mergeGhostStoneMaps(played, undefined, 9)).toBe(played)
   })
 })

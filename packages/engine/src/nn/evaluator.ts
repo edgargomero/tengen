@@ -70,8 +70,14 @@ export class OnnxEvaluator implements NNEvaluator {
   private readonly dtype: 'float32' | 'float16'
   private readonly inputNames: { bin: string; global: string; meta?: string }
   private readonly outputNames: { policy: string; value: string; miscvalue: string; ownership?: string }
+  // Cola de promesas: onnxruntime-web permite un solo `session.run()` en vuelo por instancia de
+  // sesión (tira `Error('Session already started')` si un segundo arranca mientras el primero sigue
+  // resolviendo). El review de fondo y el análisis interactivo comparten la misma sesión/evaluador
+  // (un Worker), así que sin esto un `evaluate()` que empieza mientras otro está en curso choca en
+  // vez de esperar su turno.
+  private runQueue: Promise<unknown> = Promise.resolve()
 
-  private constructor(args: {
+  constructor(args: {
     session: ort.InferenceSession
     boardSize: number
     dtype: 'float32' | 'float16'
@@ -137,7 +143,10 @@ export class OnnxEvaluator implements NNEvaluator {
     const fetches: string[] = [this.outputNames.policy, this.outputNames.value, this.outputNames.miscvalue]
     if (includeOwnership && this.outputNames.ownership) fetches.push(this.outputNames.ownership)
 
-    const out = await this.session.run(feeds, fetches)
+    const runOnce = (): Promise<Record<string, ort.Tensor>> => this.session.run(feeds, fetches)
+    const runPromise = this.runQueue.then(runOnce, runOnce)
+    this.runQueue = runPromise.catch(() => {}) // no envenenar la cola si ESTE run falla
+    const out = await runPromise
 
     const policyTensor = out[this.outputNames.policy]!
     const valueTensor = out[this.outputNames.value]!

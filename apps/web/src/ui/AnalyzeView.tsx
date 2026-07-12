@@ -25,7 +25,7 @@ import { importSgf } from '../game/sgf'
 import { ModelGate } from '../models/ModelGate'
 import { AnalysisStore } from '../analysis/analysisStore'
 import { ReviewScheduler } from '../analysis/reviewScheduler'
-import { buildGhostStoneMap, buildHeatMap, buildPvLines } from '../analysis/overlays'
+import { buildGhostStoneMap, buildHeatMap, buildPvOverlay, mergeGhostStoneMaps } from '../analysis/overlays'
 import { formatAnalysisScoreLead, formatAnalysisWinRate } from '../analysis/vendor/web-katrain/analysisSummary'
 import { isAnalysisQueueCanceledError, isAnalysisQueueStaleError } from '../analysis/vendor/web-katrain/analysisQueue'
 import { GameReview, getReportTurningPoints } from '../analysis/gameReview'
@@ -34,6 +34,8 @@ import { buildWinrateGraphData } from '../analysis/winrateGraphData'
 import type { WinrateGraphPoint } from '../analysis/winrateGraphData'
 import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
 import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
+import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
+import type { AnalyzeSpeed } from '../analysis/speedPreference'
 import { GameTreePanel } from './GameTreePanel'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
@@ -44,23 +46,18 @@ import { GuessMovePanel } from './GuessMovePanel'
  * Jugar). Ver Notas del plan. */
 const ANALYZE_NETWORK: NetworkId = 'b18'
 
-/** Visitas del análisis interactivo puntual ("Analizar esta posición"). Decisión de esta tarea (el
- * plan no fija el número, igual que SCORE_VISITS en PlayView.tsx:58-60): 200, más que las 100 de
- * SCORE_VISITS porque aquí el usuario pide explícitamente un análisis y está dispuesto a esperar un
- * poco más por una estimación más sólida (a diferencia del score de fin de partida, que corre
- * siempre sin pedirlo). Trivialmente ajustable, no es una constante de dominio. */
-const INTERACTIVE_VISITS = 200
-
-/** Visitas del review de fondo (por nodo). Decisión de esta tarea (mismo espíritu que
- * `INTERACTIVE_VISITS`): 100 — menos que las 200 interactivas porque el review corre sin que el
- * usuario lo pida, sobre TODA la partida; priorizar cobertura amplia sobre profundidad por nodo.
- * Mismo valor que `SCORE_VISITS` de `PlayView.tsx` (Fase 2), coincidencia razonable, no un
- * acoplamiento real entre ambos módulos. */
-const REVIEW_VISITS = 100
+/** Visitas del análisis interactivo puntual ("Analizar esta posición") y del review de fondo (por
+ * nodo): antes constantes fijas de módulo (200/100), ahora derivadas de la preferencia de velocidad
+ * del usuario (`speedPreference.ts`) — "Normal" conserva esos mismos valores por defecto. Selector
+ * en el panel de análisis (fix-wave post-Fase 4, pedido de Edgar: acelerar el review de 41 jugadas
+ * sin "más recursos de servidor" — el motor es 100% client-side, la única palanca real es visits). */
 
 /** vertexSize por tamaño de tablero: MISMA tabla que `PlayView.tsx` (duplicada a propósito — ese
  * archivo no la exporta; 1 línea de duplicación, mismo patrón ya aceptado que `errorMessage`). */
 const VERTEX_SIZE: Record<BoardSize, number> = { 9: 44, 13: 32, 19: 24 }
+
+const SPEED_LEVELS: AnalyzeSpeed[] = ['fast', 'normal', 'precise']
+const SPEED_LABELS: Record<AnalyzeSpeed, string> = { fast: 'Rápido', normal: 'Normal', precise: 'Preciso' }
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -83,6 +80,15 @@ interface AnalyzeViewProps {
 
 export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   const [tree, setTree] = useState<GameTree | null>(null)
+  // Cargada una sola vez (lectura síncrona de localStorage, mismo patrón que loadGame en main.tsx);
+  // `key={speed}` en ReadyAnalyzeView fuerza el remount completo (review + store desde cero) cuando
+  // el usuario cambia de nivel a mitad de una sesión — mismo mecanismo que `sessionKey` en main.tsx.
+  const [speed, setSpeed] = useState<AnalyzeSpeed>(() => loadAnalyzeSpeed(window.localStorage))
+
+  function handleChangeSpeed(next: AnalyzeSpeed): void {
+    saveAnalyzeSpeed(window.localStorage, next)
+    setSpeed(next)
+  }
 
   if (tree === null) {
     return <SgfPicker onLoad={setTree} onBack={onBack} />
@@ -90,7 +96,14 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
 
   return (
     <ModelGate net={ANALYZE_NETWORK}>
-      <ReadyAnalyzeView tree={tree} onBack={onBack} onLoadAnother={() => setTree(null)} />
+      <ReadyAnalyzeView
+        key={speed}
+        tree={tree}
+        onBack={onBack}
+        onLoadAnother={() => setTree(null)}
+        speed={speed}
+        onChangeSpeed={handleChangeSpeed}
+      />
     </ModelGate>
   )
 }
@@ -145,11 +158,14 @@ interface ReadyAnalyzeViewProps {
   tree: GameTree
   onBack(): void
   onLoadAnother(): void
+  speed: AnalyzeSpeed
+  onChangeSpeed(next: AnalyzeSpeed): void
 }
 
 /** Envuelta en `ModelGate` desde `AnalyzeView`: garantiza el ONNX de `ANALYZE_NETWORK` en OPFS
  * antes de montar nada que asuma el modelo listo. */
-function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps) {
+function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }: ReadyAnalyzeViewProps) {
+  const { reviewVisits, interactiveVisits } = speedSettings(speed)
   const managerRef = useRef<EngineManager | null>(null)
   if (!managerRef.current) managerRef.current = new EngineManager(createWorkerManagedEngine)
   const manager = managerRef.current
@@ -164,7 +180,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
 
   const reviewRef = useRef<GameReview | null>(null)
   if (!reviewRef.current) {
-    reviewRef.current = new GameReview({ tree, store, scheduler, visits: REVIEW_VISITS })
+    reviewRef.current = new GameReview({ tree, store, scheduler, visits: reviewVisits })
   }
   const review = reviewRef.current
 
@@ -236,7 +252,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
     scheduler
       .analyzePosition({
         pos: tree.positionAt(node),
-        visits: INTERACTIVE_VISITS,
+        visits: interactiveVisits,
         priority: 'interactive',
         group: 'interactive',
       })
@@ -332,7 +348,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
     guessAgainstEngine({
       pos: tree.positionAt(),
       guess: { x, y },
-      visits: INTERACTIVE_VISITS, // reusa la MISMA constante del análisis interactivo puntual
+      visits: interactiveVisits, // reusa el MISMO valor derivado de speed que el análisis interactivo puntual
       scheduler,
     }).then(
       (result) => {
@@ -357,12 +373,13 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
   const boardSize = tree.meta.boardSize
   const analysis = store.get(tree.current.id)
   const heatMap = analysis ? buildHeatMap(analysis, boardSize) : undefined
-  const ghostStoneMap = buildGhostStoneMap(tree.current, tree, store, boardSize)
+  const playedMoveGhostStoneMap = buildGhostStoneMap(tree.current, tree, store, boardSize)
   const topMove =
     analysis && analysis.moves.length > 0
       ? analysis.moves.reduce((best, m) => (m.visits > best.visits ? m : best), analysis.moves[0]!)
       : undefined
-  const lines = topMove ? buildPvLines(topMove, boardSize) : undefined
+  const pvOverlay = topMove ? buildPvOverlay(topMove, boardSize, tree.currentTurnAt()) : undefined
+  const ghostStoneMap = mergeGhostStoneMaps(playedMoveGhostStoneMap, pvOverlay?.ghostStoneMap, boardSize)
   const analyzing = analyzingNodeId === tree.current.id
 
   const now = Date.now() // válido en render de un componente Preact real
@@ -379,7 +396,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
           signMap={signMap}
           heatMap={heatMap}
           ghostStoneMap={ghostStoneMap}
-          lines={lines}
+          markerMap={pvOverlay?.markerMap}
           vertexSize={VERTEX_SIZE[boardSize]}
           showCoordinates
           onVertexClick={guessWaiting ? (_evt, v) => handleBoardGuessClick(v) : undefined}
@@ -399,6 +416,15 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother }: ReadyAnalyzeViewProps
           {analyzing ? 'Analizando…' : 'Analizar esta posición'}
         </button>
         {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
+
+        <div class="analyze-speed">
+          <span>Velocidad de análisis:</span>
+          {SPEED_LEVELS.map((level) => (
+            <button key={level} onClick={() => onChangeSpeed(level)} disabled={speed === level}>
+              {speed === level ? `• ${SPEED_LABELS[level]}` : SPEED_LABELS[level]}
+            </button>
+          ))}
+        </div>
 
         <WinrateGraphPanel
           points={graphPoints}
