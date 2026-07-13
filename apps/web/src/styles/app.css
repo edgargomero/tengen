@@ -83,6 +83,12 @@ input[type='number'] {
   text-align: center;
 }
 
+.mode-menu-icon {
+  width: 64px;
+  height: 64px;
+  align-self: center;
+}
+
 .mode-menu h1 {
   margin: 0;
 }

@@ -190,6 +190,7 @@ function ModeApp() {
 function ModeMenu(_props: RoutableProps) {
   return (
     <main class="mode-menu">
+      <img src="/favicon.svg" alt="" class="mode-menu-icon" />
       <h1>tengen</h1>
       <p>¿Qué querés hacer?</p>
       <Link class="primary" href="/jugar">

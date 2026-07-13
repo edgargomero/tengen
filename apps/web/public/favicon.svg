@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Piedra negra: gradiente idéntico al stone_1.svg de @sabaki/shudan (misma piedra que dibuja
+       el tablero real), reescalada sobre un fondo circular color madera (acento de marca). -->
+  <defs>
+    <linearGradient id="tengen-stone-body">
+      <stop offset="0" stop-color="#0b0b0b" />
+      <stop offset="1" stop-color="#443432" />
+    </linearGradient>
+    <linearGradient id="tengen-stone-sheen">
+      <stop offset="0" stop-color="#636363" stop-opacity=".4" />
+      <stop offset="1" stop-color="#636363" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient
+      id="tengen-stone-body-v"
+      x1="0" x2="0" y1="43" y2="0"
+      href="#tengen-stone-body"
+      gradientUnits="userSpaceOnUse"
+    />
+    <linearGradient
+      id="tengen-stone-sheen-v"
+      x1="0" x2="0" y1="2.38" y2="19.27"
+      href="#tengen-stone-sheen"
+      gradientUnits="userSpaceOnUse"
+    />
+  </defs>
+  <circle cx="32" cy="32" r="32" fill="#ca933a" />
+  <g transform="translate(32,32) scale(1.1707) translate(-21.5,-21.5)">
+    <circle cx="21.5" cy="21.5" r="20.5" fill="url(#tengen-stone-body-v)" stroke="#000" stroke-width="1" />
+    <circle cx="21.5" cy="21.5" r="18.5" fill="url(#tengen-stone-sheen-v)" />
+  </g>
+</svg>
