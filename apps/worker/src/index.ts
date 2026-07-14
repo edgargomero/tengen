@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createAuth } from './auth'
+import { gamesApp } from './games'
 
 export interface Env {
   MODELS: R2Bucket
@@ -60,6 +61,9 @@ app.get('/ort-dist/:filename', async (c) => {
 // Debe ir ANTES del fallback ASSETS: con `single-page-application`, el fallback respondería el
 // index.html de la SPA a cualquier ruta de auth no interceptada.
 app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.raw))
+
+// Partidas en la nube (requireUser adentro; escrituras con rate limit por usuario).
+app.route('/api/games', gamesApp)
 
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))
 
