@@ -1,8 +1,15 @@
 import { Hono } from 'hono'
+import { createAuth } from './auth'
 
 export interface Env {
   MODELS: R2Bucket
   ASSETS: Fetcher
+  DB: D1Database
+  LIMITER: RateLimit
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
+  BETTER_AUTH_SECRET: string
+  BETTER_AUTH_URL: string
 }
 
 // `ort-wasm-simd-threaded.jsep.wasm` pesa 25.6 MiB — supera el límite de 25 MiB/archivo de
@@ -48,6 +55,11 @@ app.get('/ort-dist/:filename', async (c) => {
     },
   })
 })
+
+// better-auth maneja TODO /api/auth/* (login social, callback de Google, get-session, sign-out…).
+// Debe ir ANTES del fallback ASSETS: con `single-page-application`, el fallback respondería el
+// index.html de la SPA a cualquier ruta de auth no interceptada.
+app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.raw))
 
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))
 

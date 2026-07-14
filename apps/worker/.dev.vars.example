@@ -1,0 +1,18 @@
+# Copia este archivo a .dev.vars (gitignored) con valores reales para desarrollo local.
+#
+# ⚠️ El flujo de dev de la Fase 5 es `npm run dev -w @tengen/worker` (wrangler dev, puerto 8787):
+# Vite solo (`npm run dev -w @tengen/web`) NO tiene la API /api/* ni el login. Antes de arrancar:
+#   1. `npm run build -w @tengen/web` (wrangler sirve apps/web/dist como ASSETS)
+#   2. `npx wrangler d1 migrations apply tengen-db` (aplica migrations/ al D1 local)
+#
+# Credenciales del proyecto GCP dedicado a tengen (OAuth Client "Web application" con origen
+# http://localhost:8787 y redirect http://localhost:8787/api/auth/callback/google):
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+
+# Cualquier string aleatorio largo sirve en dev (prod usa `wrangler secret put BETTER_AUTH_SECRET`
+# con `openssl rand -base64 32`):
+BETTER_AUTH_SECRET=dev-secret-cambiame
+
+# Override del var de producción (wrangler.jsonc lo fija a https://tengen.kntor.io):
+BETTER_AUTH_URL=http://localhost:8787
