@@ -24,6 +24,8 @@ import type { GameConfig } from './game/gameConfig'
 import { validateConfig } from './game/gameConfig'
 import type { GameTree } from './game/gameTree'
 import { clearGame, loadGame } from './game/persistence'
+import { signInWithGoogle, signOut } from './cloud/authClient'
+import { useSession } from './cloud/useSession'
 import { AnalyzeView } from './ui/AnalyzeView'
 import { NewGameForm } from './ui/NewGameForm'
 import { PlayView } from './ui/PlayView'
@@ -188,6 +190,7 @@ function ModeApp() {
 }
 
 function ModeMenu(_props: RoutableProps) {
+  const { user, pending } = useSession()
   return (
     <main class="mode-menu">
       <img src="/favicon.svg" alt="" class="mode-menu-icon" />
@@ -197,6 +200,23 @@ function ModeMenu(_props: RoutableProps) {
         Jugar
       </Link>
       <Link href="/analizar">Analizar</Link>
+      {user !== null && <Link href="/partidas">Mis partidas</Link>}
+      {/* Login opcional (Fase 5): jugar/analizar sin cuenta sigue igual que siempre; loguearse
+          solo habilita guardar/listar/reabrir en la nube. `pending` evita el parpadeo del botón
+          de login mientras el get-session inicial está en vuelo. */}
+      <div class="session-box">
+        {pending ? null : user !== null ? (
+          <>
+            <span class="session-identity">
+              {user.image ? <img src={user.image} alt="" class="session-avatar" /> : null}
+              {user.email}
+            </span>
+            <button onClick={signOut}>Cerrar sesión</button>
+          </>
+        ) : (
+          <button onClick={signInWithGoogle}>Iniciar sesión con Google</button>
+        )}
+      </div>
     </main>
   )
 }
