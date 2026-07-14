@@ -6,7 +6,8 @@
 // guardado automático dispara ~1 request por jugada y es lo único con volumen real.
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { requireUser, type AuthVariables } from './auth'
+import { createAuth, requireUser, type AuthVariables } from './auth'
+import { ensureTengenFolder, uploadSgf } from './drive'
 import type { Env } from './index'
 
 export type GameMode = 'jugar' | 'analizar'
@@ -275,4 +276,42 @@ gamesApp.put('/:id', writeRateLimit, async (c) => {
   })
   if (!updated) return c.json({ error: 'Partida no encontrada' }, 404)
   return c.json({ ok: true })
+})
+
+// Backup a Drive (Task 3): sube el SGF que YA está en D1 (fuente de verdad) al Drive del usuario.
+// Un fallo de Google responde 502 y NUNCA revierte nada en D1 — la partida sigue segura (spec
+// §Manejo de errores: Drive es un plus, no una dependencia dura).
+gamesApp.post('/:id/drive-backup', writeRateLimit, async (c) => {
+  const userId = c.get('userId')
+  const row = await getGame(c.env.DB, userId, c.req.param('id'))
+  if (!row) return c.json({ error: 'Partida no encontrada' }, 404)
+
+  let accessToken: string | undefined
+  try {
+    // Token de Google auto-refrescado por better-auth (el refresh_token vive en la tabla account;
+    // nunca sale del worker). Los headers llevan la cookie de sesión ya validada por requireUser.
+    const tokens = await createAuth(c.env).api.getAccessToken({
+      body: { providerId: 'google', userId },
+      headers: c.req.raw.headers,
+    })
+    accessToken = tokens.accessToken
+  } catch {
+    accessToken = undefined
+  }
+  if (!accessToken) return c.json({ error: 'No se pudo obtener acceso a Google Drive' }, 502)
+
+  try {
+    const folderId = await ensureTengenFolder(accessToken)
+    const fileId = await uploadSgf({
+      accessToken,
+      folderId,
+      fileName: `${row.name}.sgf`,
+      sgf: row.sgf,
+      fileId: row.drive_file_id,
+    })
+    await setDriveFileId(c.env.DB, userId, row.id, fileId)
+    return c.json({ driveFileId: fileId })
+  } catch {
+    return c.json({ error: 'Google Drive no respondió; la partida sigue guardada en la nube' }, 502)
+  }
 })
