@@ -3,6 +3,12 @@
   "name": "tengen-worker",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
+  // better-auth importa node:async_hooks (@better-auth/core) y node:crypto (@better-auth/utils,
+  // hashing de password) a nivel de módulo, incluso sin usar login por email/password — sin este
+  // flag, `wrangler deploy` avisa que esos imports no resuelven y el worker puede tirar errores en
+  // runtime. Detectado con `wrangler deploy --dry-run` (los tests de vitest-pool-workers no lo
+  // exponían: miniflare habilita node: compat aparte para el propio runner de tests).
+  "compatibility_flags": ["nodejs_compat"],
   "account_id": "1462061bf4f3dd4785e2fd0c1da9b21e",
   "routes": [
     { "pattern": "tengen.kntor.io", "custom_domain": true }
