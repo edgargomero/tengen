@@ -23,11 +23,14 @@ import './styles/app.css'
 import type { GameConfig } from './game/gameConfig'
 import { validateConfig } from './game/gameConfig'
 import type { GameTree } from './game/gameTree'
-import { clearGame, loadGame } from './game/persistence'
+import { clearGame, isRankLevel, loadGame, saveGame } from './game/persistence'
+import { importSgf } from './game/sgf'
 import { signInWithGoogle, signOut } from './cloud/authClient'
+import { takePendingOpen } from './cloud/pendingOpen'
 import { useSession } from './cloud/useSession'
 import { AnalyzeView } from './ui/AnalyzeView'
 import { NewGameForm } from './ui/NewGameForm'
+import { PartidasView } from './ui/PartidasView'
 import { PlayView } from './ui/PlayView'
 import { detectWebGpu } from './webgpu'
 
@@ -61,7 +64,48 @@ interface Session {
  * `useState`, sin parpadeo del formulario de nueva partida). `null` si no hay partida guardada, o
  * si la config reconstruida no pasa `validateConfig` (dato corrupto de una versión anterior: se
  * limpia y se arranca en "Nueva partida", nunca con una config a medio formar). */
+/** Fase 5 Task 6 (decisión 3 del plan): reabrir desde "Mis partidas" tiene prioridad sobre la
+ * partida local — `PartidasView` deja el pendingOpen y navega a `/jugar` ANTES de que este
+ * componente monte. Espeja el resultado a localStorage DE INMEDIATO (con el `cloudId`): sin esto,
+ * un refresh antes de la primera jugada restauraría la partida local vieja en vez de la recién
+ * reabierta; con esto, el refresh post-reapertura funciona gratis por el camino normal de abajo. */
+function restoreFromPendingOpen(): Session | null {
+  const pendingGame = takePendingOpen('jugar')
+  if (!pendingGame) return null
+  try {
+    const tree = importSgf(pendingGame.sgf)
+    // Deja el cursor en el tip de la línea principal (mismo criterio que el import manual de SGF
+    // en PlayView.handleImportFile): D1 no guarda el cursor exacto, solo el SGF.
+    while (tree.toChild(0)) {
+      /* avanza hasta el tip */
+    }
+    if (!isRankLevel(pendingGame.opponent)) {
+      throw new Error('opponent inválido en la partida reabierta')
+    }
+    const config = validateConfig({
+      boardSize: tree.meta.boardSize,
+      komi: tree.meta.komi,
+      rules: tree.meta.rules,
+      handicap: tree.meta.handicap,
+      opponent: pendingGame.opponent,
+    })
+    try {
+      saveGame(window.localStorage, config.opponent, tree, pendingGame.id)
+    } catch {
+      // Best-effort, mismo espíritu que el resto de saveGame/persist.
+    }
+    return { config, initialTree: tree, cloudId: pendingGame.id }
+  } catch {
+    // Partida reabierta corrupta/con datos inválidos: cae al camino normal de abajo (localStorage
+    // local), en vez de dejar la SPA en blanco.
+    return null
+  }
+}
+
 function restoreSession(): Session | null {
+  const fromPendingOpen = restoreFromPendingOpen()
+  if (fromPendingOpen) return fromPendingOpen
+
   const restored = loadGame(window.localStorage)
   if (!restored) return null
   try {
@@ -188,6 +232,7 @@ function ModeApp() {
       <ModeMenu path="/" default />
       <PlayApp path="/jugar" onBack={() => route('/')} />
       <AnalyzeView path="/analizar" onBack={() => route('/')} />
+      <PartidasView path="/partidas" onBack={() => route('/')} />
     </Router>
   )
 }

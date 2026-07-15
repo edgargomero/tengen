@@ -21,6 +21,7 @@ import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engin
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import type { GameSnapshot } from '../cloud/api'
+import { takePendingOpen } from '../cloud/pendingOpen'
 import { SyncBadge } from '../cloud/SyncBadge'
 import { useCloudSync } from '../cloud/useCloudSync'
 import { GameTree, type GameNode } from '../game/gameTree'
@@ -103,12 +104,42 @@ interface AnalyzeViewProps extends RoutableProps {
   onBack(): void
 }
 
+interface InitialAnalyzeState {
+  tree: GameTree | null
+  gameId?: string
+}
+
+/** Consume `takePendingOpen('analizar')` UNA sola vez (take-once — no puede recalcularse en cada
+ * render): si hay una partida pendiente de reabrir y su SGF es válido, arranca directo en ella,
+ * saltando `SgfPicker`. SGF corrupto → cae al picker como si no hubiera pendingOpen (nunca deja la
+ * SPA en blanco; mismo espíritu que el ErrorBoundary de main.tsx). */
+function computeInitialAnalyzeState(): InitialAnalyzeState {
+  const pendingGame = takePendingOpen('analizar')
+  if (!pendingGame) return { tree: null }
+  try {
+    const tree = importSgf(pendingGame.sgf)
+    // Mismo criterio que SgfPicker/PlayView import: cursor en el tip de la línea principal (D1 no
+    // guarda el cursor exacto, solo el SGF).
+    while (tree.toChild(0)) {
+      /* avanza hasta el tip */
+    }
+    return { tree, gameId: pendingGame.id }
+  } catch {
+    return { tree: null }
+  }
+}
+
 export function AnalyzeView({ onBack }: AnalyzeViewProps) {
-  const [tree, setTree] = useState<GameTree | null>(null)
-  // Id de D1 (Fase 5): presente solo si esta sesión viene de reabrir una partida guardada — la
-  // consumirá Task 6 (pendingOpen) junto con `setTree`. `SgfPicker`/import manual arrancan sin id
-  // (POST en el primer guardado, comportamiento sin cambios).
-  const [gameId, setGameId] = useState<string | undefined>(undefined)
+  // Ref-guardado: `computeInitialAnalyzeState` (y el take-once de pendingOpen que hace) debe
+  // correr EXACTAMENTE una vez por montaje, no en cada render — de ahí el ref en vez de llamarlo
+  // directo en dos `useState(() => ...)` separados (correría dos veces, la segunda ya sin nada).
+  const initialRef = useRef<InitialAnalyzeState | null>(null)
+  if (initialRef.current === null) initialRef.current = computeInitialAnalyzeState()
+
+  const [tree, setTree] = useState<GameTree | null>(initialRef.current.tree)
+  // Id de D1 (Fase 5): presente si esta sesión viene de reabrir una partida guardada (arriba).
+  // `SgfPicker`/import manual arrancan sin id (POST en el primer guardado, sin cambios).
+  const [gameId, setGameId] = useState<string | undefined>(initialRef.current.gameId)
   // Cargada una sola vez (lectura síncrona de localStorage, mismo patrón que loadGame en main.tsx);
   // `key={speed}` en ReadyAnalyzeView fuerza el remount completo (review + store desde cero) cuando
   // el usuario cambia de nivel a mitad de una sesión — mismo mecanismo que `sessionKey` en main.tsx.

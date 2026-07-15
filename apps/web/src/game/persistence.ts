@@ -37,8 +37,10 @@ interface PersistedGame {
 }
 
 /** Type guard de `RankLevel` (unión discriminada por `kind`); no valida el rango de `rank` contra
- * `HUMAN_RANKS` (alcanza con la forma: un rank fuera de catálogo es un problema de otra capa). */
-function isRankLevel(value: unknown): value is RankLevel {
+ * `HUMAN_RANKS` (alcanza con la forma: un rank fuera de catálogo es un problema de otra capa).
+ * Exportado (Fase 5): main.tsx lo reusa para validar el `opponent` de una partida reabierta desde
+ * "Mis partidas" (mismo shape, viene de JSON de red en vez de localStorage). */
+export function isRankLevel(value: unknown): value is RankLevel {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
   if (v.kind === 'human') return typeof v.rank === 'string'
