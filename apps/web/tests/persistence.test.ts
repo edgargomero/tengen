@@ -86,6 +86,48 @@ describe('persistence — save/load round-trip', () => {
   })
 })
 
+describe('persistence — cloudId (Fase 5)', () => {
+  it('round-trip con cloudId presente', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(4, 4))
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t, 'game-abc-123')
+    const loaded = loadGame(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.cloudId).toBe('game-abc-123')
+  })
+
+  it('sin cloudId (partida nunca guardada en la nube) → loadGame no lo incluye', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(4, 4))
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.cloudId).toBeUndefined()
+  })
+
+  it('payload viejo (pre-Fase 5, sin cloudId) sigue cargando igual', () => {
+    const storage = memStorage()
+    storage.map.set(
+      'tengen:game:v1',
+      JSON.stringify({ opponent: KATA_OPPONENT, sgf: '(;GM[1]FF[4]SZ[9])', cursorPath: [] }),
+    )
+    const loaded = loadGame(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.cloudId).toBeUndefined()
+  })
+
+  it('cloudId de tipo inválido (no string) → payload rechazado, null', () => {
+    const storage = memStorage()
+    storage.map.set(
+      'tengen:game:v1',
+      JSON.stringify({ opponent: KATA_OPPONENT, sgf: '(;GM[1]FF[4]SZ[9])', cursorPath: [], cloudId: 42 }),
+    )
+    expect(loadGame(storage)).toBeNull()
+  })
+})
+
 describe('persistence — casos de fallo (nunca lanza, devuelve null)', () => {
   it('storage vacío → null', () => {
     expect(loadGame(memStorage())).toBeNull()

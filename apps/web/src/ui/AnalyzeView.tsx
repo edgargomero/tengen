@@ -20,6 +20,9 @@ import { Goban } from '@sabaki/shudan'
 import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
+import type { GameSnapshot } from '../cloud/api'
+import { SyncBadge } from '../cloud/SyncBadge'
+import { useCloudSync } from '../cloud/useCloudSync'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
@@ -102,6 +105,10 @@ interface AnalyzeViewProps extends RoutableProps {
 
 export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   const [tree, setTree] = useState<GameTree | null>(null)
+  // Id de D1 (Fase 5): presente solo si esta sesión viene de reabrir una partida guardada — la
+  // consumirá Task 6 (pendingOpen) junto con `setTree`. `SgfPicker`/import manual arrancan sin id
+  // (POST en el primer guardado, comportamiento sin cambios).
+  const [gameId, setGameId] = useState<string | undefined>(undefined)
   // Cargada una sola vez (lectura síncrona de localStorage, mismo patrón que loadGame en main.tsx);
   // `key={speed}` en ReadyAnalyzeView fuerza el remount completo (review + store desde cero) cuando
   // el usuario cambia de nivel a mitad de una sesión — mismo mecanismo que `sessionKey` en main.tsx.
@@ -110,6 +117,11 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   function handleChangeSpeed(next: AnalyzeSpeed): void {
     saveAnalyzeSpeed(window.localStorage, next)
     setSpeed(next)
+  }
+
+  function handleLoadAnother(): void {
+    setTree(null)
+    setGameId(undefined)
   }
 
   if (tree === null) {
@@ -121,8 +133,9 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
       <ReadyAnalyzeView
         key={speed}
         tree={tree}
+        cloudId={gameId}
         onBack={onBack}
-        onLoadAnother={() => setTree(null)}
+        onLoadAnother={handleLoadAnother}
         speed={speed}
         onChangeSpeed={handleChangeSpeed}
       />
@@ -178,15 +191,23 @@ function SgfPicker({ onLoad, onBack }: SgfPickerProps) {
 
 interface ReadyAnalyzeViewProps {
   tree: GameTree
+  /** Id de D1 (Fase 5): ver nota en `AnalyzeView`. */
+  cloudId?: string
   onBack(): void
   onLoadAnother(): void
   speed: AnalyzeSpeed
   onChangeSpeed(next: AnalyzeSpeed): void
 }
 
+/** Nombre autogenerado de la sesión en la nube — mismo patrón que `cloudGameName` de PlayView.tsx
+ * (duplicado a propósito, ese archivo no lo exporta): "Análisis 9×9 — 2026-07-14". */
+function cloudSessionName(boardSize: BoardSize): string {
+  return `Análisis ${boardSize}×${boardSize} — ${formatDateForFilename(new Date())}`
+}
+
 /** Envuelta en `ModelGate` desde `AnalyzeView`: garantiza el ONNX de `ANALYZE_NETWORK` en OPFS
  * antes de montar nada que asuma el modelo listo. */
-function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }: ReadyAnalyzeViewProps) {
+function ReadyAnalyzeView({ tree, cloudId, onBack, onLoadAnother, speed, onChangeSpeed }: ReadyAnalyzeViewProps) {
   const { reviewVisits, interactiveVisits } = speedSettings(speed)
   const managerRef = useRef<EngineManager | null>(null)
   if (!managerRef.current) managerRef.current = new EngineManager(createWorkerManagedEngine)
@@ -205,6 +226,28 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
     reviewRef.current = new GameReview({ tree, store, scheduler, visits: reviewVisits })
   }
   const review = reviewRef.current
+
+  // Guardado a la nube (Fase 5): no-op sin sesión. `cloudId` restaura el id de D1 si esta sesión
+  // viene de reabrir una partida (Task 6); si no, el primer `cloud.save` hace el POST inicial.
+  const cloud = useCloudSync(cloudId)
+  const cloudNameRef = useRef<string | null>(null)
+  if (cloudNameRef.current === null) cloudNameRef.current = cloudSessionName(tree.meta.boardSize)
+
+  function cloudSnapshot(): GameSnapshot {
+    return { name: cloudNameRef.current!, sgf: exportSgf(tree), boardSize: tree.meta.boardSize, mode: 'analizar' }
+  }
+
+  /** "Volver"/"Cargar otro SGF" cierran la sesión de análisis: dispara el backup a Drive (spec
+   * §Flujo de guardado — Analizar no tiene un "fin de partida" natural, así que el trigger es
+   * salir). Fire-and-forget: no espera al backup para navegar. */
+  function handleBack(): void {
+    cloud.finish()
+    onBack()
+  }
+  function handleLoadAnother(): void {
+    cloud.finish()
+    onLoadAnother()
+  }
 
   const staleRef = useRef(false)
   const [, setTick] = useState(0)
@@ -388,6 +431,7 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
     setIllegalMoveHint(null)
     tree.addMove({ color: turnAtCursor, vertex })
     bump()
+    cloud.save(cloudSnapshot()) // trigger de guardado en Analizar: cada edición de variación (Fase 5)
   }
 
   function handleExportSgf(): void {
@@ -557,8 +601,9 @@ function ReadyAnalyzeView({ tree, onBack, onLoadAnother, speed, onChangeSpeed }:
         </div>
 
         <button onClick={handleExportSgf}>Exportar SGF</button>
-        <button onClick={onLoadAnother}>Cargar otro SGF</button>
-        <button onClick={onBack}>Volver</button>
+        <button onClick={handleLoadAnother}>Cargar otro SGF</button>
+        <button onClick={handleBack}>Volver</button>
+        {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
 
         <GameTreeGraph
           tree={tree}

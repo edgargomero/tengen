@@ -33,6 +33,9 @@ import type { GhostStone, Marker } from '@sabaki/shudan'
 import type { BoardSize, Move, NetworkId, RankLevel } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
+import type { GameSnapshot } from '../cloud/api'
+import { SyncBadge } from '../cloud/SyncBadge'
+import { useCloudSync } from '../cloud/useCloudSync'
 import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
 import type { GameConfig } from '../game/gameConfig'
 import { networkForOpponent, validateConfig } from '../game/gameConfig'
@@ -49,6 +52,9 @@ interface PlayViewProps {
   /** Árbol inicial (Task 5): restauración desde localStorage o import de SGF. Si no viene, se crea
    * un árbol fresco desde `config` (comportamiento de Task 4). */
   initialTree?: GameTree
+  /** Id de D1 (Fase 5): presente al restaurar/reabrir una partida que ya vive en la nube — los
+   * guardados hacen PUT sobre esa fila desde el arranque en vez de crear una nueva. */
+  cloudId?: string
   onNewGame(): void
   /** Bubblea un SGF importado hacia `main.tsx`, que remonta este componente con el árbol nuevo
    * (ver Task 5 R4: el remonte real ocurre por `key`, no por un cambio de props). */
@@ -92,13 +98,14 @@ function formatDateForFilename(d: Date): string {
 
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
  * antes de montar nada que asuma el modelo listo (`ReadyPlayView`). */
-export function PlayView({ config, initialTree, onNewGame, onImport, onBack }: PlayViewProps) {
+export function PlayView({ config, initialTree, cloudId, onNewGame, onImport, onBack }: PlayViewProps) {
   const net = networkForOpponent(config.opponent)
   return (
     <ModelGate net={net}>
       <ReadyPlayView
         config={config}
         initialTree={initialTree}
+        cloudId={cloudId}
         net={net}
         onNewGame={onNewGame}
         onImport={onImport}
@@ -111,13 +118,22 @@ export function PlayView({ config, initialTree, onNewGame, onImport, onBack }: P
 interface ReadyPlayViewProps {
   config: GameConfig
   initialTree?: GameTree
+  cloudId?: string
   net: NetworkId
   onNewGame(): void
   onImport(config: GameConfig, tree: GameTree): void
   onBack(): void
 }
 
-function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }: ReadyPlayViewProps) {
+/** Nombre autogenerado de la partida en la nube (sin UI de renombrar en esta fase — spec §Modelo
+ * de datos): "9×9 vs Human SL 15k — 2026-07-14". Se genera UNA vez por montaje (el nombre solo
+ * viaja en el POST inicial; los PUT no lo tocan). */
+function cloudGameName(config: GameConfig): string {
+  const size = `${config.boardSize}×${config.boardSize}`
+  return `${size} vs ${opponentLabel(config.opponent)} — ${formatDateForFilename(new Date())}`
+}
+
+function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport, onBack }: ReadyPlayViewProps) {
   // Árbol y motor: UNA instancia por montaje (una partida = un ReadyPlayView montado; "Nueva
   // partida"/import/restore desmontan este árbol vía main.tsx —con un `key` distinto— y montan uno
   // nuevo desde cero).
@@ -173,15 +189,36 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
     return endedRef.current || !tree.isAtLiveTip()
   }
 
+  // Guardado a la nube (Fase 5): no-op sin sesión. Vive acá (no en PlayView) porque cada partida
+  // es un montaje de ReadyPlayView — nueva partida/import/restore ⇒ GameSync nuevo, con el
+  // cloudId restaurado si la partida ya vivía en D1.
+  const cloud = useCloudSync(cloudId)
+  const cloudNameRef = useRef<string | null>(null)
+  if (cloudNameRef.current === null) cloudNameRef.current = cloudGameName(config)
+
+  /** Snapshot completo para la nube; se arma fresco en cada guardado (el árbol es mutable). */
+  function cloudSnapshot(): GameSnapshot {
+    return {
+      name: cloudNameRef.current!,
+      sgf: exportSgf(tree),
+      boardSize: config.boardSize,
+      mode: 'jugar',
+      ...(tree.meta.result !== undefined ? { result: tree.meta.result } : {}),
+      opponent: config.opponent,
+    }
+  }
+
   /** Persiste la partida tras CADA jugada aplicada (humana, IA, o de exploración). Best-effort: un
    * storage bloqueado/lleno no debe romper el juego (ver `persistence.ts`, mismo espíritu que su
-   * propio try/catch de lectura). */
+   * propio try/catch de lectura). El guardado a la nube (D1) sale en el MISMO punto, en paralelo
+   * (spec §Flujo de guardado: mismo trigger, best-effort, no bloqueante). */
   function persist(): void {
     try {
-      saveGame(window.localStorage, config.opponent, tree)
+      saveGame(window.localStorage, config.opponent, tree, cloud.gameId)
     } catch {
       // Fallo de guardado silencioso a propósito: no es un error del juego en sí.
     }
+    cloud.save(cloudSnapshot())
   }
 
   /** Llamar SIEMPRE justo después de aplicar una jugada de la partida VIVA (humana o de la IA) y su
@@ -197,6 +234,7 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
         tree.meta.result = resultStr // Task 5 R2: persistir el fin de partida vía el canal RE del árbol.
         setResult(resultStr)
         persist()
+        cloud.finish() // partida terminada → backup a Drive tras el último save (Fase 5)
       } catch {
         if (staleRef.current || endedRef.current) return
         endedRef.current = true
@@ -210,6 +248,7 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
         tree.meta.result = 'Void'
         setResult('No se pudo estimar el resultado.')
         persist()
+        cloud.finish() // también con RE[Void]: la partida terminó igual (Fase 5)
       } finally {
         if (!staleRef.current) {
           setBusy(false)
@@ -371,6 +410,7 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
     setResult(resultStr)
     setBusy(false)
     persist()
+    cloud.finish() // resign = fin de partida → backup a Drive (Fase 5)
   }
 
   function goFirst(): void {
@@ -517,6 +557,7 @@ function ReadyPlayView({ config, initialTree, net, onNewGame, onImport, onBack }
         {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
         {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
         {result !== null && <p class="play-result">Resultado: {result}</p>}
+        {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
 
         <div class="play-controls">
           <button onClick={handlePass} disabled={busy || (!exploring && turn !== 'black')}>

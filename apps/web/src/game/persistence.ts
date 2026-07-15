@@ -3,7 +3,7 @@
 // `Storage` INYECTADO (no se toca el global `localStorage`): no existe en Vitest/Node, y el caller
 // de browser pasa `window.localStorage`. Se testea con un mock in-memory que implemente StorageLike.
 //
-// Serialización: `{ opponent, sgf, cursorPath }` bajo una clave versionada. El SGF reusa el
+// Serialización: `{ opponent, sgf, cursorPath, cloudId? }` bajo una clave versionada. El SGF reusa el
 // round-trip idempotente de sgf.ts y NO lleva `opponent` (decisión de Task 5: el SGF es solo la
 // partida; el oponente es un dato de sesión aparte, así que viaja fuera del SGF en este payload).
 // El CURSOR se guarda como PATH de índices de hijo desde la raíz (no como id numérico): los ids se
@@ -30,6 +30,10 @@ interface PersistedGame {
   opponent: RankLevel
   sgf: string
   cursorPath: number[]
+  /** Id de la fila en D1 (Fase 5) — presente solo si la partida se guardó en la nube con sesión
+   * activa. Campo NUEVO sin bump de STORAGE_KEY: el guard lo acepta ausente (payloads pre-Fase 5
+   * siguen cargando) y JSON.stringify omite undefined al guardar. */
+  cloudId?: string
 }
 
 /** Type guard de `RankLevel` (unión discriminada por `kind`); no valida el rango de `rank` contra
@@ -51,16 +55,24 @@ function isPersistedGame(value: unknown): value is PersistedGame {
     isRankLevel(v.opponent) &&
     typeof v.sgf === 'string' &&
     Array.isArray(v.cursorPath) &&
-    v.cursorPath.every((n) => typeof n === 'number')
+    v.cursorPath.every((n) => typeof n === 'number') &&
+    (v.cloudId === undefined || typeof v.cloudId === 'string')
   )
 }
 
-/** Guarda la partida (oponente + SGF del árbol + path del cursor) bajo la clave versionada. */
-export function saveGame(storage: StorageLike, opponent: RankLevel, tree: GameTree): void {
+/** Guarda la partida (oponente + SGF del árbol + path del cursor + id de nube si existe) bajo la
+ * clave versionada. */
+export function saveGame(
+  storage: StorageLike,
+  opponent: RankLevel,
+  tree: GameTree,
+  cloudId?: string,
+): void {
   const payload: PersistedGame = {
     opponent,
     sgf: exportSgf(tree),
     cursorPath: tree.pathTo(tree.current),
+    ...(cloudId !== undefined ? { cloudId } : {}),
   }
   storage.setItem(STORAGE_KEY, JSON.stringify(payload))
 }
@@ -71,7 +83,9 @@ export function saveGame(storage: StorageLike, opponent: RankLevel, tree: GameTr
  * desconocido, y el payload viejo v1 sin `opponent`). Si el path del cursor ya no existe, deja el
  * cursor en la raíz (el árbol sigue siendo válido).
  */
-export function loadGame(storage: StorageLike): { opponent: RankLevel; tree: GameTree } | null {
+export function loadGame(
+  storage: StorageLike,
+): { opponent: RankLevel; tree: GameTree; cloudId?: string } | null {
   try {
     // getItem DENTRO del try: en modo privado / storage bloqueado, `storage.getItem` puede lanzar
     // (p.ej. SecurityError). Ese fallo debe resolverse igual que un JSON corrupto: `null`.
@@ -81,7 +95,11 @@ export function loadGame(storage: StorageLike): { opponent: RankLevel; tree: Gam
     if (!isPersistedGame(parsed)) return null
     const tree = importSgf(parsed.sgf)
     tree.navigateToPath(parsed.cursorPath) // si es inválido, no muta el cursor (queda en la raíz)
-    return { opponent: parsed.opponent, tree }
+    return {
+      opponent: parsed.opponent,
+      tree,
+      ...(parsed.cloudId !== undefined ? { cloudId: parsed.cloudId } : {}),
+    }
   } catch {
     return null
   }

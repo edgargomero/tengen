@@ -283,6 +283,32 @@ fieldset.field {
   padding: 0.5rem 0.75rem;
 }
 
+/* ── SyncBadge (Fase 5): estado de guardado en la nube, en PlayView y AnalyzeView ──────────── */
+
+.sync-badge {
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.sync-saving,
+.sync-saved {
+  color: #555;
+}
+
+.sync-error {
+  color: #b00020;
+}
+
+.sync-error button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  padding: 0.1rem 0.5rem;
+}
+
 .play-controls,
 .play-nav,
 .play-io {

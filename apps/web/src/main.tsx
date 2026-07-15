@@ -52,6 +52,8 @@ interface Session {
   config: GameConfig
   /** Presente al restaurar desde localStorage o al importar un SGF; ausente en "Nueva partida". */
   initialTree?: GameTree
+  /** Id de D1 (Fase 5): presente si la partida restaurada ya vivía en la nube — ver persistence.ts. */
+  cloudId?: string
 }
 
 /** Intenta restaurar la partida guardada (síncrono: `localStorage.getItem` no es async, así que no
@@ -70,7 +72,7 @@ function restoreSession(): Session | null {
       handicap: restored.tree.meta.handicap,
       opponent: restored.opponent,
     })
-    return { config, initialTree: restored.tree }
+    return { config, initialTree: restored.tree, cloudId: restored.cloudId }
   } catch {
     clearGame(window.localStorage)
     return null
@@ -111,6 +113,7 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
       key={sessionKey}
       config={session.config}
       initialTree={session.initialTree}
+      cloudId={session.cloudId}
       onNewGame={handleNewGame}
       onImport={handleImport}
       onBack={onBack}
