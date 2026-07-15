@@ -67,22 +67,35 @@ function moveFromData(data: Record<string, string[]>, boardSize: BoardSize): Mov
   return readColor('B', 'black') ?? readColor('W', 'white')
 }
 
-/** Construye el SgfNode de un GameNode y sus descendientes. `extraRootData` sólo aplica a la raíz. */
-function toSgfNode(node: GameNode, extraRootData?: Record<string, string[]>): SgfNode {
+/** Callback opcional: datos extra a fusionar en las propiedades SGF de UN nodo (p.ej. análisis
+ * cacheado — ver `analysis/sgfAnalysisCodec.ts`). `undefined` = sin datos extra para ese nodo. */
+type ExtraDataGetter = (node: GameNode) => Record<string, string[]> | undefined
+
+/** Construye el SgfNode de un GameNode y sus descendientes. `extraRootData` sólo aplica a la raíz;
+ * `getExtraData` se consulta para CUALQUIER nodo (incluida la raíz, fusionado DESPUÉS del resto —
+ * nunca pisa GM/FF/SZ/.../B/W, que van primero por orden de inserción). */
+function toSgfNode(node: GameNode, getExtraData?: ExtraDataGetter, extraRootData?: Record<string, string[]>): SgfNode {
   const data: Record<string, string[]> = node.move ? moveToData(node.move) : { ...extraRootData }
+  const extra = getExtraData?.(node)
+  if (extra) Object.assign(data, extra)
   return {
     id: node.id,
     data,
     parentId: node.parent ? node.parent.id : null,
-    children: node.children.map((child) => toSgfNode(child)),
+    children: node.children.map((child) => toSgfNode(child, getExtraData)),
   }
 }
 
 /**
  * Serializa el árbol completo a SGF. Orden de propiedades de la raíz FIJO (idempotencia):
- * GM, FF, SZ, KM, RU, [HA, AB], [RE]. `stringify([root])` envuelve el juego en `(;...)`.
+ * GM, FF, SZ, KM, RU, [HA, AB], [RE], [getExtraData]. `stringify([root])` envuelve el juego en `(;...)`.
+ *
+ * `getExtraData` (opcional): por cada nodo, propiedades adicionales a fusionar — el árbol NO sabe
+ * qué significan (p.ej. análisis del motor cacheado); es el mecanismo genérico que usa Fase 6 sin
+ * que este archivo importe `Analysis`/`AnalysisStore`. Sin este argumento, comportamiento IDÉNTICO
+ * a antes (todos los callers existentes — `game/persistence.ts`, `PlayView.tsx` — no lo pasan).
  */
-export function exportSgf(tree: GameTree): string {
+export function exportSgf(tree: GameTree, getExtraData?: ExtraDataGetter): string {
   const { boardSize, komi, rules, handicap, result } = tree.meta
   // Orden de inserción = orden de emisión de stringify (itera `for id in data`): mantenerlo estable.
   const rootData: Record<string, string[]> = {
@@ -98,15 +111,23 @@ export function exportSgf(tree: GameTree): string {
   }
   if (result !== undefined) rootData.RE = [result]
 
-  return sgf.stringify([toSgfNode(tree.root, rootData)])
+  return sgf.stringify([toSgfNode(tree.root, getExtraData, rootData)])
 }
 
 /**
  * Parsea SGF a un GameTree. Asume el formato que produce `exportSgf` (game-info en la raíz). Mapea
  * SZ/KM/RU/HA/RE; los AB del raíz se IGNORAN (handicap ya en HA). Lanza si el SGF es inválido (el
  * caller de persistencia lo envuelve en try/catch). El cursor queda en la raíz.
+ *
+ * `onNodeData` (opcional): se invoca UNA vez por cada `GameNode` creado (incluida la raíz, PRIMERO)
+ * con ese nodo (ya con `.id` asignado) y el `data` crudo parseado de su nodo SGF — el mecanismo
+ * simétrico de `getExtraData` en `exportSgf`. NO se invoca para un "nodo sin jugada" transparente
+ * (no crea un `GameNode` propio). Sin este argumento, comportamiento IDÉNTICO a antes.
  */
-export function importSgf(source: string): GameTree {
+export function importSgf(
+  source: string,
+  onNodeData?: (node: GameNode, data: Record<string, string[]>) => void,
+): GameTree {
   const roots = sgf.parse(source)
   const root = roots[0]
   if (!root) throw new Error('SGF sin nodo raíz')
@@ -128,13 +149,16 @@ export function importSgf(source: string): GameTree {
 
   const meta = { boardSize, komi, rules, handicap } as const
   const tree = new GameTree(data.RE?.[0] !== undefined ? { ...meta, result: data.RE[0] } : meta)
+  onNodeData?.(tree.root, data)
 
   // Los hijos de la raíz son las jugadas (la raíz sólo lleva game-info + AB, que se ignoran).
   const attach = (sgfNode: SgfNode, parent: GameNode): void => {
     for (const child of sgfNode.children) {
       const move = moveFromData(child.data, boardSize)
       if (move) {
-        attach(child, tree.appendChild(parent, move))
+        const node = tree.appendChild(parent, move)
+        onNodeData?.(node, child.data)
+        attach(child, node)
       } else {
         // Nodo sin jugada (raro en nuestro formato): transparente, cuelga sus hijos del mismo padre.
         attach(child, parent)

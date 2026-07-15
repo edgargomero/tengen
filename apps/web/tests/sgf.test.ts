@@ -190,3 +190,62 @@ describe('importSgf — normaliza HA[1]→0 (FIX 6)', () => {
     assertIdempotent(t)
   })
 })
+
+describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase 6, análisis persistido)', () => {
+  it('exportSgf: getExtraData mergea propiedades en el nodo correspondiente, sin pisar B/W', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const n1 = t.addMove(B(2, 2))
+    const out = exportSgf(t, (node) => (node.id === n1.id ? { XX: ['hola'] } : undefined))
+    expect(out).toContain('B[cc]')
+    expect(out).toContain('XX[hola]')
+  })
+
+  it('exportSgf: la raíz también puede llevar datos extra, junto al game-info', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const out = exportSgf(t, (node) => (node.id === t.root.id ? { XX: ['raiz'] } : undefined))
+    expect(out).toContain('GM[1]')
+    expect(out).toContain('XX[raiz]')
+  })
+
+  it('exportSgf: cada rama de una variación recibe SU PROPIO dato extra, sin mezclarse con su hermana', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(2, 2))
+    const mainBranch = t.addMove(W(6, 6))
+    t.toRoot()
+    t.toChild(0)
+    const variationBranch = t.addMove(W(4, 4)) // segunda rama de W desde B(2,2)
+
+    const out = exportSgf(t, (node) => {
+      if (node.id === mainBranch.id) return { XX: ['principal'] }
+      if (node.id === variationBranch.id) return { XX: ['variacion'] }
+      return undefined
+    })
+    const parsedRoot = sgf.parse(out)[0]!
+    const b22 = parsedRoot.children[0]!
+    expect(b22.children).toHaveLength(2)
+    expect(b22.children[0]!.data.XX).toEqual(['principal'])
+    expect(b22.children[1]!.data.XX).toEqual(['variacion'])
+  })
+
+  it('importSgf: onNodeData se invoca por cada nodo creado (incluida la raíz, primero) con su data cruda', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(2, 2))
+    const out = exportSgf(t, (node) => (node.id === t.root.id ? { XX: ['raiz'] } : { XX: ['jugada'] }))
+
+    const seen: { xx: string[] | undefined }[] = []
+    importSgf(out, (_node, data) => seen.push({ xx: data.XX }))
+
+    expect(seen).toHaveLength(2) // raíz + 1 jugada
+    expect(seen[0]!.xx).toEqual(['raiz'])
+    expect(seen[1]!.xx).toEqual(['jugada'])
+  })
+
+  it('sin callback (llamado como antes), exportSgf/importSgf se comportan exactamente igual (regresión)', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    t.addMove(B(2, 2))
+    t.addMove(W(6, 6))
+    const out = exportSgf(t)
+    const t2 = importSgf(out)
+    expect(exportSgf(t2)).toBe(out)
+  })
+})
