@@ -264,8 +264,15 @@ function ReadyAnalyzeView({ tree, cloudId, onBack, onLoadAnother, speed, onChang
   const cloudNameRef = useRef<string | null>(null)
   if (cloudNameRef.current === null) cloudNameRef.current = cloudSessionName(tree.meta.boardSize)
 
+  // `name` se omite al reabrir (cloudId presente desde el montaje): mismo motivo que PlayView.tsx
+  // — sin esto, cada guardado de la sesión reescribiría el nombre original con la fecha de HOY.
   function cloudSnapshot(): GameSnapshot {
-    return { name: cloudNameRef.current!, sgf: exportSgf(tree), boardSize: tree.meta.boardSize, mode: 'analizar' }
+    return {
+      ...(cloudId === undefined ? { name: cloudNameRef.current! } : {}),
+      sgf: exportSgf(tree),
+      boardSize: tree.meta.boardSize,
+      mode: 'analizar',
+    }
   }
 
   /** "Volver"/"Cargar otro SGF" cierran la sesión de análisis: dispara el backup a Drive (spec
