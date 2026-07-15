@@ -141,6 +141,10 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   // Id de D1 (Fase 5): presente si esta sesión viene de reabrir una partida guardada (arriba).
   // `SgfPicker`/import manual arrancan sin id (POST en el primer guardado, sin cambios).
   const [gameId, setGameId] = useState<string | undefined>(initialRef.current.gameId)
+  // Empezar desde cero (spec 2026-07-15): true SOLO en ese camino (`handleStartFromScratch`) —
+  // arranca el editor de variaciones ya activado en ReadyAnalyzeView. Import de archivo y
+  // reapertura vía /partidas (Fase 5 Task 6) siguen arrancando en modo vista, como hoy.
+  const [startEditing, setStartEditing] = useState(false)
   // Cargada una sola vez (lectura síncrona de localStorage, mismo patrón que loadGame en main.tsx);
   // `key={speed}` en ReadyAnalyzeView fuerza el remount completo (review + store desde cero) cuando
   // el usuario cambia de nivel a mitad de una sesión — mismo mecanismo que `sessionKey` en main.tsx.
@@ -154,10 +158,23 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   function handleLoadAnother(): void {
     setTree(null)
     setGameId(undefined)
+    setStartEditing(false)
+  }
+
+  function handleLoadFile(loaded: GameTree): void {
+    setTree(loaded)
+    setStartEditing(false)
+  }
+
+  function handleStartFromScratch(boardSize: BoardSize): void {
+    setTree(emptyAnalyzeTree(boardSize))
+    setStartEditing(true)
   }
 
   if (tree === null) {
-    return <SgfPicker onLoad={setTree} onBack={onBack} />
+    return (
+      <SgfPicker onLoadFile={handleLoadFile} onStartFromScratch={handleStartFromScratch} onBack={onBack} />
+    )
   }
 
   return (
@@ -166,6 +183,7 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
         key={speed}
         tree={tree}
         cloudId={gameId}
+        startEditing={startEditing}
         onBack={onBack}
         onLoadAnother={handleLoadAnother}
         speed={speed}
@@ -176,14 +194,26 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
 }
 
 interface SgfPickerProps {
-  onLoad(tree: GameTree): void
+  onLoadFile(tree: GameTree): void
+  onStartFromScratch(boardSize: BoardSize): void
   onBack(): void
 }
 
-/** Pantalla mostrada cuando aún no hay árbol cargado. A diferencia de `NewGameForm`, Analizar NO
- * junta config (boardSize/komi/rules/handicap): todo eso ya viene DENTRO del SGF importado
- * (`tree.meta`), no hay nada que el usuario deba elegir antes de cargar el archivo. */
-function SgfPicker({ onLoad, onBack }: SgfPickerProps) {
+/** Tamaños ofrecidos para "empezar desde cero" — los tres `BoardSize` que soporta toda la app. */
+const SCRATCH_BOARD_SIZES: BoardSize[] = [9, 13, 19]
+
+/** Defaults fijos para un tablero vacío (spec 2026-07-15-analizar-desde-cero-design.md): mismos
+ * valores que usa por defecto "Nueva partida" en Modo Jugar (`NewGameForm.tsx`: rules='chinese',
+ * komi=defaultKomi('chinese')=7, sin hándicap). Sin selector — colocar piedras de hándicap a mano
+ * ya lo cubre el editor de variaciones existente; decisión del brainstorm, no re-litigar. */
+function emptyAnalyzeTree(boardSize: BoardSize): GameTree {
+  return new GameTree({ boardSize, komi: 7, rules: 'chinese', handicap: 0 })
+}
+
+/** Pantalla mostrada cuando aún no hay árbol cargado. Dos caminos: subir un SGF (la config ya
+ * viene DENTRO del archivo, en `tree.meta` — nada que elegir) o empezar en un tablero vacío
+ * (spec 2026-07-15: solo el tamaño es elegible, el resto son los defaults de Modo Jugar). */
+function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
   const [error, setError] = useState<string | null>(null)
 
   async function handleFile(evt: Event): Promise<void> {
@@ -204,7 +234,7 @@ function SgfPicker({ onLoad, onBack }: SgfPickerProps) {
       if (!isMoveSequenceLegal(loaded.meta.boardSize, loaded.meta.handicap, loaded.movesTo())) {
         throw new Error('el SGF contiene jugadas ilegales en la línea principal')
       }
-      onLoad(loaded)
+      onLoadFile(loaded)
     } catch (e) {
       setError(`No se pudo cargar el SGF (${errorMessage(e)}).`)
     }
@@ -216,6 +246,16 @@ function SgfPicker({ onLoad, onBack }: SgfPickerProps) {
       <p>Elige un archivo SGF para analizar.</p>
       <input type="file" accept=".sgf" onChange={(e) => void handleFile(e)} />
       {error !== null && <p class="form-error">{error}</p>}
+
+      <p class="analyze-picker-or">o empezá en blanco:</p>
+      <div class="analyze-picker-scratch">
+        {SCRATCH_BOARD_SIZES.map((size) => (
+          <button key={size} onClick={() => onStartFromScratch(size)}>
+            {size}×{size}
+          </button>
+        ))}
+      </div>
+
       <button onClick={onBack}>Volver</button>
     </div>
   )
@@ -225,6 +265,9 @@ interface ReadyAnalyzeViewProps {
   tree: GameTree
   /** Id de D1 (Fase 5): ver nota en `AnalyzeView`. */
   cloudId?: string
+  /** true si esta sesión viene del camino "empezar desde cero" (spec 2026-07-15): arranca el
+   * editor de variaciones ya activado, ver `editingVariation` más abajo. */
+  startEditing: boolean
   onBack(): void
   onLoadAnother(): void
   speed: AnalyzeSpeed
@@ -239,7 +282,15 @@ function cloudSessionName(boardSize: BoardSize): string {
 
 /** Envuelta en `ModelGate` desde `AnalyzeView`: garantiza el ONNX de `ANALYZE_NETWORK` en OPFS
  * antes de montar nada que asuma el modelo listo. */
-function ReadyAnalyzeView({ tree, cloudId, onBack, onLoadAnother, speed, onChangeSpeed }: ReadyAnalyzeViewProps) {
+function ReadyAnalyzeView({
+  tree,
+  cloudId,
+  startEditing,
+  onBack,
+  onLoadAnother,
+  speed,
+  onChangeSpeed,
+}: ReadyAnalyzeViewProps) {
   const { reviewVisits, interactiveVisits } = speedSettings(speed)
   const managerRef = useRef<EngineManager | null>(null)
   if (!managerRef.current) managerRef.current = new EngineManager(createWorkerManagedEngine)
@@ -309,7 +360,10 @@ function ReadyAnalyzeView({ tree, cloudId, onBack, onLoadAnother, speed, onChang
   // el tablero juega una piedra (ambos colores, reglas normales) en vez de contar como adivinanza.
   // Mutuamente excluyente con `guessWaiting` — ambos modos consumen el único `onVertexClick` del
   // tablero, ver `handleToggleEditVariation`/`handleGuessStart`.
-  const [editingVariation, setEditingVariation] = useState(false)
+  // Arranca en `startEditing` (spec 2026-07-15): en un tablero vacío ("empezar desde cero") no hay
+  // nada más para hacer, así que el primer click ya coloca piedra. `startEditing` es una prop
+  // estable durante la vida de este componente (una sesión = un montaje, mismo patrón que `tree`).
+  const [editingVariation, setEditingVariation] = useState(startEditing)
   const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
 
   useEffect(() => {
@@ -637,7 +691,7 @@ function ReadyAnalyzeView({ tree, cloudId, onBack, onLoadAnother, speed, onChang
         </div>
 
         <button onClick={handleExportSgf}>Exportar SGF</button>
-        <button onClick={handleLoadAnother}>Cargar otro SGF</button>
+        <button onClick={handleLoadAnother}>Elegir otra partida</button>
         <button onClick={handleBack}>Volver</button>
         {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
 
