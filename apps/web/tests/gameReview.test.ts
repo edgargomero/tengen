@@ -440,3 +440,61 @@ describe('GameReview — Finding 1: no pisa un análisis interactivo que llegó 
     review.dispose()
   })
 })
+
+// ── 9. Fase 6: un nodo sembrado con MENOS visitas que las pedidas se re-analiza y se actualiza ──
+
+describe('GameReview — Fase 6: nodo sembrado con menos visitas se re-analiza y el resultado nuevo reemplaza al sembrado', () => {
+  it('re-encola y sobreescribe un análisis sembrado con menos visitas que `deps.visits`', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2)) // única jugada → targets = [raíz, jugada1]
+
+    // Sembrado (p.ej. desde un SGF reabierto) con 10 visitas — MENOS que lo que este review pide (VISITS=50).
+    store.set(tree.root.id, mkAnalysis({ visits: 10, scoreLead: 0, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
+    const m1 = tree.mainLine()[0]!
+    store.set(m1.id, mkAnalysis({ visits: 10, scoreLead: 1, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
+
+    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+
+    engine.programNext({ chunks: [mkAnalysis({ visits: VISITS, scoreLead: 9, moves: [mkMoveAnalysis({ x: 8, y: 8 })] })] }) // raíz, mejora
+    engine.programNext({ chunks: [mkAnalysis({ visits: VISITS, scoreLead: 7, moves: [mkMoveAnalysis({ x: 8, y: 8 })] })] }) // jugada1, mejora
+
+    await review.start(() => {})
+
+    expect(engine.calls).toHaveLength(2) // SÍ se re-analizaron (no se saltaron)
+    expect(store.get(tree.root.id)!.visits).toBe(VISITS)
+    expect(store.get(tree.root.id)!.scoreLead).toBe(9) // el sembrado (scoreLead=0) fue reemplazado
+    expect(store.get(m1.id)!.visits).toBe(VISITS)
+    expect(store.get(m1.id)!.scoreLead).toBe(7)
+  })
+})
+
+// ── 10. Fase 6: un nodo sembrado con visitas SUFICIENTES no se re-encola ─────────────────────
+
+describe('GameReview — Fase 6: nodo sembrado con visitas suficientes NO se re-encola (objetivo central de esta fase)', () => {
+  it('con todo el store sembrado a MÁS visitas de las pedidas, start() no llama al motor ni una vez', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+
+    const [m1, m2] = tree.mainLine()
+    store.set(tree.root.id, mkAnalysis({ visits: VISITS + 50, scoreLead: 0, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
+    store.set(m1!.id, mkAnalysis({ visits: VISITS + 50, scoreLead: 1, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
+    store.set(m2!.id, mkAnalysis({ visits: VISITS + 50, scoreLead: 2, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
+
+    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const reports: ReturnType<typeof review.getLatestReport>[] = []
+
+    await review.start((report) => reports.push(report))
+
+    expect(engine.calls).toHaveLength(0) // cero re-análisis: el objetivo central de esta fase
+    expect(reports[0]!.moveEntries).toHaveLength(2)
+    const p = review.progress(1000)!
+    expect(p.countLabel).toBe('3/3')
+  })
+})

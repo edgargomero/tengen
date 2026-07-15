@@ -89,13 +89,19 @@ export class GameReview {
    */
   start(onReport: (report: GameReport) => void, startedAtMsOverride?: number): Promise<void> {
     this.startedAtMs = startedAtMsOverride ?? Date.now()
-    const { tree, store } = this.deps
+    const { tree, store, visits } = this.deps
 
     const targets: TengenGameNode[] = [tree.root, ...tree.mainLine()]
     this.targetNodeIds = targets.map((node) => node.id)
 
+    // Fase 6 (análisis persistido en SGF): un nodo sembrado desde el archivo con MENOS visitas que
+    // las que pide esta sesión SÍ se re-encola (mejora la calidad); con visitas suficientes, se
+    // salta igual que antes (evita el re-análisis completo que motivó esta fase).
     const pending = targets
-      .filter((node) => !store.has(node.id))
+      .filter((node) => {
+        const cached = store.get(node.id)
+        return !cached || cached.visits < visits
+      })
       .map((node) => this.analyzeTarget(node, onReport))
 
     if (pending.length === 0) {
@@ -147,18 +153,18 @@ export class GameReview {
         })
         .then(
           (analysis) => {
-            // Guard deliberado (Fase 3a, fix-wave del review final, Finding 1): un análisis
-            // interactivo ("Analizar esta posición", AnalyzeView.tsx `handleAnalyzeClick`) puede
-            // haber escrito YA en `store` para este mismo nodo mientras este job de review estaba en
-            // vuelo — el review encola TODO al montar, así que un usuario que analiza a mano una
-            // posición antes de que le toque su turno en la cola de fondo es el caso común, no el
-            // raro. El review SIEMPRE corre con menos visitas (`REVIEW_VISITS`) que un análisis
-            // interactivo (`INTERACTIVE_VISITS`), así que si `store` YA tiene algo para este nodo,
-            // es de mayor calidad o igual de fresco — nunca pisarlo. `handleAnalyzeClick` hace lo
-            // simétrico-inverso a propósito (escribe SIEMPRE, sin este guard): una petición
-            // interactiva fresca debe ganarle a cualquier resultado de review ya cacheado, sin
-            // importar el orden de llegada.
-            if (!this.deps.store.has(node.id)) this.deps.store.set(node.id, analysis)
+            // Guard deliberado (Fase 3a, fix-wave del review final, Finding 1; generalizado en
+            // Fase 6 a comparar VISITAS en vez de solo presencia). Motivos por los que `store` puede
+            // tener YA algo para este nodo cuando este job se asienta:
+            //   (a) un análisis interactivo ("Analizar esta posición") con más visitas que el review.
+            //   (b) un análisis sembrado desde el SGF (Fase 6) con MENOS visitas que este review —
+            //       ese es justo el caso que el filtro de `start()` vuelve a encolar; si no se
+            //       guardara el resultado nuevo, el re-análisis correría en vano (nunca mejora lo
+            //       mostrado).
+            // Comparar por visitas cubre ambos: nunca pisar algo de igual o mayor calidad, pero SÍ
+            // reemplazar algo de menor calidad — sin importar de dónde vino (interactivo o sembrado).
+            const cached = this.deps.store.get(node.id)
+            if (!cached || cached.visits < analysis.visits) this.deps.store.set(node.id, analysis)
             this.recomputeAndReport(onReport)
           },
           (err: unknown) => {
