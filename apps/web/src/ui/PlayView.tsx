@@ -35,6 +35,7 @@ import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import type { GameSnapshot } from '../cloud/api'
 import { SyncBadge } from '../cloud/SyncBadge'
+import { buildGameSnapshot } from '../cloud/snapshot'
 import { useCloudSync } from '../cloud/useCloudSync'
 import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
 import type { GameConfig } from '../game/gameConfig'
@@ -196,21 +197,19 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   const cloudNameRef = useRef<string | null>(null)
   if (cloudNameRef.current === null) cloudNameRef.current = cloudGameName(config)
 
-  /** Snapshot completo para la nube; se arma fresco en cada guardado (el árbol es mutable). `name`
-   * se omite al reabrir una partida existente (`cloudId` prop presente desde el montaje): sin esto,
-   * cada PUT de la sesión reescribiría el nombre original con uno nuevo generado con la fecha de
-   * HOY (el worker solo pisa `name` si el campo viene presente en el body — `updateGame` en
-   * games.ts). Sin UI de renombrar en esta fase, el nombre debe fijarse una única vez, en el
-   * primer guardado real. */
+  /** Snapshot completo para la nube; se arma fresco en cada guardado (el árbol es mutable). */
   function cloudSnapshot(): GameSnapshot {
-    return {
-      ...(cloudId === undefined ? { name: cloudNameRef.current! } : {}),
-      sgf: exportSgf(tree),
-      boardSize: config.boardSize,
-      mode: 'jugar',
-      ...(tree.meta.result !== undefined ? { result: tree.meta.result } : {}),
-      opponent: config.opponent,
-    }
+    return buildGameSnapshot(
+      {
+        sgf: exportSgf(tree),
+        boardSize: config.boardSize,
+        mode: 'jugar',
+        ...(tree.meta.result !== undefined ? { result: tree.meta.result } : {}),
+        opponent: config.opponent,
+      },
+      cloudNameRef.current!,
+      cloudId !== undefined,
+    )
   }
 
   /** Persiste la partida tras CADA jugada aplicada (humana, IA, o de exploración). Best-effort: un
