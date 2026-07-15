@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { RoutableProps } from 'preact-router'
 import { Goban } from '@sabaki/shudan'
-import type { BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
+import type { Analysis, BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import type { GameSnapshot } from '../cloud/api'
@@ -26,6 +26,7 @@ import { SyncBadge } from '../cloud/SyncBadge'
 import { buildGameSnapshot } from '../cloud/snapshot'
 import { useCloudSync } from '../cloud/useCloudSync'
 import { GameTree, type GameNode } from '../game/gameTree'
+import { decodeAnalysisFromNodeData, encodeAnalysisForNode } from '../analysis/sgfAnalysisCodec'
 import { isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
 import { sabakiToEngineVertex } from '../game/coords'
@@ -108,6 +109,9 @@ interface AnalyzeViewProps extends RoutableProps {
 interface InitialAnalyzeState {
   tree: GameTree | null
   gameId?: string
+  /** Análisis persistido en el SGF (Fase 6) — sembrará un `AnalysisStore` fresco en `ReadyAnalyzeView`
+   * ANTES de que arranque el review, evitando re-analizar lo que ya viene con visitas suficientes. */
+  analysisSeed?: Map<number, Analysis>
 }
 
 /** Consume `takePendingOpen('analizar')` UNA sola vez (take-once — no puede recalcularse en cada
@@ -118,13 +122,17 @@ function computeInitialAnalyzeState(): InitialAnalyzeState {
   const pendingGame = takePendingOpen('analizar')
   if (!pendingGame) return { tree: null }
   try {
-    const tree = importSgf(pendingGame.sgf)
+    const analysisSeed = new Map<number, Analysis>()
+    const tree = importSgf(pendingGame.sgf, (node, data) => {
+      const decoded = decodeAnalysisFromNodeData(data)
+      if (decoded) analysisSeed.set(node.id, decoded)
+    })
     // Mismo criterio que SgfPicker/PlayView import: cursor en el tip de la línea principal (D1 no
     // guarda el cursor exacto, solo el SGF).
     while (tree.toChild(0)) {
       /* avanza hasta el tip */
     }
-    return { tree, gameId: pendingGame.id }
+    return { tree, gameId: pendingGame.id, analysisSeed }
   } catch {
     return { tree: null }
   }
@@ -145,6 +153,12 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
   // arranca el editor de variaciones ya activado en ReadyAnalyzeView. Import de archivo y
   // reapertura vía /partidas (Fase 5 Task 6) siguen arrancando en modo vista, como hoy.
   const [startEditing, setStartEditing] = useState(false)
+  // Análisis persistido en el SGF (Fase 6): sembrado al reabrir vía pendingOpen o al importar un
+  // archivo con propiedades TGW/TGS/TGN/TGP. `undefined` en "empezar desde cero" (árbol vacío) y
+  // tras "Elegir otra partida".
+  const [analysisSeed, setAnalysisSeed] = useState<Map<number, Analysis> | undefined>(
+    initialRef.current.analysisSeed,
+  )
   // Cargada una sola vez (lectura síncrona de localStorage, mismo patrón que loadGame en main.tsx);
   // `key={speed}` en ReadyAnalyzeView fuerza el remount completo (review + store desde cero) cuando
   // el usuario cambia de nivel a mitad de una sesión — mismo mecanismo que `sessionKey` en main.tsx.
@@ -159,16 +173,19 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
     setTree(null)
     setGameId(undefined)
     setStartEditing(false)
+    setAnalysisSeed(undefined)
   }
 
-  function handleLoadFile(loaded: GameTree): void {
+  function handleLoadFile(loaded: GameTree, seed: Map<number, Analysis>): void {
     setTree(loaded)
     setStartEditing(false)
+    setAnalysisSeed(seed)
   }
 
   function handleStartFromScratch(boardSize: BoardSize): void {
     setTree(emptyAnalyzeTree(boardSize))
     setStartEditing(true)
+    setAnalysisSeed(undefined)
   }
 
   if (tree === null) {
@@ -184,6 +201,7 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
         tree={tree}
         cloudId={gameId}
         startEditing={startEditing}
+        analysisSeed={analysisSeed}
         onBack={onBack}
         onLoadAnother={handleLoadAnother}
         speed={speed}
@@ -194,7 +212,7 @@ export function AnalyzeView({ onBack }: AnalyzeViewProps) {
 }
 
 interface SgfPickerProps {
-  onLoadFile(tree: GameTree): void
+  onLoadFile(tree: GameTree, analysisSeed: Map<number, Analysis>): void
   onStartFromScratch(boardSize: BoardSize): void
   onBack(): void
 }
@@ -224,7 +242,11 @@ function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
     setError(null)
     try {
       const text = await file.text()
-      const loaded = importSgf(text)
+      const analysisSeed = new Map<number, Analysis>()
+      const loaded = importSgf(text, (node, data) => {
+        const decoded = decodeAnalysisFromNodeData(data)
+        if (decoded) analysisSeed.set(node.id, decoded)
+      })
       // Deja el cursor en el tip de la línea principal (mismo UX que import de PlayView: se ve la
       // partida completa de inmediato). Validar DESPUÉS de avanzar, para cubrir exactamente la
       // línea que se va a mostrar/analizar.
@@ -234,7 +256,7 @@ function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
       if (!isMoveSequenceLegal(loaded.meta.boardSize, loaded.meta.handicap, loaded.movesTo())) {
         throw new Error('el SGF contiene jugadas ilegales en la línea principal')
       }
-      onLoadFile(loaded)
+      onLoadFile(loaded, analysisSeed)
     } catch (e) {
       setError(`No se pudo cargar el SGF (${errorMessage(e)}).`)
     }
@@ -268,6 +290,8 @@ interface ReadyAnalyzeViewProps {
   /** true si esta sesión viene del camino "empezar desde cero" (spec 2026-07-15): arranca el
    * editor de variaciones ya activado, ver `editingVariation` más abajo. */
   startEditing: boolean
+  /** Análisis persistido en el SGF (Fase 6): siembra `AnalysisStore` en el montaje, ver más abajo. */
+  analysisSeed?: Map<number, Analysis>
   onBack(): void
   onLoadAnother(): void
   speed: AnalyzeSpeed
@@ -286,6 +310,7 @@ function ReadyAnalyzeView({
   tree,
   cloudId,
   startEditing,
+  analysisSeed,
   onBack,
   onLoadAnother,
   speed,
@@ -297,7 +322,15 @@ function ReadyAnalyzeView({
   const manager = managerRef.current
 
   const storeRef = useRef<AnalysisStore | null>(null)
-  if (!storeRef.current) storeRef.current = new AnalysisStore()
+  if (!storeRef.current) {
+    storeRef.current = new AnalysisStore()
+    // Fase 6: siembra el cache ANTES de que el useEffect de montaje llame a review.start() (más
+    // abajo) — así GameReview ve estas posiciones ya cubiertas (o las mejora si tenían menos
+    // visitas que las pedidas, ver gameReview.ts) en vez de re-analizar todo desde cero.
+    if (analysisSeed) {
+      for (const [nodeId, analysis] of analysisSeed) storeRef.current.set(nodeId, analysis)
+    }
+  }
   const store = storeRef.current
 
   const schedulerRef = useRef<ReviewScheduler | null>(null)
@@ -316,9 +349,15 @@ function ReadyAnalyzeView({
   const cloudNameRef = useRef<string | null>(null)
   if (cloudNameRef.current === null) cloudNameRef.current = cloudSessionName(tree.meta.boardSize)
 
+  /** Datos extra por nodo para `exportSgf` (Fase 6): el análisis cacheado de ESE nodo, si lo hay.
+   * Compartido por el export manual y el guardado en la nube — un solo camino, sin distinción. */
+  function analysisExtraData(node: GameNode): Record<string, string[]> | undefined {
+    return store.has(node.id) ? encodeAnalysisForNode(store.get(node.id)!) : undefined
+  }
+
   function cloudSnapshot(): GameSnapshot {
     return buildGameSnapshot(
-      { sgf: exportSgf(tree), boardSize: tree.meta.boardSize, mode: 'analizar' },
+      { sgf: exportSgf(tree, analysisExtraData), boardSize: tree.meta.boardSize, mode: 'analizar' },
       cloudNameRef.current!,
       cloudId !== undefined,
     )
@@ -525,7 +564,7 @@ function ReadyAnalyzeView({
   }
 
   function handleExportSgf(): void {
-    const text = exportSgf(tree)
+    const text = exportSgf(tree, analysisExtraData)
     const blob = new Blob([text], { type: 'application/x-go-sgf' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
