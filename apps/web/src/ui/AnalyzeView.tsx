@@ -16,7 +16,7 @@
 // ni del análisis.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { RoutableProps } from 'preact-router'
-import { Goban } from '@sabaki/shudan'
+import { BoundedGoban } from '@sabaki/shudan'
 import type { Analysis, BoardSize, NetworkId, Vertex as TengenVertex } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
@@ -48,6 +48,7 @@ import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
 import { GuessMovePanel } from './GuessMovePanel'
+import { useBoundedBoardSize } from './useBoundedBoardSize'
 
 /** Analizar SIEMPRE usa la red b18 (MCTS fuerte), nunca Human SL — heatmap/PV/winrate necesitan
  * "la mejor jugada según el motor", no la política de imitación humana (esa es exclusiva de Modo
@@ -404,6 +405,8 @@ function ReadyAnalyzeView({
   // estable durante la vida de este componente (una sesión = un montaje, mismo patrón que `tree`).
   const [editingVariation, setEditingVariation] = useState(startEditing)
   const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const boardBounds = useBoundedBoardSize(boardRef)
 
   useEffect(() => {
     staleRef.current = false
@@ -635,22 +638,26 @@ function ReadyAnalyzeView({
 
   return (
     <div class="analyze-view">
-      <div class="analyze-board">
-        <Goban
-          signMap={signMap}
-          heatMap={heatMap}
-          ghostStoneMap={ghostStoneMap}
-          markerMap={pvOverlay?.markerMap}
-          vertexSize={VERTEX_SIZE[boardSize]}
-          showCoordinates
-          onVertexClick={
-            editingVariation
-              ? (_evt, v) => handleEditVertexClick(v)
-              : guessWaiting
-                ? (_evt, v) => handleBoardGuessClick(v)
-                : undefined
-          }
-        />
+      <div class="analyze-board" ref={boardRef}>
+        {boardBounds && (
+          <BoundedGoban
+            signMap={signMap}
+            heatMap={heatMap}
+            ghostStoneMap={ghostStoneMap}
+            markerMap={pvOverlay?.markerMap}
+            maxWidth={boardBounds.maxWidth}
+            maxHeight={boardBounds.maxHeight}
+            maxVertexSize={VERTEX_SIZE[boardSize]}
+            showCoordinates
+            onVertexClick={
+              editingVariation
+                ? (_evt, v) => handleEditVertexClick(v)
+                : guessWaiting
+                  ? (_evt, v) => handleBoardGuessClick(v)
+                  : undefined
+            }
+          />
+        )}
       </div>
       <aside class="analyze-panel">
         {booting && <p>Preparando motor…</p>}

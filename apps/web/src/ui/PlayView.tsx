@@ -28,7 +28,7 @@
 // solo Negro humano juega, y tras su jugada la IA responde si le toca. `isExploring()` centraliza
 // esa condición (se llama fresca en cada handler y en el render, nunca se cachea en un state).
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Goban } from '@sabaki/shudan'
+import { BoundedGoban } from '@sabaki/shudan'
 import type { GhostStone, Marker } from '@sabaki/shudan'
 import type { BoardSize, Move, NetworkId, RankLevel } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
@@ -47,6 +47,7 @@ import { exportSgf, importSgf } from '../game/sgf'
 import { colorToSign, engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
+import { useBoundedBoardSize } from './useBoundedBoardSize'
 
 interface PlayViewProps {
   config: GameConfig
@@ -173,6 +174,8 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
   const [hoveredVertex, setHoveredVertex] = useState<[number, number] | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const boardBounds = useBoundedBoardSize(boardRef)
 
   /** true si el cursor está fuera del TIP VIVO (`tree.isAtLiveTip()`), o la partida ya terminó: en
    * ese caso, jugar construye una VARIACIÓN a mano en vez de continuar/responder la partida viva
@@ -525,18 +528,22 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
 
   return (
     <div class="play-view">
-      <div class="play-board">
-        <Goban
-          signMap={signMap}
-          markerMap={markerMap}
-          ghostStoneMap={ghostStoneMap}
-          vertexSize={VERTEX_SIZE[config.boardSize]}
-          showCoordinates
-          busy={busy}
-          onVertexClick={(_evt, v) => handleVertexClick(v)}
-          onVertexMouseEnter={(_evt, v) => setHoveredVertex(v)}
-          onVertexMouseLeave={() => setHoveredVertex(null)}
-        />
+      <div class="play-board" ref={boardRef}>
+        {boardBounds && (
+          <BoundedGoban
+            signMap={signMap}
+            markerMap={markerMap}
+            ghostStoneMap={ghostStoneMap}
+            maxWidth={boardBounds.maxWidth}
+            maxHeight={boardBounds.maxHeight}
+            maxVertexSize={VERTEX_SIZE[config.boardSize]}
+            showCoordinates
+            busy={busy}
+            onVertexClick={(_evt, v) => handleVertexClick(v)}
+            onVertexMouseEnter={(_evt, v) => setHoveredVertex(v)}
+            onVertexMouseLeave={() => setHoveredVertex(null)}
+          />
+        )}
       </div>
       <aside class="play-panel">
         <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>

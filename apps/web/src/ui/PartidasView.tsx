@@ -100,30 +100,32 @@ export function PartidasView({ onBack }: PartidasViewProps) {
       {games === null && error === null && <p>Cargando…</p>}
       {games !== null && games.length === 0 && <p>Todavía no guardaste ninguna partida.</p>}
       {games !== null && games.length > 0 && (
-        <table class="partidas-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Fecha</th>
-              <th>Tamaño</th>
-              <th>Resultado</th>
-              <th>Modo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {games.map((g) => (
-              <tr key={g.id} onClick={() => handleOpen(g)} class={openingId === g.id ? 'opening' : ''}>
-                <td>{g.name}</td>
-                <td>{formatDate(g.updatedAt)}</td>
-                <td>
-                  {g.boardSize}×{g.boardSize}
-                </td>
-                <td>{g.result ?? '—'}</td>
-                <td>{MODE_LABELS[g.mode]}</td>
+        <div class="partidas-table-wrap">
+          <table class="partidas-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Fecha</th>
+                <th>Tamaño</th>
+                <th>Resultado</th>
+                <th>Modo</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {games.map((g) => (
+                <tr key={g.id} onClick={() => handleOpen(g)} class={openingId === g.id ? 'opening' : ''}>
+                  <td>{g.name}</td>
+                  <td>{formatDate(g.updatedAt)}</td>
+                  <td>
+                    {g.boardSize}×{g.boardSize}
+                  </td>
+                  <td>{g.result ?? '—'}</td>
+                  <td>{MODE_LABELS[g.mode]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <button onClick={onBack}>Volver</button>
     </main>

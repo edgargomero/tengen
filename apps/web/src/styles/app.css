@@ -11,6 +11,12 @@
   --tengen-accent-hover: #a87527;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: #fafafa;
@@ -251,7 +257,14 @@ fieldset.field {
 }
 
 .play-board {
-  flex: 0 0 auto;
+  flex: 1 1 20rem;
+  min-width: 0;
+  max-width: 32rem;
+  /* El Goban interno es `display:inline-grid` de ancho intrínseco (content-box): sin este centrado,
+     en desktop (donde este wrapper suele quedar más ancho que el tablero real, ver maxVertexSize)
+     quedaría pegado a la izquierda con un hueco visible antes del panel. */
+  display: flex;
+  justify-content: center;
 }
 
 .play-panel {
@@ -456,7 +469,13 @@ fieldset.field {
 }
 
 .analyze-board {
-  flex: 0 0 auto;
+  flex: 1 1 20rem;
+  min-width: 0;
+  max-width: 32rem;
+  /* Mismo motivo que `.play-board` (ese archivo lo documenta): centra el Goban interno cuando el
+     wrapper queda más ancho que el tablero real. */
+  display: flex;
+  justify-content: center;
 }
 
 .analyze-panel {
@@ -640,6 +659,11 @@ fieldset.field {
   margin: 0;
 }
 
+.partidas-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .partidas-table {
   width: 100%;
   border-collapse: collapse;
@@ -650,6 +674,7 @@ fieldset.field {
   text-align: left;
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid #eee;
+  white-space: nowrap;
 }
 
 .partidas-table tbody tr {
@@ -663,4 +688,20 @@ fieldset.field {
 .partidas-table tbody tr.opening {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ── Mobile (plan responsive 2026-07-16) ────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .play-view,
+  .analyze-view {
+    padding: 0 0.5rem;
+  }
+
+  .mode-menu,
+  .new-game-form,
+  .analyze-picker,
+  .partidas-view {
+    padding: 1rem;
+  }
 }
