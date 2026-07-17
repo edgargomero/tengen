@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { isGameOverByTwoPasses } from '../src/game/endgame'
 import { GameTree } from '../src/game/gameTree'
 import { type StorageLike, clearGame, loadGame, saveGame } from '../src/game/persistence'
+import { exportSgf } from '../src/game/sgf'
 
 const B = (x: number, y: number): Move => ({ color: 'black', vertex: { x, y } })
 const W = (x: number, y: number): Move => ({ color: 'white', vertex: { x, y } })
@@ -209,5 +210,54 @@ describe('persistence — clearGame', () => {
     expect(loadGame(storage)).not.toBeNull()
     clearGame(storage)
     expect(loadGame(storage)).toBeNull()
+  })
+})
+
+describe('persistence — reloj', () => {
+  it('round-trip: config y estado vivo del reloj se preservan', () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    const t = new GameTree({
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      clock: {
+        config: clock,
+        state: {
+          black: { mainTimeRemainingMs: 500_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+          white: { mainTimeRemainingMs: 600_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+        },
+      },
+    })
+    t.addMove(B(2, 2))
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+
+    expect(loaded).not.toBeNull()
+    expect(loaded!.tree.meta.clock).toEqual(t.meta.clock)
+  })
+
+  it('sin reloj configurado, meta.clock sigue ausente tras el round-trip (compat)', () => {
+    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0 })
+    t.addMove(B(2, 2))
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+
+    expect(loaded!.tree.meta.clock).toBeUndefined()
+  })
+
+  it('sin reloj configurado, el SGF guardado es byte-idéntico al de exportSgf(tree) sin segundo argumento', () => {
+    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0 })
+    t.addMove(B(2, 2))
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const stored: { sgf: string } = JSON.parse(storage.map.get('tengen:game:v1')!)
+
+    expect(stored.sgf).toBe(exportSgf(t))
   })
 })

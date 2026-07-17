@@ -17,6 +17,7 @@
 import type { RankLevel } from '@tengen/engine'
 import { GameTree } from './gameTree'
 import { exportSgf, importSgf } from './sgf'
+import { decodeClockConfig, decodeClockState, encodeClockConfig, encodeClockState } from './sgfClockCodec'
 
 export interface StorageLike {
   getItem(key: string): string | null
@@ -70,9 +71,19 @@ export function saveGame(
   tree: GameTree,
   cloudId?: string,
 ): void {
+  const clock = tree.meta.clock
+  // Sin reloj: `exportSgf(tree)` sin segundo argumento, comportamiento IDÉNTICO a antes. Con reloj:
+  // config en la raíz, estado vivo en el nodo ACTUAL (el tip, en Modo Jugar — ver sgfClockCodec.ts).
+  const sgf = clock
+    ? exportSgf(tree, (node) => {
+        if (node === tree.root) return encodeClockConfig(clock.config)
+        if (node === tree.current) return encodeClockState(clock.state)
+        return undefined
+      })
+    : exportSgf(tree)
   const payload: PersistedGame = {
     opponent,
-    sgf: exportSgf(tree),
+    sgf,
     cursorPath: tree.pathTo(tree.current),
     ...(cloudId !== undefined ? { cloudId } : {}),
   }
@@ -95,7 +106,18 @@ export function loadGame(
     if (raw === null) return null
     const parsed: unknown = JSON.parse(raw)
     if (!isPersistedGame(parsed)) return null
-    const tree = importSgf(parsed.sgf)
+
+    // Intenta decodificar en CADA nodo (barato, y `decode*` devuelve null sin ruido si las
+    // propiedades no están) — se queda con el último resultado no-nulo de cada uno. En la práctica
+    // hay a lo sumo un nodo con cada tipo de dato (raíz para la config, el tip para el estado).
+    let clockConfig: ReturnType<typeof decodeClockConfig> = null
+    let clockState: ReturnType<typeof decodeClockState> = null
+    const tree = importSgf(parsed.sgf, (_node, data) => {
+      clockConfig = decodeClockConfig(data) ?? clockConfig
+      clockState = decodeClockState(data) ?? clockState
+    })
+    if (clockConfig && clockState) tree.meta.clock = { config: clockConfig, state: clockState }
+
     tree.navigateToPath(parsed.cursorPath) // si es inválido, no muta el cursor (queda en la raíz)
     return {
       opponent: parsed.opponent,
