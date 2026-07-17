@@ -12,7 +12,8 @@
 // de jugada ni entran en `moves[]`. Viven solo en `meta.handicap` (número de piedras); rules.ts
 // las coloca a partir de `handicapVertices`. Con handicap≥2 la primera jugada real es de Blanco,
 // pero eso lo decide el caller (vía `currentTurn`): el árbol solo almacena lo que se le añade.
-import type { BoardSize, Move, Position, Rules, StoneColor, Vertex } from '@tengen/engine'
+import type { BoardSize, ClockConfig, ClockState, Move, Position, Rules, StoneColor, Vertex } from '@tengen/engine'
+import { initialClockState } from '@tengen/engine'
 import type GoBoard from '@sabaki/go-board'
 import type { GameConfig } from './gameConfig'
 import { boardFromMoves, currentTurn } from './rules'
@@ -25,6 +26,10 @@ export interface GameTreeMeta {
   handicap: number
   /** Resultado en formato SGF RE (p.ej. "B+Resign", "W+7.5"). Presente solo si la partida terminó. */
   result?: string
+  /** Reloj de la partida: config fija + estado vivo por color. Ausente = "sin reloj" (de siempre).
+   *  Mutable en el lugar (`tree.meta.clock.state.black = ...`), mismo patrón que `result` — lo muta
+   *  `PlayView.tsx` tras cada jugada; se persiste en el SGF vía `game/sgfClockCodec.ts` (Task 7). */
+  clock?: { config: ClockConfig; state: { black: ClockState; white: ClockState } }
 }
 
 /** Nodo del árbol. La raíz tiene `move === null` y `parent === null`. */
@@ -60,13 +65,22 @@ export class GameTree {
     this.current = this.root
   }
 
-  /** Crea un árbol a partir de una GameConfig (descarta `opponent`, que no pertenece al árbol). */
+  /** Crea un árbol a partir de una GameConfig (descarta `opponent`, que no pertenece al árbol). Si
+   *  la config trae reloj, arranca AMBOS colores con el mismo estado inicial derivado de esa config. */
   static fromConfig(config: GameConfig): GameTree {
     return new GameTree({
       boardSize: config.boardSize,
       komi: config.komi,
       rules: config.rules,
       handicap: config.handicap,
+      ...(config.clock !== undefined
+        ? {
+            clock: {
+              config: config.clock,
+              state: { black: initialClockState(config.clock), white: initialClockState(config.clock) },
+            },
+          }
+        : {}),
     })
   }
 

@@ -258,3 +258,49 @@ describe('GameTree — isAtLiveTip (Fase 2, Task 5: guard del modo exploración)
     expect(th.isAtLiveTip()).toBe(true)
   })
 })
+
+describe('GameTree — fromConfig con reloj', () => {
+  it('sin clock en la config, meta.clock queda ausente', () => {
+    const t = GameTree.fromConfig({
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      opponent: { kind: 'kata', visits: 100 },
+    })
+    expect(t.meta.clock).toBeUndefined()
+  })
+
+  it('con clock, inicializa el mismo estado para ambos colores', () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    const t = GameTree.fromConfig({
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      opponent: { kind: 'kata', visits: 100 },
+      clock,
+    })
+    expect(t.meta.clock).toEqual({
+      config: clock,
+      state: {
+        black: { mainTimeRemainingMs: 600_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+        white: { mainTimeRemainingMs: 600_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+      },
+    })
+  })
+
+  it('con mainTimeMs=0 (byoyomi desde el arranque), inicializa inByoyomi=true', () => {
+    const clock = { mainTimeMs: 0, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    const t = GameTree.fromConfig({
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      opponent: { kind: 'kata', visits: 100 },
+      clock,
+    })
+    expect(t.meta.clock?.state.black.inByoyomi).toBe(true)
+    expect(t.meta.clock?.state.white.inByoyomi).toBe(true)
+  })
+})
