@@ -30,7 +30,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { BoundedGoban } from '@sabaki/shudan'
 import type { GhostStone, Marker } from '@sabaki/shudan'
-import type { BoardSize, Move, NetworkId, RankLevel } from '@tengen/engine'
+import { applyElapsed } from '@tengen/engine'
+import type { BoardSize, ClockConfig, ClockState, Move, NetworkId, RankLevel } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import type { GameSnapshot } from '../cloud/api'
@@ -96,6 +97,14 @@ function illegalMoveMessage(reason: 'ko' | 'suicide' | 'overwrite'): string {
 function formatDateForFilename(d: Date): string {
   const pad = (n: number): string => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** `mm:ss`, siempre 2 dígitos en ambos campos (`5:07` se ve como `05:07`). */
+function formatClockMs(ms: number): string {
+  const totalSeconds = Math.max(Math.ceil(ms / 1000), 0)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
@@ -176,6 +185,68 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const boardBounds = useBoundedBoardSize(boardRef)
+  // Reloj (Fase reloj, 2026-07-16): `turnStartedAtRef` marca cuándo arrancó el turno EN VIVO
+  // actual — se resetea tras cada jugada aplicada a la partida viva (nunca en modo exploración, que
+  // no consume reloj). Al restaurar (localStorage/Mis partidas), arranca fresco en el momento del
+  // montaje: cerrar la pestaña y reabrir NO penaliza al jugador que estaba por mover (limitación
+  // aceptada y documentada en la spec — Fase A es 100% client-side, sin autoridad de servidor).
+  const turnStartedAtRef = useRef(Date.now())
+  // true recién cuando `boot()` confirma el motor listo (Step 4, más abajo) — mismo patrón por-ref
+  // que `staleRef`/`endedRef` (nunca `useState`, para no capturarlo obsoleto dentro del `setInterval`
+  // del ticker de Step 5). Sin esto, el reloj arrancaría a descontar tiempo desde el MONTAJE del
+  // componente, comiéndose el tiempo de "Preparando motor…" (bug encontrado en la autorevisión).
+  const bootedRef = useRef(false)
+  // Fuerza el repintado del reloj cada ~250ms (el valor en sí no se lee nunca — mismo patrón que el
+  // `bump()` del árbol, pero separado: este NO representa una mutación del árbol).
+  const [, setClockTick] = useState(0)
+
+  /** No-op si la partida no tiene reloj. Muta `tree.meta.clock.state[color]` IN-PLACE (mismo patrón
+   *  que `tree.meta.result`) y devuelve si ese color se quedó sin tiempo. */
+  function consumeClock(color: 'black' | 'white', elapsedMs: number): boolean {
+    const clock = tree.meta.clock
+    if (!clock) return false
+    const { state: next, timedOut } = applyElapsed(clock.state[color], clock.config, elapsedMs)
+    clock.state[color] = next
+    return timedOut
+  }
+
+  /** Presupuesto a pasarle a `manager.genMove` para el color dado. `undefined` sin reloj. */
+  function clockOptsFor(color: 'black' | 'white'): { config: ClockConfig; state: ClockState } | undefined {
+    const clock = tree.meta.clock
+    if (!clock) return undefined
+    return { config: clock.config, state: clock.state[color] }
+  }
+
+  /** Marca la partida terminada por tiempo (mismo canal que resign/score: `endedRef`, `tree.meta.result`,
+   *  `persist()`, `cloud.finish()`) — factoriza el remate repetido en los 3 call sites que pueden
+   *  detectar un timeout (clic humano, pase humano, jugada de la IA) + el ticker de abajo. */
+  function declareTimeout(color: 'black' | 'white'): void {
+    endedRef.current = true
+    const resultStr = formatResult(0, undefined, color)
+    tree.meta.result = resultStr
+    setResult(resultStr)
+    setBusy(false)
+    persist()
+    cloud.finish()
+  }
+
+  /** Cuánto le queda al color dado AHORA MISMO, para mostrar (no muta nada): si es su turno, la
+   *  partida sigue viva Y el cursor está en el tip (no explorando), descuenta el tiempo transcurrido
+   *  desde `turnStartedAtRef` en vivo; si no, muestra el último snapshot guardado. `turnStartedAtRef`
+   *  NUNCA se resetea en modo exploración (ver `handleVertexClick`/`handlePass`), así que sin este
+   *  chequeo `isExploring()` navegar variaciones mostraría una cuenta regresiva contra un timestamp
+   *  obsoleto — bug encontrado en la autorevisión del plan, no en el spec. Mientras está en byoyomi,
+   *  cuenta regresiva del período vigente (no del pozo principal, que ya quedó en 0). */
+  function displayedClock(color: 'black' | 'white'): { ms: number; periodsRemaining: number; inByoyomi: boolean } {
+    const clock = tree.meta.clock!
+    const state = clock.state[color]
+    const isLiveTurn = bootedRef.current && result === null && !isExploring() && tree.currentTurnAt() === color
+    const elapsed = isLiveTurn ? Date.now() - turnStartedAtRef.current : 0
+    const ms = state.inByoyomi
+      ? Math.max(clock.config.byoyomiPeriodMs - elapsed, 0)
+      : Math.max(state.mainTimeRemainingMs - elapsed, 0)
+    return { ms, periodsRemaining: state.byoyomiPeriodsRemaining, inByoyomi: state.inByoyomi }
+  }
 
   /** true si el cursor está fuera del TIP VIVO (`tree.isAtLiveTip()`), o la partida ya terminó: en
    * ese caso, jugar construye una VARIACIÓN a mano en vez de continuar/responder la partida viva
@@ -271,15 +342,25 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     }
   }
 
-  /** Exactamente UNA jugada de la IA (Blanco) desde el tip actual; NO se auto-repite. */
+  /** Exactamente UNA jugada de la IA (Blanco) desde el tip actual; NO se auto-repite. El tiempo que
+   *  REALMENTE tomó (medido acá, no reportado por el motor) es lo que se descuenta de su reloj —
+   *  "ambos respetan el reloj" (spec 2026-07-16) sin que `genMove` necesite devolver un dato nuevo. */
   async function aiTurn(): Promise<void> {
     setBusy(true)
+    const aiTurnStartedAt = Date.now()
     try {
-      const move = await manager.genMove(tree.positionAt(), config.opponent)
+      const move = await manager.genMove(tree.positionAt(), config.opponent, clockOptsFor('white'))
       if (staleRef.current || endedRef.current) return
+      const elapsed = Date.now() - aiTurnStartedAt
+      const timedOut = consumeClock('white', elapsed)
       tree.addMove(move)
       bump()
       persist()
+      if (timedOut) {
+        declareTimeout('white')
+        return
+      }
+      turnStartedAtRef.current = Date.now()
       await finishTurn()
     } catch (e) {
       if (staleRef.current || endedRef.current) return
@@ -296,6 +377,10 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         await manager.ensureReady(net, config.boardSize)
         if (staleRef.current) return
         setBooting(false)
+        // Reloj (Fase reloj, 2026-07-16): recién ACÁ arranca "de verdad" el turno en vivo — ni un
+        // segundo de "Preparando motor…" debe comerse el tiempo del jugador.
+        bootedRef.current = true
+        turnStartedAtRef.current = Date.now()
         // Task 5 R1: con un árbol restaurado/importado, el cursor puede NO estar en el tip, o la
         // partida puede ya estar terminada. Arrancar la IA en cualquiera de esos casos corrompería
         // el árbol (addMove desde un cursor que no es el tip) o revivi­ría una partida terminada.
@@ -350,6 +435,34 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     // componente (una partida = un montaje).
   }, [])
 
+  // Ticker del reloj (Fase reloj, 2026-07-16): re-pinta la cuenta regresiva cada ~250ms Y detecta
+  // timeout del lado HUMANO (Negro) — el lado de la IA nunca "queda AFK" (su reloj se descuenta al
+  // recibir su jugada, en `aiTurn`, no acá). Usa diferencia contra un timestamp ABSOLUTO
+  // (`Date.now() - turnStartedAtRef.current`), no conteo de ticks: un tab en background/throttled
+  // puede detectar el timeout TARDE, nunca de forma incorrecta-temprana (se autocorrige apenas
+  // vuelve a tickear). `bootedRef.current` (Step 4) evita chequear timeout antes de que el motor
+  // esté listo.
+  useEffect(() => {
+    if (tree.meta.clock === undefined) return
+    const id = setInterval(() => {
+      if (staleRef.current || endedRef.current || !bootedRef.current) return
+      if (tree.currentTurnAt() !== 'black' || isExploring()) {
+        setClockTick((t) => t + 1)
+        return
+      }
+      const elapsed = Date.now() - turnStartedAtRef.current
+      const clock = tree.meta.clock!
+      const { timedOut } = applyElapsed(clock.state.black, clock.config, elapsed)
+      if (timedOut) {
+        declareTimeout('black')
+        return
+      }
+      setClockTick((t) => t + 1)
+    }, 250)
+    return () => clearInterval(id)
+    // Se ejecuta una sola vez: mismo criterio que el useEffect de arranque (una partida = un montaje).
+  }, [])
+
   function handleVertexClick(v: [number, number]): void {
     if (busy) return
     const vertex = sabakiToEngineVertex(v)
@@ -376,9 +489,16 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       return
     }
     setIllegalMoveHint(null)
+    const elapsed = Date.now() - turnStartedAtRef.current
+    const timedOut = consumeClock('black', elapsed)
     tree.addMove({ color: 'black', vertex })
     bump()
     persist()
+    if (timedOut) {
+      declareTimeout('black')
+      return
+    }
+    turnStartedAtRef.current = Date.now()
     setBusy(true)
     void finishTurn()
   }
@@ -395,9 +515,16 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     }
 
     if (turnAtCursor !== 'black') return
+    const elapsed = Date.now() - turnStartedAtRef.current
+    const timedOut = consumeClock('black', elapsed)
     tree.addMove({ color: 'black', vertex: 'pass' })
     bump()
     persist()
+    if (timedOut) {
+      declareTimeout('black')
+      return
+    }
+    turnStartedAtRef.current = Date.now()
     setBusy(true)
     void finishTurn()
   }
@@ -546,6 +673,18 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         )}
       </div>
       <aside class="play-panel">
+        {tree.meta.clock && (
+          <div class="play-clock">
+            <p class={turn === 'black' ? 'play-clock-active' : ''}>
+              Negro: {formatClockMs(displayedClock('black').ms)}
+              {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
+            </p>
+            <p class={turn === 'white' ? 'play-clock-active' : ''}>
+              Blanco: {formatClockMs(displayedClock('white').ms)}
+              {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
+            </p>
+          </div>
+        )}
         <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>
         <p class="play-turn">
           {result !== null
