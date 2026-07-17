@@ -23,6 +23,16 @@ function defaultKomi(rules: Rules): number {
   return rules === 'chinese' ? 7 : 6.5
 }
 
+// Tiempo principal sugerido por tamaño de tablero (minutos) — mismo orden de magnitud que KGS
+// (spec 2026-07-16-reloj-partida-design.md §UI). El byoyomi (5×30s) NO varía por tamaño.
+function defaultMainTimeMin(size: BoardSize): number {
+  if (size === 9) return 10
+  if (size === 13) return 20
+  return 30
+}
+const DEFAULT_BYOYOMI_PERIODS = 5
+const DEFAULT_BYOYOMI_SECONDS = 30
+
 export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   // Tamaño por defecto: 9×9 (partida más corta y rápida — mejor primera experiencia jugable que
   // 19×19; además el usuario puede subir de tamaño cuando quiera).
@@ -34,6 +44,14 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   const [komi, setKomi] = useState<number>(defaultKomi('chinese'))
   const [komiTouched, setKomiTouched] = useState(false)
   const [handicap, setHandicap] = useState(0)
+  // Reloj (Fase reloj, 2026-07-16): activado por defecto con valores sugeridos, con un toggle "Sin
+  // reloj". `clockTouched` seguido del mismo patrón que `komiTouched`: no pisar un valor de tiempo
+  // principal que el usuario ya tocó a mano al cambiar de tamaño de tablero.
+  const [clockEnabled, setClockEnabled] = useState(true)
+  const [mainTimeMin, setMainTimeMin] = useState<number>(defaultMainTimeMin(9))
+  const [clockTouched, setClockTouched] = useState(false)
+  const [byoyomiPeriods, setByoyomiPeriods] = useState<number>(DEFAULT_BYOYOMI_PERIODS)
+  const [byoyomiSeconds, setByoyomiSeconds] = useState<number>(DEFAULT_BYOYOMI_SECONDS)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handicapAllowed = boardSize === 19
@@ -46,6 +64,7 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   function handleBoardSizeChange(next: BoardSize): void {
     setBoardSize(next)
     if (next !== 19) setHandicap(0) // M-4: handicap>1 solo en 19×19 (el motor lo rechazaría igual)
+    if (!clockTouched) setMainTimeMin(defaultMainTimeMin(next))
   }
 
   function handleSubmit(evt: Event): void {
@@ -53,7 +72,22 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
     setErrorMsg(null)
     const opponent: RankLevel =
       opponentKind === 'human' ? { kind: 'human', rank: humanRank } : { kind: 'kata', visits: kataVisits }
-    const config: GameConfig = { boardSize, komi, rules, handicap, opponent }
+    const config: GameConfig = {
+      boardSize,
+      komi,
+      rules,
+      handicap,
+      opponent,
+      ...(clockEnabled
+        ? {
+            clock: {
+              mainTimeMs: mainTimeMin * 60_000,
+              byoyomiPeriods,
+              byoyomiPeriodMs: byoyomiSeconds * 1000,
+            },
+          }
+        : {}),
+    }
     try {
       onStart(validateConfig(config))
     } catch (e) {
@@ -169,6 +203,57 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
           </select>
           {!handicapAllowed && <span class="field-hint">Solo disponible en 19×19</span>}
         </label>
+      </div>
+
+      <div class="field-group">
+        <label class="radio-option">
+          <input
+            type="checkbox"
+            checked={!clockEnabled}
+            onChange={(e) => setClockEnabled(!(e.target as HTMLInputElement).checked)}
+          />
+          Sin reloj
+        </label>
+
+        {clockEnabled && (
+          <>
+            <label class="field">
+              Tiempo principal (minutos)
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={mainTimeMin}
+                onChange={(e) => {
+                  setClockTouched(true)
+                  setMainTimeMin(Number((e.target as HTMLInputElement).value))
+                }}
+              />
+            </label>
+
+            <label class="field">
+              Byoyomi: períodos
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={byoyomiPeriods}
+                onChange={(e) => setByoyomiPeriods(Number((e.target as HTMLInputElement).value))}
+              />
+            </label>
+
+            <label class="field">
+              Byoyomi: segundos por período
+              <input
+                type="number"
+                min="1"
+                step="5"
+                value={byoyomiSeconds}
+                onChange={(e) => setByoyomiSeconds(Number((e.target as HTMLInputElement).value))}
+              />
+            </label>
+          </>
+        )}
       </div>
 
       {errorMsg && <p class="form-error">{errorMsg}</p>}
