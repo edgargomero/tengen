@@ -91,10 +91,30 @@ export type Analysis = {
   moves: MoveAnalysis[]
   ownership?: Float32Array
 }
+
+/** Ajustes fijos del reloj de una partida (tiempo principal + byoyomi japonés). Ausente en
+ *  `GameConfig.clock` = partida sin reloj (comportamiento de siempre). */
+export interface ClockConfig {
+  /** 0 = "byoyomi desde la primera jugada" (válido). */
+  mainTimeMs: number
+  /** 0 = sin byoyomi (solo tiempo principal — agotarlo es derrota inmediata). */
+  byoyomiPeriods: number
+  byoyomiPeriodMs: number
+}
+
+/** Estado vivo del reloj de UN color en un momento dado. */
+export interface ClockState {
+  mainTimeRemainingMs: number
+  byoyomiPeriodsRemaining: number
+  inByoyomi: boolean
+}
+
 export type CancelFn = () => void
 export interface Engine {
   init(config: { network: NetworkId; boardSize: BoardSize }): Promise<void>
-  genMove(pos: Position, opts: { level: RankLevel }): Promise<Move>
+  /** `clock` opcional (Fase reloj, 2026-07-16): presupuesto de tiempo de ESTE color para esta
+   *  jugada. Ausente = comportamiento de siempre (visits puras, techo de seguridad fijo). */
+  genMove(pos: Position, opts: { level: RankLevel; clock?: { config: ClockConfig; state: ClockState } }): Promise<Move>
   // `onError` (4º parámetro, opcional): canal de error POR-LLAMADA — si el motor lanza durante este
   // `analyze` específico, se invoca en vez de perderse en silencio (Fase 3a Task 1, M-2). Aditivo: los
   // callers de Fase 2 que sólo pasan 3 argumentos siguen funcionando sin cambios.
