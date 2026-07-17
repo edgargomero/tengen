@@ -11,6 +11,8 @@ import type {
   Analysis,
   BoardSize,
   CancelFn,
+  ClockConfig,
+  ClockState,
   Engine,
   Move,
   NetworkId,
@@ -26,6 +28,7 @@ import { createSearch } from './search/mcts'
 import { sampleHumanMove } from './humansl'
 import { OnnxEvaluator, type NNEvaluator } from './nn/evaluator'
 import { mulberry32 } from './rng'
+import { computeBaseBudgetMs, timeManagementPolicy } from './search/timeManagementPolicy'
 
 /**
  * Inverso de `moveToGtp` (analyzeMcts.ts:1003): `col = x >= 8 ? x + 1 : x` (salta 'I'),
@@ -99,14 +102,20 @@ export class LocalEngine implements Engine {
    *  mismo alcance que el flag único de antes, pero ahora conviviendo con tokens por-llamada para la
    *  `CancelFn` propia de cada `analyze` (que cancela SÓLO su propio token, nunca `activeToken`). */
   private activeToken: CancelToken | undefined
+  /** Lector de reloj inyectable (Fase reloj, 2026-07-16) — mismo patrón que `evaluatorFactory`: en
+   *  producción `performance.now()`, en tests un contador falso determinista. NUNCA leído desde
+   *  `timeManagementPolicy` (función pura) — solo desde `runWithClock`, más abajo. */
+  private readonly now: () => number
 
   constructor(deps?: {
     evaluatorFactory?: (net: NetworkId, boardSize: BoardSize) => Promise<NNEvaluator>
     seed?: number
+    now?: () => number
   }) {
     this.evaluatorFactory = deps?.evaluatorFactory ?? defaultEvaluatorFactory
     // RNG persistente: avanza entre `genMove` humanos → una partida reproducible por `seed`.
     this.rng = mulberry32(deps?.seed ?? 1)
+    this.now = deps?.now ?? (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()))
   }
 
   async init(config: { network: NetworkId; boardSize: BoardSize }): Promise<void> {
@@ -115,7 +124,10 @@ export class LocalEngine implements Engine {
     this.evaluator = await this.evaluatorFactory(config.network, config.boardSize)
   }
 
-  async genMove(pos: Position, opts: { level: RankLevel }): Promise<Move> {
+  async genMove(
+    pos: Position,
+    opts: { level: RankLevel; clock?: { config: ClockConfig; state: ClockState } },
+  ): Promise<Move> {
     const token: CancelToken = { cancelled: false }
     this.activeToken = token
     const evaluator = this.requireInit(pos)
@@ -123,12 +135,17 @@ export class LocalEngine implements Engine {
     if (opts.level.kind === 'kata') {
       const state = buildGameState(pos)
       const search = await createSearch({ evaluator, state })
-      await search.run({
-        visits: opts.level.visits,
-        maxTimeMs: 600_000,
-        batchSize: 8,
-        shouldAbort: () => token.cancelled,
-      })
+      if (opts.clock === undefined) {
+        // Sin reloj: comportamiento byte-idéntico al de siempre.
+        await search.run({
+          visits: opts.level.visits,
+          maxTimeMs: 600_000,
+          batchSize: 8,
+          shouldAbort: () => token.cancelled,
+        })
+      } else {
+        await this.runWithClock(search, opts.level.visits, opts.clock, () => token.cancelled)
+      }
       const a = search.getAnalysis({ topK: 1, analysisPvLen: 0 })
       const best = a.moves.find((m) => m.order === 0)
       if (best === undefined) return { color: state.currentPlayer, vertex: 'pass' }
@@ -156,6 +173,68 @@ export class LocalEngine implements Engine {
       rank: opts.level.rank,
       rng: this.rng,
     })
+  }
+
+  /**
+   * Búsqueda kata con presupuesto de tiempo derivado del reloj (Opción B, spec
+   * 2026-07-16-reloj-partida-design.md). Corre en CHUNKS (mismo patrón que `analyze()`, arriba),
+   * consultando `timeManagementPolicy` tras cada uno: puede cortar antes (convergencia), seguir, o
+   * extender el presupuesto UNA vez (posición difícil). El `maxTimeMs` de CADA chunk ya refleja el
+   * tiempo restante del presupuesto vigente (no solo el corte entre-chunks): así el techo interno
+   * que `MctsSearch.run` ya calcula (`analyzeMcts.ts:1750`) protege incluso DENTRO de un chunk ante
+   * una inferencia lenta, no solo entre chunks.
+   *
+   * CHUNK=32 (mismo valor que `analyze()`): punto de partida razonable, no una constante sagrada —
+   * si la verificación manual (Task 13 del plan) muestra cortes poco responsivos bajo WebGPU real,
+   * ajustar a un valor menor es un cambio de una línea, sin tocar el resto de este método.
+   */
+  private async runWithClock(
+    search: Awaited<ReturnType<typeof createSearch>>,
+    visitsCap: number,
+    clock: { config: ClockConfig; state: ClockState },
+    shouldAbort: () => boolean,
+  ): Promise<void> {
+    const CHUNK = 32
+    let budgetMs = computeBaseBudgetMs(clock.config, clock.state)
+    let extended = false
+    let target = 0
+    const visitShareHistory: number[] = []
+    const startedAt = this.now()
+
+    while (target < visitsCap && !shouldAbort()) {
+      const elapsedBeforeChunk = this.now() - startedAt
+      target = Math.min(target + CHUNK, visitsCap)
+      await search.run({
+        visits: target,
+        maxTimeMs: Math.max(budgetMs - elapsedBeforeChunk, 50),
+        batchSize: 8,
+        shouldAbort,
+      })
+      if (shouldAbort()) return
+
+      const a = search.getAnalysis({ topK: 2, analysisPvLen: 0 })
+      const top = a.moves.find((m) => m.order === 0)
+      const second = a.moves.find((m) => m.order === 1)
+      const totalVisits = a.moves.reduce((sum, m) => sum + m.visits, 0)
+      visitShareHistory.push(top && totalVisits > 0 ? top.visits / totalVisits : 0)
+      const valueGap = top && second ? Math.abs(top.winRate - second.winRate) : 1
+
+      const decision = timeManagementPolicy({
+        elapsedMsSoFar: this.now() - startedAt,
+        budgetMs,
+        visitShareHistory,
+        valueGap,
+        alreadyExtended: extended,
+        inByoyomi: clock.state.inByoyomi,
+        byoyomiPeriodMs: clock.config.byoyomiPeriodMs,
+        byoyomiPeriodsRemaining: clock.state.byoyomiPeriodsRemaining,
+      })
+      if (decision === 'stop') return
+      if (decision !== 'continue') {
+        extended = true
+        budgetMs = decision.extendTo
+      }
+    }
   }
 
   // `onError` (4º parámetro, Fase 3a Task 1, M-2): canal de error PÚBLICO por-llamada — antes sólo

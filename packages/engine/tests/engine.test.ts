@@ -99,6 +99,45 @@ describe('LocalEngine', () => {
     ).rejects.toThrow(/hasMeta/)
   })
 
+  it('genMove con reloj: sigue devolviendo una jugada legal', async () => {
+    const eng = new LocalEngine({ evaluatorFactory: async (_n, N) => makeMock(N) })
+    await eng.init({ network: 'b18', boardSize: 9 })
+    const clock = {
+      config: { mainTimeMs: 60_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
+      state: { mainTimeRemainingMs: 60_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+    }
+    const move = await eng.genMove(
+      { boardSize: 9, komi: 7, rules: 'chinese', handicap: 0, moves: [] },
+      { level: { kind: 'kata', visits: 100 }, clock },
+    )
+    expect(move.color).toBe('black')
+  })
+
+  it('genMove con reloj chico: corta MUY antes del techo de visitas (el tiempo manda, no las visitas)', async () => {
+    let nowCalls = 0
+    let fakeNow = 0
+    const now = () => {
+      nowCalls++
+      fakeNow += 50
+      return fakeNow
+    }
+    const eng = new LocalEngine({ evaluatorFactory: async (_n, N) => makeMock(N), now })
+    await eng.init({ network: 'b18', boardSize: 9 })
+    const clock = {
+      // base budget = 4000/40 = 100ms; con 50ms "reales" por consulta de `now`, el presupuesto (sin
+      // convergencia/extensión) se agota en pocas vueltas.
+      config: { mainTimeMs: 4000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
+      state: { mainTimeRemainingMs: 4000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+    }
+    await eng.genMove(
+      { boardSize: 9, komi: 7, rules: 'chinese', handicap: 0, moves: [] },
+      { level: { kind: 'kata', visits: 100_000 }, clock },
+    )
+    // Agotar 100000 visitas a CHUNK=32 tomaría ~3125 vueltas (~6250+ llamadas a `now`). Si el corte
+    // por tiempo funciona, esto termina en un puñado de vueltas.
+    expect(nowCalls).toBeLessThan(50)
+  })
+
   it('stop() también cancela analyze', async () => {
     const eng = new LocalEngine({ evaluatorFactory: async (_n, N) => makeMock(N) })
     await eng.init({ network: 'b18', boardSize: 9 })
