@@ -1,7 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EngineManager, WorkerCrashError } from '../src/engine/engineManager'
 import type { ManagedEngine, ManagedEngineFactory } from '../src/engine/engineManager'
-import type { Analysis, BoardSize, CancelFn, Engine, Move, NetworkId, Position, RankLevel } from '@tengen/engine'
+import type {
+  Analysis,
+  BoardSize,
+  CancelFn,
+  ClockConfig,
+  ClockState,
+  Engine,
+  Move,
+  NetworkId,
+  Position,
+  RankLevel,
+} from '@tengen/engine'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests Node del motor persistente. `EngineManager` no referencia `Worker` (la
@@ -30,7 +41,10 @@ class FakeEngine implements Engine {
   analyzeCalls = 0
   stopCalls = 0
   /** Programable por instancia. Por defecto lanza (obliga al test a programarlo cuando lo usa). */
-  genMoveImpl: (pos: Position, opts: { level: RankLevel }) => Promise<Move> = () => {
+  genMoveImpl: (
+    pos: Position,
+    opts: { level: RankLevel; clock?: { config: ClockConfig; state: ClockState } },
+  ) => Promise<Move> = () => {
     throw new Error('FakeEngine: genMoveImpl no programado')
   }
   /** Chunks que `analyze` emite SÍNCRONAMENTE al invocarse (útil con fake timers). */
@@ -43,7 +57,7 @@ class FakeEngine implements Engine {
   async init(config: { network: NetworkId; boardSize: BoardSize }): Promise<void> {
     this.initCalls.push(config)
   }
-  genMove(pos: Position, opts: { level: RankLevel }): Promise<Move> {
+  genMove(pos: Position, opts: { level: RankLevel; clock?: { config: ClockConfig; state: ClockState } }): Promise<Move> {
     this.genMoveCalls++
     return this.genMoveImpl(pos, opts)
   }
@@ -211,6 +225,40 @@ describe('EngineManager.genMove', () => {
 
     await expect(p).rejects.toBeInstanceOf(WorkerCrashError)
     expect(instances).toHaveLength(2) // build0 + build1: un solo reintento
+  })
+
+  it('pasa el reloj opcional tal cual al engine.genMove', async () => {
+    let receivedClock: { config: ClockConfig; state: ClockState } | undefined
+    const move = mkMove(3, 5)
+    const { factory } = makeHarness((engine) => {
+      engine.genMoveImpl = async (_pos, opts) => {
+        receivedClock = opts.clock
+        return move
+      }
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+
+    const clock: { config: ClockConfig; state: ClockState } = {
+      config: { mainTimeMs: 60_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
+      state: { mainTimeRemainingMs: 60_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+    }
+    await mgr.genMove(POS, LEVEL, clock)
+    expect(receivedClock).toEqual(clock)
+  })
+
+  it('sin reloj (comportamiento de siempre): el engine recibe clock undefined', async () => {
+    let receivedClock: unknown = 'no-asignado-todavia'
+    const { factory } = makeHarness((engine) => {
+      engine.genMoveImpl = async (_pos, opts) => {
+        receivedClock = opts.clock
+        return mkMove(1, 1)
+      }
+    })
+    const mgr = new EngineManager(factory)
+    await mgr.ensureReady('b18', 9)
+    await mgr.genMove(POS, LEVEL)
+    expect(receivedClock).toBeUndefined()
   })
 })
 

@@ -30,7 +30,18 @@
 // pese a que `reconcile()` es async, para que un caller que navega rápido entre posiciones pueda
 // cancelar antes de que el análisis real llegue a arrancar.
 
-import type { Analysis, BoardSize, CancelFn, Engine, Move, NetworkId, Position, RankLevel } from '@tengen/engine'
+import type {
+  Analysis,
+  BoardSize,
+  CancelFn,
+  ClockConfig,
+  ClockState,
+  Engine,
+  Move,
+  NetworkId,
+  Position,
+  RankLevel,
+} from '@tengen/engine'
 
 /**
  * Seam inyectable: un motor "gestionado" (en producción, un Worker + `WorkerEngine`). Permite
@@ -92,18 +103,23 @@ export class EngineManager {
   /**
    * Reconcilia y genera una jugada en race-contra-crash. Si falla con el engine VIVO (error
    * determinista) propaga sin reintentar. Si falló por CRASH, reconstruye y reintenta UNA vez; si el
-   * reintento vuelve a fallar, propaga (sin bucle infinito).
+   * reintento vuelve a fallar, propaga (sin bucle infinito). `clock` opcional (Fase reloj,
+   * 2026-07-16): se reenvía tal cual al engine; ausente = comportamiento de siempre.
    */
-  async genMove(pos: Position, level: RankLevel): Promise<Move> {
+  async genMove(
+    pos: Position,
+    level: RankLevel,
+    clock?: { config: ClockConfig; state: ClockState },
+  ): Promise<Move> {
     await this.reconcile()
     try {
-      return await this.raceOp((engine) => engine.genMove(pos, { level }))
+      return await this.raceOp((engine) => engine.genMove(pos, { level, clock }))
     } catch (e) {
       if (!(e instanceof WorkerCrashError)) throw e // engine vivo → error determinista → propaga
       // Crash: reconcile reconstruye (alive===false) y reintentamos exactamente una vez. Si el
       // reintento vuelve a crashear/fallar, su rechazo se propaga (no lo capturamos de nuevo).
       await this.reconcile()
-      return await this.raceOp((engine) => engine.genMove(pos, { level }))
+      return await this.raceOp((engine) => engine.genMove(pos, { level, clock }))
     }
   }
 
