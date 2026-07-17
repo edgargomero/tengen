@@ -100,3 +100,44 @@ describe('networkForOpponent', () => {
     expect(networkForOpponent({ kind: 'kata', visits: 100 })).toBe('b18')
   })
 })
+
+describe('validateConfig — reloj (opcional)', () => {
+  it('sin clock, el resultado no incluye la clave', () => {
+    const out = validateConfig(base())
+    expect(out.clock).toBeUndefined()
+  })
+
+  it('clock válido se conserva tal cual', () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    const out = validateConfig(base({ clock }))
+    expect(out.clock).toEqual(clock)
+  })
+
+  it('mainTimeMs negativo lanza', () => {
+    expect(() =>
+      validateConfig(base({ clock: { mainTimeMs: -1, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 } })),
+    ).toThrow(/mainTimeMs/)
+  })
+
+  it('byoyomiPeriods no entero lanza', () => {
+    expect(() =>
+      validateConfig(base({ clock: { mainTimeMs: 600_000, byoyomiPeriods: 2.5, byoyomiPeriodMs: 30_000 } })),
+    ).toThrow(/byoyomiPeriods/)
+  })
+
+  it('mainTimeMs=0 y byoyomiPeriods=0 juntos lanza (perdería al instante)', () => {
+    expect(() =>
+      validateConfig(base({ clock: { mainTimeMs: 0, byoyomiPeriods: 0, byoyomiPeriodMs: 0 } })),
+    ).toThrow()
+  })
+
+  it('mainTimeMs=0 con byoyomi configurado es válido (byoyomi desde el arranque)', () => {
+    const clock = { mainTimeMs: 0, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    expect(validateConfig(base({ clock })).clock).toEqual(clock)
+  })
+
+  it('byoyomiPeriods=0 con mainTimeMs>0 es válido (solo tiempo principal, sin red de seguridad)', () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 0, byoyomiPeriodMs: 0 }
+    expect(validateConfig(base({ clock })).clock).toEqual(clock)
+  })
+})

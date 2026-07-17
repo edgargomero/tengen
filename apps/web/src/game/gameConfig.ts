@@ -2,7 +2,7 @@
 // Sin UI, sin motor: solo reglas de negocio sobre los parámetros que el usuario elige antes de
 // empezar. validateConfig() es el único punto donde se sanea la config (normaliza handicap 1→0,
 // clampa visits, y rechaza combinaciones no soportadas).
-import type { BoardSize, NetworkId, RankLevel, Rules } from '@tengen/engine'
+import type { BoardSize, ClockConfig, NetworkId, RankLevel, Rules } from '@tengen/engine'
 
 export interface GameConfig {
   boardSize: BoardSize
@@ -11,6 +11,9 @@ export interface GameConfig {
   /** 0 = sin handicap; 2..9 = piedras (solo 19×19). 1 se normaliza a 0 (solo komi, sin piedra). */
   handicap: number
   opponent: RankLevel
+  /** Reloj de partida (tiempo principal + byoyomi japonés), opcional — ausente = "sin reloj" (el
+   *  comportamiento de siempre). Ver spec 2026-07-16-reloj-partida-design.md. */
+  clock?: ClockConfig
 }
 
 /**
@@ -46,7 +49,33 @@ export function validateConfig(c: GameConfig): GameConfig {
       ? { kind: 'kata', visits: 1 }
       : c.opponent
 
-  return { boardSize: c.boardSize, komi: c.komi, rules: c.rules, handicap, opponent }
+  // Reloj (Fase reloj, 2026-07-16): a diferencia de visits, un reloj mal configurado NO se
+  // normaliza en silencio — es una decisión explícita del usuario en el formulario, un valor
+  // inválido ahí es un bug de UI, no algo a "arreglar" silenciosamente.
+  if (c.clock !== undefined) {
+    const { mainTimeMs, byoyomiPeriods, byoyomiPeriodMs } = c.clock
+    if (!Number.isFinite(mainTimeMs) || mainTimeMs < 0) {
+      throw new Error(`clock.mainTimeMs debe ser finito y >= 0 (recibido: ${mainTimeMs})`)
+    }
+    if (!Number.isInteger(byoyomiPeriods) || byoyomiPeriods < 0) {
+      throw new Error(`clock.byoyomiPeriods debe ser un entero >= 0 (recibido: ${byoyomiPeriods})`)
+    }
+    if (!Number.isFinite(byoyomiPeriodMs) || byoyomiPeriodMs < 0) {
+      throw new Error(`clock.byoyomiPeriodMs debe ser finito y >= 0 (recibido: ${byoyomiPeriodMs})`)
+    }
+    if (mainTimeMs === 0 && byoyomiPeriods === 0) {
+      throw new Error('clock: mainTimeMs=0 y byoyomiPeriods=0 juntos perderían la partida al instante')
+    }
+  }
+
+  return {
+    boardSize: c.boardSize,
+    komi: c.komi,
+    rules: c.rules,
+    handicap,
+    opponent,
+    ...(c.clock !== undefined ? { clock: c.clock } : {}),
+  }
 }
 
 /**
