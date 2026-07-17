@@ -36,6 +36,20 @@ describe('formatResult — con resign (resign = quien SE RINDE)', () => {
   })
 })
 
+describe('formatResult — con timeout (timeout = quien SE QUEDÓ SIN TIEMPO)', () => {
+  it('Negro se queda sin tiempo → gana Blanco (W+T)', () => {
+    expect(formatResult(0, undefined, 'black')).toBe('W+T')
+  })
+
+  it('Blanco se queda sin tiempo → gana Negro (B+T)', () => {
+    expect(formatResult(0, undefined, 'white')).toBe('B+T')
+  })
+
+  it('timeout tiene prioridad sobre resign si ambos se pasan', () => {
+    expect(formatResult(0, 'white', 'black')).toBe('W+T')
+  })
+})
+
 describe('isGameOverByTwoPasses', () => {
   function pass(color: 'black' | 'white'): Move {
     return { color, vertex: 'pass' }
