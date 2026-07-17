@@ -230,17 +230,44 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     cloud.finish()
   }
 
-  /** Cuánto le queda al color dado AHORA MISMO, para mostrar (no muta nada): si es su turno, la
-   *  partida sigue viva Y el cursor está en el tip (no explorando), descuenta el tiempo transcurrido
-   *  desde `turnStartedAtRef` en vivo; si no, muestra el último snapshot guardado. `turnStartedAtRef`
-   *  NUNCA se resetea en modo exploración (ver `handleVertexClick`/`handlePass`), así que sin este
-   *  chequeo `isExploring()` navegar variaciones mostraría una cuenta regresiva contra un timestamp
-   *  obsoleto — bug encontrado en la autorevisión del plan, no en el spec. Mientras está en byoyomi,
-   *  cuenta regresiva del período vigente (no del pozo principal, que ya quedó en 0). */
+  // FIX 2 (fix wave reloj — el timeout AFK detectado por el TICKER no sincronizaba a la nube): el
+  // ticker vive en un `useEffect` con deps `[]` (a propósito: "una partida = un montaje"), así que su
+  // closure captura el `declareTimeout` del PRIMER render — y ese `declareTimeout` cierra sobre el
+  // `cloud` de ese primer render, cuyo `active` es `false` hasta que la sesión resuelve un render
+  // después. Sin esto, cuando es el TICKER (no un clic/pase/jugada de IA, que sí usan closures
+  // frescas por render) quien detecta el timeout de Negro, `cloud.finish()`/`cloud.save()` corren
+  // contra ese `active===false` obsoleto y el resultado final (`W+T`) nunca sube a D1. Un ref
+  // reasignado EN EL CUERPO en cada render (no dentro de un `useEffect`: la escritura durante el
+  // render ya está vigente antes de cualquier callback/efecto posterior) mantiene
+  // `declareTimeoutRef.current` apuntando al `declareTimeout` del render ACTUAL —que cierra sobre el
+  // `persist`/`cloud`/`tree`/`result` vigentes— sin recrear el interval ni tocar sus deps `[]`.
+  const declareTimeoutRef = useRef(declareTimeout)
+  declareTimeoutRef.current = declareTimeout
+
+  /** Color al que le toca jugar en el TIP VIVO de la partida (el final de `mainLine()`, o la raíz si
+   *  aún no hay jugadas), NO en el cursor. Es "de quién es el turno EN VIVO": navegar/explorar mueve
+   *  el cursor a otra posición pero no cambia el turno vivo, así que `tree.currentTurnAt()` (que lee
+   *  el CURSOR) no sirve para "¿es genuinamente el turno vivo de X?". Base de la corrección del reloj
+   *  en exploración (Fix 1, fix wave reloj). */
+  function liveTurn(): 'black' | 'white' {
+    const liveTip = tree.mainLine().at(-1) ?? tree.root
+    return tree.currentTurnAt(liveTip)
+  }
+
+  /** Cuánto le queda al color dado AHORA MISMO, para mostrar (no muta nada). Descuenta en vivo el
+   *  tiempo transcurrido desde `turnStartedAtRef` SI es genuinamente el turno vivo de ese color
+   *  (`liveTurn()`, no el turno del cursor), la partida sigue viva y el motor ya arrancó; si no,
+   *  muestra el último snapshot guardado. Clave (Fix 1, fix wave reloj — decisión de producto de
+   *  Edgar): el reloj de Negro sigue corriendo EN VIVO aunque el jugador navegue/explore otra rama
+   *  durante SU propio turno vivo. El tiempo de exploración se cuenta de verdad (no hay pausa ni
+   *  exploit de esquivar el timeout quedándose a explorar), y el display no debe mentir mostrándolo
+   *  congelado. `turnStartedAtRef` NUNCA se resetea navegando (solo al jugar), así que sigue siendo
+   *  el inicio real del turno vivo. Mientras está en byoyomi, cuenta regresiva del período vigente
+   *  (no del pozo principal, que ya quedó en 0). */
   function displayedClock(color: 'black' | 'white'): { ms: number; periodsRemaining: number; inByoyomi: boolean } {
     const clock = tree.meta.clock!
     const state = clock.state[color]
-    const isLiveTurn = bootedRef.current && result === null && !isExploring() && tree.currentTurnAt() === color
+    const isLiveTurn = bootedRef.current && result === null && liveTurn() === color
     const elapsed = isLiveTurn ? Date.now() - turnStartedAtRef.current : 0
     const ms = state.inByoyomi
       ? Math.max(clock.config.byoyomiPeriodMs - elapsed, 0)
@@ -442,19 +469,38 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   // puede detectar el timeout TARDE, nunca de forma incorrecta-temprana (se autocorrige apenas
   // vuelve a tickear). `bootedRef.current` (Step 4) evita chequear timeout antes de que el motor
   // esté listo.
+  //
+  // FIX 1 (fix wave reloj — decisión de producto de Edgar): el chequeo de timeout de Negro se
+  // gatea por el turno del TIP VIVO (`liveTurn()`), NO por el del cursor ni por `isExploring()`.
+  // Mientras sea genuinamente el turno vivo de Negro, su reloj corre EN VIVO aunque el jugador esté
+  // navegando/explorando otra rama, y el timeout se dispara igual — antes `isExploring()` saltaba
+  // este chequeo, dejando que un jugador esquivara la derrota por tiempo quedándose a explorar (y,
+  // al volver al tip, un timeout instantáneo sorpresa porque el display iba congelado pero el
+  // cómputo de `turnStartedAtRef` NO estaba pausado). Las demás guardas (endedRef/bootedRef/staleRef,
+  // que existen por otras razones) se conservan intactas.
   useEffect(() => {
     if (tree.meta.clock === undefined) return
     const id = setInterval(() => {
       if (staleRef.current || endedRef.current || !bootedRef.current) return
-      if (tree.currentTurnAt() !== 'black' || isExploring()) {
+      if (liveTurn() !== 'black') {
         setClockTick((t) => t + 1)
         return
       }
       const elapsed = Date.now() - turnStartedAtRef.current
       const clock = tree.meta.clock!
-      const { timedOut } = applyElapsed(clock.state.black, clock.config, elapsed)
+      const { state, timedOut } = applyElapsed(clock.state.black, clock.config, elapsed)
       if (timedOut) {
-        declareTimeout('black')
+        // FIX 3 (fix wave reloj): en el tick FATAL —y SOLO ahí, en la transición a `timedOut`—
+        // escribe el estado ya consumido de vuelta a `clock.state.black` ANTES de declarar. Sin esto
+        // el display (que se congela al fijar `result`) mostraría el tiempo de INICIO de turno junto
+        // a "Resultado: W+T". Es el MISMO estado que `consumeClock` escribe en los otros 3 call sites
+        // (clic/pase/IA), sólo que aquí lo reusamos del `applyElapsed` de arriba (no lo reconstruimos
+        // ni lo escribimos en cada tick: `elapsed` es un diff ABSOLUTO recomputado fresco, aplicarlo
+        // por tick sobre un estado ya reducido lo sobre-consumiría en cascada).
+        clock.state.black = state
+        // FIX 2 (fix wave reloj): via ref para llamar al `declareTimeout` del render ACTUAL (con el
+        // `cloud` cuya sesión ya resolvió), no al capturado en el primer render (`cloud.active===false`).
+        declareTimeoutRef.current('black')
         return
       }
       setClockTick((t) => t + 1)
