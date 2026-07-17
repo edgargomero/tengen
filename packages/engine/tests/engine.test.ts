@@ -124,8 +124,11 @@ describe('LocalEngine', () => {
     const eng = new LocalEngine({ evaluatorFactory: async (_n, N) => makeMock(N), now })
     await eng.init({ network: 'b18', boardSize: 9 })
     const clock = {
-      // base budget = 4000/40 = 100ms; con 50ms "reales" por consulta de `now`, el presupuesto (sin
-      // convergencia/extensión) se agota en pocas vueltas.
+      // base budget = max(4000/40, MIN_BUDGET_MS) = max(100, 1000) = 1000ms (el piso de
+      // MIN_BUDGET_MS en computeBaseBudgetMs manda acá, no la división). Con 50ms "reales" por
+      // consulta de `now`, ese presupuesto (con o sin la extensión ×1.5 — el mock, al devolver el
+      // mismo value siempre, produce valueGap≈0 y puede disparar UNA extensión) se agota en un
+      // puñado de vueltas, muy lejos de las ~3125 que tomaría agotar 100000 visitas a CHUNK=32.
       config: { mainTimeMs: 4000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
       state: { mainTimeRemainingMs: 4000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
     }
