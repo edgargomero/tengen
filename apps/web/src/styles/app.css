@@ -284,6 +284,23 @@ fieldset.field {
   font-weight: 600;
 }
 
+.play-clock {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
+.play-clock p {
+  margin: 0;
+}
+
+.play-clock-active {
+  font-weight: 600;
+  color: var(--tengen-accent);
+}
+
 .play-error {
   color: #b00020;
 }
