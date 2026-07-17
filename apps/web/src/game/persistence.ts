@@ -76,9 +76,14 @@ export function saveGame(
   // config en la raíz, estado vivo en el nodo ACTUAL (el tip, en Modo Jugar — ver sgfClockCodec.ts).
   const sgf = clock
     ? exportSgf(tree, (node) => {
-        if (node === tree.root) return encodeClockConfig(clock.config)
-        if (node === tree.current) return encodeClockState(clock.state)
-        return undefined
+        // Acumula en vez de retornar temprano: si `tree.current === tree.root` (guardado antes de la
+        // primera jugada), AMBOS `if` matchean el mismo nodo y las dos propiedades deben coexistir.
+        // Sin colisión posible: `encodeClockConfig` escribe TM/TGBP/TGBT y `encodeClockState` escribe
+        // BL/WL/OB/OW — claves disjuntas.
+        const extra: Record<string, string[]> = {}
+        if (node === tree.root) Object.assign(extra, encodeClockConfig(clock.config))
+        if (node === tree.current) Object.assign(extra, encodeClockState(clock.state))
+        return Object.keys(extra).length ? extra : undefined
       })
     : exportSgf(tree)
   const payload: PersistedGame = {

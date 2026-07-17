@@ -260,4 +260,33 @@ describe('persistence — reloj', () => {
 
     expect(stored.sgf).toBe(exportSgf(t))
   })
+
+  // Regresión: cuando se guarda ANTES de la primera jugada, `tree.current === tree.root` (mismo
+  // nodo). El callback de `getExtraData` en `saveGame` antes hacía dos `if` con `return` temprano,
+  // así que el primero (config, matchea `tree.root`) ganaba y el segundo (estado, matchea
+  // `tree.current`) nunca se evaluaba para ESE nodo — el estado vivo del reloj se perdía en el SGF.
+  it('con reloj configurado y CERO jugadas (tree.current === tree.root), preserva config Y estado (no solo config)', () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 }
+    const t = new GameTree({
+      boardSize: 9,
+      komi: 7,
+      rules: 'chinese',
+      handicap: 0,
+      clock: {
+        config: clock,
+        state: {
+          black: { mainTimeRemainingMs: 600_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+          white: { mainTimeRemainingMs: 600_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+        },
+      },
+    })
+    expect(t.current).toBe(t.root) // sin jugadas todavía: precondición del bug
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+
+    expect(loaded).not.toBeNull()
+    expect(loaded!.tree.meta.clock).toEqual(t.meta.clock) // config Y estado, no solo config
+  })
 })
