@@ -4,7 +4,7 @@
 // Float arrays (evita copiar el `ownership`), y (3) validación honesta que ESTRECHA la unión al
 // cruzar el boundary (lanza ante un `type` desconocido; no son no-ops).
 
-import type { Analysis, BoardSize, Move, NetworkId, Position, RankLevel } from '../types'
+import type { Analysis, BoardSize, ClockConfig, ClockState, Move, NetworkId, Position, RankLevel } from '../types'
 
 /** Hilo principal → Worker. `id` correlaciona la respuesta; el Worker encola init/genMove/analyze en
  *  serie (scratch del MCTS no reentrante) y trata `stop`/`stopAll` fuera de la cola (ver handler.ts).
@@ -12,7 +12,7 @@ import type { Analysis, BoardSize, Move, NetworkId, Position, RankLevel } from '
  *  comportamiento global de antes (teardown/crash-recovery): cancela TODO lo en vuelo/encolado. */
 export type WorkerRequest =
   | { type: 'init'; id: number; network: NetworkId; boardSize: BoardSize }
-  | { type: 'genMove'; id: number; pos: Position; level: RankLevel }
+  | { type: 'genMove'; id: number; pos: Position; level: RankLevel; clock?: { config: ClockConfig; state: ClockState } }
   | { type: 'analyze'; id: number; pos: Position; visits: number }
   | { type: 'stop'; id: number; targetId: number }
   | { type: 'stopAll'; id: number }

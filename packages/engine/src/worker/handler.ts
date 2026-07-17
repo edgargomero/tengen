@@ -70,7 +70,7 @@ export function createWorkerHandler(engine: LocalEngine, post: PostFn): (req: Wo
 
   const handleGenMove = async (req: Extract<WorkerRequest, { type: 'genMove' }>): Promise<void> => {
     try {
-      const move = await engine.genMove(req.pos, { level: req.level })
+      const move = await engine.genMove(req.pos, { level: req.level, clock: req.clock })
       post({ type: 'move', id: req.id, move })
     } catch (e) {
       post({ type: 'error', id: req.id, message: errorMessage(e) })

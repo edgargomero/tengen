@@ -83,6 +83,17 @@ describe('WorkerEngine round-trip (canal mock, sin Worker real)', () => {
     expect(move.vertex).not.toBe('pass')
   })
 
+  it('genMove con reloj: el round-trip no rompe y devuelve una jugada legal', async () => {
+    const we = connect(async (_n, N) => makeMock(N))
+    await we.init({ network: 'b18', boardSize: 9 })
+    const clock = {
+      config: { mainTimeMs: 60_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
+      state: { mainTimeRemainingMs: 60_000, byoyomiPeriodsRemaining: 5, inByoyomi: false },
+    }
+    const move = await we.genMove(EMPTY_9, { level: { kind: 'kata', visits: 100 }, clock })
+    expect(move.color).toBe('black')
+  })
+
   it('analyze emite ≥1 update y la CancelFn lo corta saltando la cola (sin bypass: deadlock)', async () => {
     const we = connect(async (_n, N) => makeMock(N))
     await we.init({ network: 'b18', boardSize: 9 })

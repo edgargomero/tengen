@@ -4,7 +4,18 @@
 // callback `onUpdate` registrado por id, y la `CancelFn` postea `stop{targetId}` (cancelación por-id,
 // Fase 3a Task 1) — SÓLO esa llamada, nunca las demás en vuelo/encoladas.
 
-import type { Analysis, BoardSize, CancelFn, Engine, Move, NetworkId, Position, RankLevel } from '../types'
+import type {
+  Analysis,
+  BoardSize,
+  CancelFn,
+  ClockConfig,
+  ClockState,
+  Engine,
+  Move,
+  NetworkId,
+  Position,
+  RankLevel,
+} from '../types'
 import { decodeResponse, encodeRequest, type WorkerRequest } from './protocol'
 
 /**
@@ -42,11 +53,11 @@ export class WorkerEngine implements Engine {
     })
   }
 
-  genMove(pos: Position, opts: { level: RankLevel }): Promise<Move> {
+  genMove(pos: Position, opts: { level: RankLevel; clock?: { config: ClockConfig; state: ClockState } }): Promise<Move> {
     const id = this.nextId++
     return new Promise<Move>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
-      this.post({ type: 'genMove', id, pos, level: opts.level })
+      this.post({ type: 'genMove', id, pos, level: opts.level, clock: opts.clock })
     })
   }
 
