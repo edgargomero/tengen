@@ -246,7 +246,7 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
               Byoyomi: segundos por período
               <input
                 type="number"
-                min="1"
+                min="0"
                 step="5"
                 value={byoyomiSeconds}
                 onChange={(e) => setByoyomiSeconds(Number((e.target as HTMLInputElement).value))}
