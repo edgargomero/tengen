@@ -29,6 +29,9 @@ describe('timeManagementPolicy — dentro del presupuesto', () => {
       visitShareHistory: [0.9],
       valueGap: 0.5,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('continue')
   })
@@ -40,6 +43,9 @@ describe('timeManagementPolicy — dentro del presupuesto', () => {
       visitShareHistory: [0.8, 0.81],
       valueGap: 0.5,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('stop')
   })
@@ -51,6 +57,9 @@ describe('timeManagementPolicy — dentro del presupuesto', () => {
       visitShareHistory: [0.8, 0.81],
       valueGap: 0.5,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('continue')
   })
@@ -62,6 +71,9 @@ describe('timeManagementPolicy — dentro del presupuesto', () => {
       visitShareHistory: [0.7, 0.85],
       valueGap: 0.5,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('continue')
   })
@@ -75,6 +87,9 @@ describe('timeManagementPolicy — al agotar el presupuesto', () => {
       visitShareHistory: [0.6, 0.6],
       valueGap: 0.01,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toEqual({ extendTo: 1500 })
   })
@@ -86,6 +101,9 @@ describe('timeManagementPolicy — al agotar el presupuesto', () => {
       visitShareHistory: [0.9, 0.9],
       valueGap: 0.5,
       alreadyExtended: false,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('stop')
   })
@@ -97,7 +115,52 @@ describe('timeManagementPolicy — al agotar el presupuesto', () => {
       visitShareHistory: [0.6, 0.6],
       valueGap: 0.01,
       alreadyExtended: true,
+      inByoyomi: false,
+      byoyomiPeriodMs: 999_999,
+      byoyomiPeriodsRemaining: 999,
     })
     expect(decision).toBe('stop')
+  })
+
+  it('en byoyomi: extiende quemando 2 períodos completos, no ×1.5', () => {
+    const decision = timeManagementPolicy({
+      elapsedMsSoFar: 25_500,
+      budgetMs: 25_500,
+      visitShareHistory: [0.6, 0.6],
+      valueGap: 0.01,
+      alreadyExtended: false,
+      inByoyomi: true,
+      byoyomiPeriodMs: 30_000,
+      byoyomiPeriodsRemaining: 5,
+    })
+    expect(decision).toEqual({ extendTo: 60_000 })
+  })
+
+  it('en byoyomi: el tope duro de 2 períodos se mantiene aunque haya muchos períodos disponibles', () => {
+    const decision = timeManagementPolicy({
+      elapsedMsSoFar: 25_500,
+      budgetMs: 25_500,
+      visitShareHistory: [0.6, 0.6],
+      valueGap: 0.01,
+      alreadyExtended: false,
+      inByoyomi: true,
+      byoyomiPeriodMs: 30_000,
+      byoyomiPeriodsRemaining: 10,
+    })
+    expect(decision).toEqual({ extendTo: 60_000 })
+  })
+
+  it('en byoyomi: clampea a 1 período si solo queda 1 (no puede quemar lo que no tiene)', () => {
+    const decision = timeManagementPolicy({
+      elapsedMsSoFar: 25_500,
+      budgetMs: 25_500,
+      visitShareHistory: [0.6, 0.6],
+      valueGap: 0.01,
+      alreadyExtended: false,
+      inByoyomi: true,
+      byoyomiPeriodMs: 30_000,
+      byoyomiPeriodsRemaining: 1,
+    })
+    expect(decision).toEqual({ extendTo: 30_000 })
   })
 })

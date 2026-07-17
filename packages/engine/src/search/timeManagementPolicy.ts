@@ -42,12 +42,27 @@ export interface TimeManagementInput {
   valueGap: number
   /** true si esta jugada ya recibió una extensión (nunca se concede una segunda). */
   alreadyExtended: boolean
+  /** true si el reloj está actualmente en byoyomi para esta jugada. */
+  inByoyomi: boolean
+  /** Duración configurada del período de byoyomi (solo relevante si `inByoyomi`). */
+  byoyomiPeriodMs: number
+  /** Períodos restantes en el pool de este color (solo relevante si `inByoyomi`). */
+  byoyomiPeriodsRemaining: number
 }
 
 export type TimeManagementDecision = 'stop' | 'continue' | { extendTo: number }
 
 export function timeManagementPolicy(input: TimeManagementInput): TimeManagementDecision {
-  const { elapsedMsSoFar, budgetMs, visitShareHistory, valueGap, alreadyExtended } = input
+  const {
+    elapsedMsSoFar,
+    budgetMs,
+    visitShareHistory,
+    valueGap,
+    alreadyExtended,
+    inByoyomi,
+    byoyomiPeriodMs,
+    byoyomiPeriodsRemaining,
+  } = input
 
   if (elapsedMsSoFar < budgetMs) {
     const enoughHistory = visitShareHistory.length >= 2
@@ -61,6 +76,12 @@ export function timeManagementPolicy(input: TimeManagementInput): TimeManagement
   }
 
   if (!alreadyExtended && valueGap < VALUE_GAP_EPSILON) {
+    if (inByoyomi) {
+      // "Quemar un período extra" (spec): usar 2 períodos completos para esta jugada en vez del
+      // multiplicador genérico — tope duro, nunca más de 2, clampeado por lo que realmente queda.
+      const periods = Math.min(2, byoyomiPeriodsRemaining)
+      return { extendTo: periods * byoyomiPeriodMs }
+    }
     return { extendTo: budgetMs * EXTENSION_MULTIPLIER }
   }
   return 'stop'
