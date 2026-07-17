@@ -721,11 +721,11 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       <aside class="play-panel">
         {tree.meta.clock && (
           <div class="play-clock">
-            <p class={turn === 'black' ? 'play-clock-active' : ''}>
+            <p class={liveTurn() === 'black' ? 'play-clock-active' : ''}>
               Negro: {formatClockMs(displayedClock('black').ms)}
               {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
             </p>
-            <p class={turn === 'white' ? 'play-clock-active' : ''}>
+            <p class={liveTurn() === 'white' ? 'play-clock-active' : ''}>
               Blanco: {formatClockMs(displayedClock('white').ms)}
               {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
             </p>
