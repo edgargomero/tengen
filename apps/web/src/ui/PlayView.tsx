@@ -262,17 +262,49 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
    *  durante SU propio turno vivo. El tiempo de exploración se cuenta de verdad (no hay pausa ni
    *  exploit de esquivar el timeout quedándose a explorar), y el display no debe mentir mostrándolo
    *  congelado. `turnStartedAtRef` NUNCA se resetea navegando (solo al jugar), así que sigue siendo
-   *  el inicio real del turno vivo. Mientras está en byoyomi, cuenta regresiva del período vigente
-   *  (no del pozo principal, que ya quedó en 0). */
+   *  el inicio real del turno vivo. La cuenta regresiva EN VIVO se deriva de `applyElapsed` (la MISMA
+   *  función pura que el ticker de timeout), no de una fórmula de una sola fase: así refleja al
+   *  instante el cruce de tiempo principal→byoyomi y el consumo de períodos completos al pensar de
+   *  más, en vez de congelarse en '00:00' (sin sufijo de byoyomi) hasta jugar. */
   function displayedClock(color: 'black' | 'white'): { ms: number; periodsRemaining: number; inByoyomi: boolean } {
     const clock = tree.meta.clock!
     const state = clock.state[color]
     const isLiveTurn = bootedRef.current && result === null && liveTurn() === color
     const elapsed = isLiveTurn ? Date.now() - turnStartedAtRef.current : 0
-    const ms = state.inByoyomi
-      ? Math.max(clock.config.byoyomiPeriodMs - elapsed, 0)
-      : Math.max(state.mainTimeRemainingMs - elapsed, 0)
-    return { ms, periodsRemaining: state.byoyomiPeriodsRemaining, inByoyomi: state.inByoyomi }
+    if (elapsed <= 0) {
+      // Sin turno vivo (partida terminada, explorando el turno del rival, o aún no booteó): snapshot
+      // tal cual está persistido — mismo criterio que el ticker (Fix 3), nunca recomputar.
+      return {
+        ms: state.inByoyomi ? clock.config.byoyomiPeriodMs : state.mainTimeRemainingMs,
+        periodsRemaining: state.byoyomiPeriodsRemaining,
+        inByoyomi: state.inByoyomi,
+      }
+    }
+    // Turno vivo: la cuenta regresiva sale de `applyElapsed` (la MISMA función pura que el ticker),
+    // que sí hace el rollover de tiempo principal→byoyomi y consume períodos completos. Es pura (no
+    // muta `state`, devuelve estado nuevo), así que llamarla solo para mostrar no tiene efecto.
+    const { state: rolled } = applyElapsed(state, clock.config, elapsed)
+    if (!rolled.inByoyomi) {
+      // Sigue en tiempo principal: `rolled.mainTimeRemainingMs` es exactamente `mainTimeRemainingMs
+      // - elapsed` (igual que la vieja fórmula para este caso, pero desde la función compartida).
+      return { ms: rolled.mainTimeRemainingMs, periodsRemaining: rolled.byoyomiPeriodsRemaining, inByoyomi: false }
+    }
+    const period = clock.config.byoyomiPeriodMs
+    if (period <= 0) {
+      // Config degenerada sin byoyomi real (byoyomiPeriodMs=0 — "solo tiempo principal"/sudden death,
+      // válida por la UI y `validateConfig`): al agotar el principal `applyElapsed` igual marca
+      // inByoyomi=true, pero acá no hay período que contar. Evita el módulo-por-cero (NaN:NaN) y
+      // reproduce el `00:00` limpio del código previo (sin sufijo "· byoyomi").
+      return { ms: 0, periodsRemaining: rolled.byoyomiPeriodsRemaining, inByoyomi: false }
+    }
+    // En byoyomi (ya sea que el color arrancó ahí, o recién cruzó desde tiempo principal en ESTE
+    // cálculo): tiempo restante DENTRO del período vigente. `elapsedInByoyomi` excluye el tiempo
+    // principal ya gastado antes de cruzar — mismo desplazamiento que usa `applyElapsed` internamente
+    // al recursar de tiempo principal a byoyomi. `periodsRemaining` sale de `rolled` (el conteo ya
+    // avanzado por el rollover), no del snapshot pre-turno.
+    const elapsedInByoyomi = state.inByoyomi ? elapsed : elapsed - state.mainTimeRemainingMs
+    const msInPeriod = period - (elapsedInByoyomi % period)
+    return { ms: Math.max(msInPeriod, 0), periodsRemaining: rolled.byoyomiPeriodsRemaining, inByoyomi: true }
   }
 
   /** true si el cursor está fuera del TIP VIVO (`tree.isAtLiveTip()`), o la partida ya terminó: en
