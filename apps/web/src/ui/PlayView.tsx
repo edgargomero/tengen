@@ -290,11 +290,11 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       return { ms: rolled.mainTimeRemainingMs, periodsRemaining: rolled.byoyomiPeriodsRemaining, inByoyomi: false }
     }
     const period = clock.config.byoyomiPeriodMs
-    if (period <= 0) {
-      // Config degenerada sin byoyomi real (byoyomiPeriodMs=0 — "solo tiempo principal"/sudden death,
-      // válida por la UI y `validateConfig`): al agotar el principal `applyElapsed` igual marca
-      // inByoyomi=true, pero acá no hay período que contar. Evita el módulo-por-cero (NaN:NaN) y
-      // reproduce el `00:00` limpio del código previo (sin sufijo "· byoyomi").
+    if (clock.config.byoyomiPeriods === 0 || period <= 0) {
+      // Sin byoyomi real (misma condición que `applyElapsed`, clock.ts): cualquiera de los dos en
+      // 0 ya es "solo tiempo principal". Con solo `period <= 0` acá, `byoyomiPeriods:0` +
+      // `byoyomiPeriodMs>0` (poner períodos en 0 y dejar segundos en su default) se colaba y
+      // mostraba un contador fantasma ciclando en vez de un limpio "00:00".
       return { ms: 0, periodsRemaining: rolled.byoyomiPeriodsRemaining, inByoyomi: false }
     }
     // En byoyomi (ya sea que el color arrancó ahí, o recién cruzó desde tiempo principal en ESTE
