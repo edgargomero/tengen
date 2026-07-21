@@ -629,6 +629,58 @@ fieldset.field {
   text-align: left;
 }
 
+/* ── Resumen agregado del review (#6): calidad por jugador + precisión por fase ──────────────────── */
+
+.review-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.review-summary-player {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.review-summary-quality {
+  color: #555;
+}
+
+/* Badge inline de una categoría de calidad: el color sale de la clase `.tone-*` compañera. */
+.review-quality-badge {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.review-summary-phases {
+  color: #777;
+  font-size: 0.8rem;
+}
+
+/* Burbuja de pérdida de puntos (#9) coloreada por tono: un pill con fondo del tono y texto blanco,
+   legible sobre piedras negras Y blancas. Shudan no colorea markers por sí solo; en Modo Analizar solo
+   hay UNA label sobre piedra a la vez (la burbuja de `tree.current`), así que la clase de tono en
+   `.analyze-board` la pinta sin ambigüedad. Los números del PV van en vértices vacíos (`.shudan-sign_0`),
+   que estas reglas — restringidas a `.shudan-sign_1`/`.shudan-sign_-1` — no tocan. */
+.analyze-board--loss-success {
+  --loss-tone-bg: #1a7a3c;
+}
+.analyze-board--loss-warning {
+  --loss-tone-bg: #a06a00;
+}
+.analyze-board--loss-danger {
+  --loss-tone-bg: #b00020;
+}
+.analyze-board[class*='analyze-board--loss-'] .shudan-marker_label.shudan-sign_1 .shudan-marker,
+.analyze-board[class*='analyze-board--loss-'] .shudan-marker_label.shudan-sign_-1 .shudan-marker {
+  background: var(--loss-tone-bg);
+  color: #fff;
+  border-radius: 0.4em;
+  padding: 0 0.15em;
+}
+
 .guess-panel {
   display: flex;
   flex-direction: column;

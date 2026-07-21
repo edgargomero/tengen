@@ -3,7 +3,7 @@
 // `GameReview`/`gameReport.ts`). Presentación pura: no posee `GameTree`/`AnalysisStore`/`GameReview`
 // — solo recibe datos ya calculados y navega vía `onSelectEntry` al hacer clic.
 import type { GameAnalysisProgressSummary, MoveReportEntry } from '../analysis/gameReview'
-import { summarizePointsLost } from '../analysis/vendor/web-katrain/analysisSummary'
+import { qualityCategoryForPointsLost } from '../analysis/reviewSummary'
 
 interface GameReviewPanelProps {
   progress: GameAnalysisProgressSummary | null
@@ -40,11 +40,20 @@ export function GameReviewPanel({
       ) : (
         <ul class="review-turning-points">
           {turningPoints.map((entry) => {
-            const summary = summarizePointsLost(entry.pointsLost)
+            // El COLOR y la etiqueta salen del clasificador único de calidad (pérdida de puntos),
+            // el mismo que alimenta el histograma agregado — nunca de `summarizePointsLost` (que
+            // corta en 1.0, no en los buckets 0.5/1.5, y discreparía del agregado).
+            const category = qualityCategoryForPointsLost(entry.pointsLost)
+            // Los turning points se filtran por `scoreSwing`, NO por pérdida: un swing a favor del
+            // que jugó llega con `pointsLost≈0` (categoría Excelente). Solo se muestra el número si
+            // la pérdida es significativa (mismo umbral que "Best" de summarizePointsLost), para no
+            // pintar "Excelente (−0.0)".
+            const lost = entry.pointsLost >= 0.05 ? ` (−${entry.pointsLost.toFixed(1)})` : ''
             return (
               <li key={entry.moveNumber}>
-                <button type="button" class={`review-entry tone-${summary.tone}`} onClick={() => onSelectEntry(entry)}>
-                  {entry.moveNumber}. {entry.move} — {summary.label}
+                <button type="button" class={`review-entry tone-${category.tone}`} onClick={() => onSelectEntry(entry)}>
+                  {entry.moveNumber}. {entry.move} — {category.label}
+                  {lost}
                 </button>
               </li>
             )

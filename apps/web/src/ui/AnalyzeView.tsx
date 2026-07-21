@@ -33,11 +33,20 @@ import { sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { AnalysisStore } from '../analysis/analysisStore'
 import { ReviewScheduler } from '../analysis/reviewScheduler'
-import { buildGhostStoneMap, buildHeatMap, buildPvOverlay, mergeGhostStoneMaps } from '../analysis/overlays'
+import {
+  buildGhostStoneMap,
+  buildHeatMap,
+  buildPointsLostLabelMap,
+  buildPvOverlay,
+  mergeGhostStoneMaps,
+  mergeMarkerMaps,
+  pointsLostBubbleTone,
+} from '../analysis/overlays'
 import { formatAnalysisScoreLead, formatAnalysisWinRate } from '../analysis/vendor/web-katrain/analysisSummary'
 import { isAnalysisQueueCanceledError, isAnalysisQueueStaleError } from '../analysis/vendor/web-katrain/analysisQueue'
 import { GameReview, getReportTurningPoints } from '../analysis/gameReview'
 import type { MoveReportEntry } from '../analysis/gameReview'
+import { buildQualityHistogram, summarizePhasePrecision } from '../analysis/reviewSummary'
 import { buildWinrateGraphData } from '../analysis/winrateGraphData'
 import type { WinrateGraphPoint } from '../analysis/winrateGraphData'
 import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
@@ -47,6 +56,7 @@ import type { AnalyzeSpeed } from '../analysis/speedPreference'
 import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
+import { GameReviewSummary } from './GameReviewSummary'
 import { GuessMovePanel } from './GuessMovePanel'
 import { useBoundedBoardSize } from './useBoundedBoardSize'
 
@@ -616,6 +626,11 @@ function ReadyAnalyzeView({
   const analysis = store.get(tree.current.id)
   const heatMap = analysis ? buildHeatMap(analysis, boardSize) : undefined
   const playedMoveGhostStoneMap = buildGhostStoneMap(tree.current, tree, store, boardSize)
+  // #9: burbuja "-X.X" sobre la piedra del nodo actual, coloreada por tono de calidad. El label lo
+  // dibuja Shudan (markerMap); el color lo pone `AnalyzeView` vía una clase de tono en `.analyze-board`
+  // (Shudan no colorea markers por sí solo, y en Analizar solo hay UNA label sobre piedra a la vez).
+  const pointsLostMarkerMap = buildPointsLostLabelMap(tree.current, tree, store, boardSize)
+  const bubbleTone = pointsLostBubbleTone(tree.current, tree, store)
   const topMove =
     analysis && analysis.moves.length > 0
       ? analysis.moves.reduce((best, m) => (m.visits > best.visits ? m : best), analysis.moves[0]!)
@@ -630,6 +645,10 @@ function ReadyAnalyzeView({
   const reviewProgress = review.progress(now)
   const report = review.getLatestReport()
   const turningPoints = report ? getReportTurningPoints(report.moveEntries) : []
+  // #6: agregado de calidad + precisión por fase, derivado del MISMO reporte que los turning points
+  // (cero cómputo de motor extra). `null` mientras el review de fondo aún no produjo ningún reporte.
+  const qualityHistogram = report ? buildQualityHistogram(report) : null
+  const phasePrecision = report ? summarizePhasePrecision(report.moveEntries) : null
   // 0 si el cursor está fuera de mainLine() (en una variación): prev queda deshabilitado y next
   // apunta siempre al primer turning point — comportamiento aceptable, ver nota del plan.
   const currentMoveNumber = tree.mainLine().findIndex((n) => n.id === tree.current.id) + 1
@@ -638,13 +657,13 @@ function ReadyAnalyzeView({
 
   return (
     <div class="analyze-view">
-      <div class="analyze-board" ref={boardRef}>
+      <div class={`analyze-board${bubbleTone ? ` analyze-board--loss-${bubbleTone}` : ''}`} ref={boardRef}>
         {boardBounds && (
           <BoundedGoban
             signMap={signMap}
             heatMap={heatMap}
             ghostStoneMap={ghostStoneMap}
-            markerMap={pvOverlay?.markerMap}
+            markerMap={mergeMarkerMaps(pointsLostMarkerMap, pvOverlay?.markerMap, boardSize)}
             maxWidth={boardBounds.maxWidth}
             maxHeight={boardBounds.maxHeight}
             maxVertexSize={VERTEX_SIZE[boardSize]}
@@ -711,6 +730,9 @@ function ReadyAnalyzeView({
           nextMistake={nextMistake}
           onSelectEntry={handleSelectTurningPoint}
         />
+        {qualityHistogram && phasePrecision && (
+          <GameReviewSummary qualityHistogram={qualityHistogram} phasePrecision={phasePrecision} />
+        )}
         <GuessMovePanel
           waiting={guessWaiting}
           busy={guessBusy}

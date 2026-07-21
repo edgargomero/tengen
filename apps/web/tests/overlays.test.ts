@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import type { Analysis, Move, MoveAnalysis, Vertex } from '@tengen/engine'
-import type { GhostStone } from '@sabaki/shudan'
+import type { GhostStone, Marker } from '@sabaki/shudan'
 import { GameTree } from '../src/game/gameTree'
 import { AnalysisStore } from '../src/analysis/analysisStore'
-import { buildGhostStoneMap, buildHeatMap, buildPvOverlay, mergeGhostStoneMaps, toneToGhostType } from '../src/analysis/overlays'
+import {
+  buildGhostStoneMap,
+  buildHeatMap,
+  buildPointsLostLabelMap,
+  buildPvOverlay,
+  mergeGhostStoneMaps,
+  mergeMarkerMaps,
+  pointsLostBubbleTone,
+  toneToGhostType,
+} from '../src/analysis/overlays'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // El foco real de esta tarea (Task 8): traducir `Analysis`/`GameNode` nativos a las
@@ -30,6 +39,10 @@ function mkAnalysis(overrides: Partial<Analysis> = {}): Analysis {
 
 function emptyGridOf9(): (GhostStone | null)[][] {
   return Array.from({ length: 9 }, () => new Array<GhostStone | null>(9).fill(null))
+}
+
+function emptyMarkerGridOf9(): (Marker | null)[][] {
+  return Array.from({ length: 9 }, () => new Array<Marker | null>(9).fill(null))
 }
 
 describe('buildHeatMap', () => {
@@ -321,5 +334,149 @@ describe('mergeGhostStoneMaps', () => {
     played[0]![0] = { sign: 1, type: 'good' }
 
     expect(mergeGhostStoneMaps(played, undefined, 9)).toBe(played)
+  })
+})
+
+describe('buildPointsLostLabelMap (#9: burbuja de pérdida sobre la piedra jugada)', () => {
+  it('pérdida ≥ umbral → grid[y][x] = {type:label, label:"-X.X"}; grid[x][y] queda null (footgun [y][x])', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    // root analizado, el nodo NO → computeNodePointsLost usa el fallback lenient (candidate.pointsLost).
+    // pointsLost = sign(negro=1) * (rootScoreLead 5 − candidata.scoreLead 1.8) = 3.2.
+    store.set(tree.root.id, mkAnalysis({ scoreLead: 5, moves: [mkMoveAnalysis({ x: 2, y: 7 }, { scoreLead: 1.8 })] }))
+    const node = tree.addMove(B(2, 7))
+
+    const grid = buildPointsLostLabelMap(node, tree, store, 9)
+
+    expect(grid[7]![2]).toEqual({ type: 'label', label: '-3.2' })
+    // Belt-and-suspenders: la celda TRANSPUESTA debe quedar vacía (un bug [x][y] la poblaría aquí).
+    expect(grid[2]![7]).toBeNull()
+  })
+
+  it('pérdida por debajo del umbral (0.5) → grilla vacía', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    // pointsLost = 5 − 4.7 = 0.3 < 0.5.
+    store.set(tree.root.id, mkAnalysis({ scoreLead: 5, moves: [mkMoveAnalysis({ x: 3, y: 3 }, { scoreLead: 4.7 })] }))
+    const node = tree.addMove(B(3, 3))
+
+    const grid = buildPointsLostLabelMap(node, tree, store, 9)
+
+    for (const row of grid) for (const cell of row) expect(cell).toBeNull()
+  })
+
+  it('ganancia (pérdida negativa) → grilla vacía, nunca "-0.0" ni "Best"', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    // pointsLost = 5 − 6 = −1 < 0.5.
+    store.set(tree.root.id, mkAnalysis({ scoreLead: 5, moves: [mkMoveAnalysis({ x: 4, y: 4 }, { scoreLead: 6 })] }))
+    const node = tree.addMove(B(4, 4))
+
+    const grid = buildPointsLostLabelMap(node, tree, store, 9)
+
+    for (const row of grid) for (const cell of row) expect(cell).toBeNull()
+  })
+
+  it('raíz (node.move === null) → grilla vacía, sin lanzar', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+
+    const grid = buildPointsLostLabelMap(tree.root, tree, store, 9)
+
+    expect(grid).toHaveLength(9)
+    for (const row of grid) for (const cell of row) expect(cell).toBeNull()
+  })
+
+  it('jugada de pase → sin casilla que llenar, grilla vacía', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    store.set(tree.root.id, mkAnalysis({ scoreLead: 0, moves: [] }))
+    const node = tree.addMove({ color: 'black', vertex: 'pass' })
+
+    const grid = buildPointsLostLabelMap(node, tree, store, 9)
+
+    for (const row of grid) for (const cell of row) expect(cell).toBeNull()
+  })
+
+  it('padre sin analizar → computeNodePointsLost da null → grilla vacía', () => {
+    const tree = tree9()
+    const store = new AnalysisStore() // vacío: root nunca se analizó.
+    const node = tree.addMove(B(4, 4))
+
+    const grid = buildPointsLostLabelMap(node, tree, store, 9)
+
+    for (const row of grid) for (const cell of row) expect(cell).toBeNull()
+  })
+})
+
+describe('pointsLostBubbleTone (color del pill #9, gateado igual que buildPointsLostLabelMap)', () => {
+  // Fabrica un nodo Negro cuya jugada perdió `rootScoreLead − candidateScoreLead` puntos.
+  const nodeLosing = (rootScoreLead: number, candidateScoreLead: number) => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    store.set(
+      tree.root.id,
+      mkAnalysis({ scoreLead: rootScoreLead, moves: [mkMoveAnalysis({ x: 4, y: 4 }, { scoreLead: candidateScoreLead })] }),
+    )
+    const node = tree.addMove(B(4, 4))
+    return { tree, store, node }
+  }
+
+  it('pérdida en bucket danger (≥3) → "danger"', () => {
+    const { tree, store, node } = nodeLosing(5, 1) // pointsLost 4 → Error → danger
+    expect(pointsLostBubbleTone(node, tree, store)).toBe('danger')
+  })
+
+  it('pérdida en bucket warning (1.5–3) → "warning"', () => {
+    const { tree, store, node } = nodeLosing(5, 3) // pointsLost 2 → Imprecisión → warning
+    expect(pointsLostBubbleTone(node, tree, store)).toBe('warning')
+  })
+
+  it('pérdida en bucket success mostrable (0.5–1.5) → "success"', () => {
+    const { tree, store, node } = nodeLosing(5, 4) // pointsLost 1 → Buena → success
+    expect(pointsLostBubbleTone(node, tree, store)).toBe('success')
+  })
+
+  it('pérdida por debajo del umbral → null (mismo gate que el label, nunca color sin número)', () => {
+    const { tree, store, node } = nodeLosing(5, 4.7) // pointsLost 0.3 < 0.5
+    expect(pointsLostBubbleTone(node, tree, store)).toBeNull()
+  })
+
+  it('raíz → null', () => {
+    const tree = tree9()
+    const store = new AnalysisStore()
+    expect(pointsLostBubbleTone(tree.root, tree, store)).toBeNull()
+  })
+})
+
+describe('mergeMarkerMaps', () => {
+  it('sin colisión: combina la burbuja de pérdida y los markers del PV en una sola grilla', () => {
+    const played = emptyMarkerGridOf9()
+    played[7]![2] = { type: 'label', label: '-3.2' }
+    const pv = emptyMarkerGridOf9()
+    pv[5]![5] = { type: 'label', label: '1' }
+
+    const merged = mergeMarkerMaps(played, pv, 9)
+
+    expect(merged[7]![2]).toEqual({ type: 'label', label: '-3.2' })
+    expect(merged[5]![5]).toEqual({ type: 'label', label: '1' })
+  })
+
+  it('colisión en la misma casilla: gana la burbuja de pérdida (played) sobre el marker del PV', () => {
+    const played = emptyMarkerGridOf9()
+    played[4]![4] = { type: 'label', label: '-5.0' }
+    const pv = emptyMarkerGridOf9()
+    pv[4]![4] = { type: 'label', label: '1' }
+
+    const merged = mergeMarkerMaps(played, pv, 9)
+
+    expect(merged[4]![4]).toEqual({ type: 'label', label: '-5.0' })
+  })
+
+  it('pv undefined → devuelve played sin tocar', () => {
+    const played = emptyMarkerGridOf9()
+    played[0]![0] = { type: 'label', label: '-1.0' }
+
+    expect(mergeMarkerMaps(played, undefined, 9)).toBe(played)
   })
 })

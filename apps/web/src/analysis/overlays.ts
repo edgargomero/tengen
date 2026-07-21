@@ -23,6 +23,9 @@ import type { GameNode as TengenGameNode, GameTree } from '../game/gameTree'
 import type { AnalysisStore } from './analysisStore'
 import { colorToSign } from '../game/coords'
 import { adaptGameNode } from './katrainAdapter'
+import { qualityCategoryForPointsLost } from './reviewSummary'
+import type { QualityTone } from './reviewSummary'
+import { computeNodePointsLost } from './vendor/web-katrain/nodeAnalysis'
 import { getPlayedMoveQuality } from './vendor/web-katrain/playedMoveQuality'
 import type { PointsLostSummary } from './vendor/web-katrain/analysisSummary'
 
@@ -111,6 +114,74 @@ export function buildGhostStoneMap(node: TengenGameNode, tree: GameTree, store: 
   return grid
 }
 
+/**
+ * Grilla `[y][x]` con una burbuja "-X.X" (marker `label`) sobre la piedra que llegó a `node`,
+ * indicando cuántos puntos costó esa jugada (#9 del backlog UX). Todo `null` salvo, a lo sumo, la
+ * casilla de `node.move`. Espeja `buildGhostStoneMap` (misma firma, mismos guards) — se dibuja sobre
+ * la MISMA piedra que el ghost stone de calidad, y se actualiza al navegar.
+ *
+ * Gateada por `minPointsLost` (0.5 por defecto) y SOLO pérdidas: una jugada trivial o una ganancia no
+ * dibuja nada (no se ensucia el tablero con "-0.0" ni con "Best"). Usa el `computeNodePointsLost`
+ * *lenient* (con fallback a `candidate.pointsLost`) — INTENCIONAL: coincide con el ghost stone de
+ * calidad sobre el que se apoya, aunque pueda mostrar un número donde el `computePointsLostStrict`
+ * del reporte agregado devolvería `null`. La burbuja concuerda con SU PROPIO ghost stone, no con el
+ * panel — no es una discrepancia.
+ */
+/** Umbral mínimo de pérdida (en puntos) para dibujar la burbuja #9 — compartido por el label y su
+ * color, para que ambos aparezcan/desaparezcan en lockstep (nunca color sin número ni al revés). */
+export const POINTS_LOST_BUBBLE_MIN = 0.5
+
+/**
+ * Núcleo compartido de #9: la pérdida de puntos de la jugada que llegó a `node`, ya gateada, con su
+ * vértice. `null` si no hay burbuja que dibujar (raíz/pase, padre sin analizar, ganancia, o pérdida
+ * por debajo del umbral). Usa el `computeNodePointsLost` *lenient* — ver nota en `buildPointsLostLabelMap`.
+ */
+function playedMovePointsLost(
+  node: TengenGameNode,
+  tree: GameTree,
+  store: AnalysisStore,
+  minPointsLost: number,
+): { vertex: { x: number; y: number }; pointsLost: number } | null {
+  const move = node.move
+  if (!move || move.vertex === 'pass') return null // raíz, o un pase: ninguno tiene casilla.
+  const pointsLost = computeNodePointsLost(adaptGameNode(node, tree, store))
+  if (pointsLost === null || !Number.isFinite(pointsLost) || pointsLost < minPointsLost) return null
+  return { vertex: move.vertex, pointsLost }
+}
+
+export function buildPointsLostLabelMap(
+  node: TengenGameNode,
+  tree: GameTree,
+  store: AnalysisStore,
+  boardSize: BoardSize,
+  minPointsLost = POINTS_LOST_BUBBLE_MIN,
+): (Marker | null)[][] {
+  const grid = emptyGrid<Marker>(boardSize)
+  const bubble = playedMovePointsLost(node, tree, store, minPointsLost)
+  if (!bubble) return grid
+
+  const row = grid[bubble.vertex.y]
+  if (row) row[bubble.vertex.x] = { type: 'label', label: `-${bubble.pointsLost.toFixed(1)}` }
+  return grid
+}
+
+/**
+ * Tono de calidad (`success`/`warning`/`danger`) de la burbuja #9 del nodo actual, o `null` si no
+ * hay burbuja. Gateado IDÉNTICAMENTE a `buildPointsLostLabelMap` (mismo `playedMovePointsLost`,
+ * mismo umbral por defecto), así que el color y el número nunca se desincronizan. Lo consume
+ * `AnalyzeView` para pintar el pill del tono sobre la piedra jugada (Shudan no colorea markers por sí
+ * solo). Reusa el MISMO clasificador de 6 buckets que el badge del panel y el histograma agregado.
+ */
+export function pointsLostBubbleTone(
+  node: TengenGameNode,
+  tree: GameTree,
+  store: AnalysisStore,
+  minPointsLost = POINTS_LOST_BUBBLE_MIN,
+): QualityTone | null {
+  const bubble = playedMovePointsLost(node, tree, store, minPointsLost)
+  return bubble ? qualityCategoryForPointsLost(bubble.pointsLost).tone : null
+}
+
 /** ¿Son el mismo vértice? Comparación local (mismo patrón que `gameTree.ts`, no exportado de ahí). */
 function sameVertex(a: TengenVertex, b: TengenVertex): boolean {
   if (a === 'pass' || b === 'pass') return a === b
@@ -197,6 +268,29 @@ export function mergeGhostStoneMaps(
 ): (GhostStone | null)[][] {
   if (!pv) return played
   const merged = emptyGrid<GhostStone>(boardSize)
+  for (let y = 0; y < boardSize; y++) {
+    for (let x = 0; x < boardSize; x++) {
+      const mRow = merged[y]
+      if (mRow) mRow[x] = played[y]?.[x] ?? pv[y]?.[x] ?? null
+    }
+  }
+  return merged
+}
+
+/**
+ * Combina la burbuja de "pérdida de puntos" de la última jugada (`buildPointsLostLabelMap`) con los
+ * markers numerados de la variación principal (`buildPvOverlay`) en un solo `markerMap` — Shudan solo
+ * acepta uno por tablero. Espejo de `mergeGhostStoneMaps`: en colisión gana `played` (un hecho ya
+ * sucedido) sobre `pv` (una predicción). En la práctica no colisionan (el PV recorre casillas VACÍAS;
+ * la última jugada ya ocupa la suya con una piedra real).
+ */
+export function mergeMarkerMaps(
+  played: (Marker | null)[][],
+  pv: (Marker | null)[][] | undefined,
+  boardSize: BoardSize,
+): (Marker | null)[][] {
+  if (!pv) return played
+  const merged = emptyGrid<Marker>(boardSize)
   for (let y = 0; y < boardSize; y++) {
     for (let x = 0; x < boardSize; x++) {
       const mRow = merged[y]
