@@ -7,6 +7,7 @@ import type { BoardSize, HumanRank, RankLevel, Rules } from '@tengen/engine'
 import { HUMAN_RANKS } from '@tengen/engine'
 import type { GameConfig } from '../game/gameConfig'
 import { validateConfig } from '../game/gameConfig'
+import { KATA_STRENGTH_PRESETS } from '../game/opponentStrength'
 
 interface NewGameFormProps {
   onStart(config: GameConfig): void
@@ -14,7 +15,6 @@ interface NewGameFormProps {
 }
 
 const BOARD_SIZES: BoardSize[] = [9, 13, 19]
-const KATA_VISIT_PRESETS = [50, 200, 500] as const
 const HANDICAP_OPTIONS_19 = [0, 2, 3, 4, 5, 6, 7, 8, 9]
 
 // Komi por defecto según reglas (chino 7, japonés 6.5). Se re-aplica al cambiar de reglas
@@ -134,9 +134,9 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
               value={kataVisits}
               onChange={(e) => setKataVisits(Number((e.target as HTMLSelectElement).value))}
             >
-              {KATA_VISIT_PRESETS.map((visits) => (
+              {KATA_STRENGTH_PRESETS.map(({ visits, label }) => (
                 <option key={visits} value={visits}>
-                  {visits} visitas
+                  {label}
                 </option>
               ))}
             </select>

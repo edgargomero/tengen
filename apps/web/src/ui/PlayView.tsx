@@ -41,6 +41,7 @@ import { useCloudSync } from '../cloud/useCloudSync'
 import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
 import type { GameConfig } from '../game/gameConfig'
 import { networkForOpponent, validateConfig } from '../game/gameConfig'
+import { kataStrengthLabel } from '../game/opponentStrength'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
 import { capturesOf, isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
@@ -74,7 +75,7 @@ const SCORE_VISITS = 100
 const VERTEX_SIZE: Record<BoardSize, number> = { 9: 44, 13: 32, 19: 24 }
 
 function opponentLabel(opponent: RankLevel): string {
-  return opponent.kind === 'human' ? `Human SL ${opponent.rank}` : `KataGo (${opponent.visits} visitas)`
+  return opponent.kind === 'human' ? `Human SL ${opponent.rank}` : `KataGo (${kataStrengthLabel(opponent.visits)})`
 }
 
 function errorMessage(e: unknown): string {
