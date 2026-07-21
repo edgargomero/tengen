@@ -1,7 +1,9 @@
 // Pantalla de juego (Fase 2, Task 4 + Task 5): tablero Shudan + panel lateral + bucle de juego
-// usuario(Negro)↔IA(Blanco), árbol de variaciones, Export/Import SGF y persistencia automática.
-// Decisiones fijadas (ver brief de Task 4/5 / plan de fase engine): humano=Negro fijo, handicap≥2
-// arranca Blanco.
+// humano↔IA, árbol de variaciones, Export/Import SGF y persistencia automática. El color del humano
+// (`config.humanColor`, elegido en el formulario — negro/blanco/nigiri) y el de la IA (`aiColor`, el
+// opuesto) se derivan UNA vez y reemplazan los literales de color; con handicap≥2 el humano es Negro
+// (validateConfig lo fuerza) y la IA (Blanco) abre. El color viaja en el SGF (`TGHC`), así reabrir
+// una partida conserva el color sin re-sortear el nigiri.
 //
 // ── Ciclo de vida ────────────────────────────────────────────────────────────────────────────
 // El `GameTree` y el `EngineManager` viven en refs creados UNA sola vez (no en cada render).
@@ -31,7 +33,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { BoundedGoban } from '@sabaki/shudan'
 import type { GhostStone, Marker } from '@sabaki/shudan'
 import { applyElapsed } from '@tengen/engine'
-import type { BoardSize, ClockConfig, ClockState, Move, NetworkId, RankLevel } from '@tengen/engine'
+import type { BoardSize, ClockConfig, ClockState, Move, NetworkId, RankLevel, StoneColor } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import type { GameSnapshot } from '../cloud/api'
@@ -40,7 +42,7 @@ import { buildGameSnapshot } from '../cloud/snapshot'
 import { useCloudSync } from '../cloud/useCloudSync'
 import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
 import type { GameConfig } from '../game/gameConfig'
-import { networkForOpponent, validateConfig } from '../game/gameConfig'
+import { networkForOpponent, oppositeColor, validateConfig } from '../game/gameConfig'
 import { kataStrengthLabel } from '../game/opponentStrength'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
@@ -152,6 +154,13 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   const treeRef = useRef<GameTree | null>(null)
   if (!treeRef.current) treeRef.current = initialTree ?? GameTree.fromConfig(config)
   const tree = treeRef.current
+
+  // Color del humano y de la IA, derivados UNA vez del config (fijo durante la vida del componente).
+  // Reemplazan los literales 'black'/'white' que antes asumían humano=Negro fijo. Capturarlos en el
+  // closure del ticker (useEffect deps []) es seguro: nunca cambian tras el montaje.
+  const humanColor = config.humanColor
+  const aiColor = oppositeColor(humanColor)
+  const colorLabel = (c: StoneColor): string => (c === 'black' ? 'Negro' : 'Blanco')
 
   const managerRef = useRef<EngineManager | null>(null)
   if (!managerRef.current) managerRef.current = new EngineManager(createWorkerManagedEngine)
@@ -395,7 +404,7 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       }
       return
     }
-    if (tree.currentTurnAt() === 'white') {
+    if (tree.currentTurnAt() === aiColor) {
       await aiTurn()
     } else {
       setBusy(false)
@@ -409,15 +418,15 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     setBusy(true)
     const aiTurnStartedAt = Date.now()
     try {
-      const move = await manager.genMove(tree.positionAt(), config.opponent, clockOptsFor('white'))
+      const move = await manager.genMove(tree.positionAt(), config.opponent, clockOptsFor(aiColor))
       if (staleRef.current || endedRef.current) return
       const elapsed = Date.now() - aiTurnStartedAt
-      const timedOut = consumeClock('white', elapsed)
+      const timedOut = consumeClock(aiColor, elapsed)
       tree.addMove(move)
       bump()
       persist()
       if (timedOut) {
-        declareTimeout('white')
+        declareTimeout(aiColor)
         return
       }
       turnStartedAtRef.current = Date.now()
@@ -473,8 +482,8 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
           endedRef.current = true
           setResult('Partida terminada')
           setBusy(false)
-        } else if (!endedRef.current && tree.isAtLiveTip() && tree.currentTurnAt() === 'white') {
-          await aiTurn() // handicap≥2 (o restauración a media mano): la IA (Blanco) sigue/abre
+        } else if (!endedRef.current && tree.isAtLiveTip() && tree.currentTurnAt() === aiColor) {
+          await aiTurn() // la IA abre/sigue cuando le toca: humano juega Blanco, o handicap≥2, o restauración a media mano
         } else {
           setBusy(false)
         }
@@ -515,13 +524,13 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     if (tree.meta.clock === undefined) return
     const id = setInterval(() => {
       if (staleRef.current || endedRef.current || !bootedRef.current) return
-      if (liveTurn() !== 'black') {
+      if (liveTurn() !== humanColor) {
         setClockTick((t) => t + 1)
         return
       }
       const elapsed = Date.now() - turnStartedAtRef.current
       const clock = tree.meta.clock!
-      const { state, timedOut } = applyElapsed(clock.state.black, clock.config, elapsed)
+      const { state, timedOut } = applyElapsed(clock.state[humanColor], clock.config, elapsed)
       if (timedOut) {
         // FIX 3 (fix wave reloj): en el tick FATAL —y SOLO ahí, en la transición a `timedOut`—
         // escribe el estado ya consumido de vuelta a `clock.state.black` ANTES de declarar. Sin esto
@@ -530,10 +539,10 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         // (clic/pase/IA), sólo que aquí lo reusamos del `applyElapsed` de arriba (no lo reconstruimos
         // ni lo escribimos en cada tick: `elapsed` es un diff ABSOLUTO recomputado fresco, aplicarlo
         // por tick sobre un estado ya reducido lo sobre-consumiría en cascada).
-        clock.state.black = state
+        clock.state[humanColor] = state
         // FIX 2 (fix wave reloj): via ref para llamar al `declareTimeout` del render ACTUAL (con el
         // `cloud` cuya sesión ya resolvió), no al capturado en el primer render (`cloud.active===false`).
-        declareTimeoutRef.current('black')
+        declareTimeoutRef.current(humanColor)
         return
       }
       setClockTick((t) => t + 1)
@@ -560,21 +569,21 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       return // modo exploración: nunca dispara la IA
     }
 
-    // Partida viva, en el tip: comportamiento de Task 4 intacto (solo Negro humano juega).
-    if (turnAtCursor !== 'black') return
-    const validation = validateMove(tree.boardAt(), 'black', vertex)
+    // Partida viva, en el tip: comportamiento de Task 4 intacto (solo el humano juega, sea su color).
+    if (turnAtCursor !== humanColor) return
+    const validation = validateMove(tree.boardAt(), humanColor, vertex)
     if (!validation.legal) {
       setIllegalMoveHint(illegalMoveMessage(validation.reason!))
       return
     }
     setIllegalMoveHint(null)
     const elapsed = Date.now() - turnStartedAtRef.current
-    const timedOut = consumeClock('black', elapsed)
-    tree.addMove({ color: 'black', vertex })
+    const timedOut = consumeClock(humanColor, elapsed)
+    tree.addMove({ color: humanColor, vertex })
     bump()
     persist()
     if (timedOut) {
-      declareTimeout('black')
+      declareTimeout(humanColor)
       return
     }
     turnStartedAtRef.current = Date.now()
@@ -593,14 +602,14 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
       return
     }
 
-    if (turnAtCursor !== 'black') return
+    if (turnAtCursor !== humanColor) return
     const elapsed = Date.now() - turnStartedAtRef.current
-    const timedOut = consumeClock('black', elapsed)
-    tree.addMove({ color: 'black', vertex: 'pass' })
+    const timedOut = consumeClock(humanColor, elapsed)
+    tree.addMove({ color: humanColor, vertex: 'pass' })
     bump()
     persist()
     if (timedOut) {
-      declareTimeout('black')
+      declareTimeout(humanColor)
       return
     }
     turnStartedAtRef.current = Date.now()
@@ -610,7 +619,8 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
 
   function handleResign(): void {
     if (endedRef.current) return
-    // Humano (Negro) se rinde → gana Blanco → "W+R". Detiene el bucle: no se dispara más genMove
+    // El humano se rinde → gana la IA (color opuesto) → "W+R" si el humano es Negro, "B+R" si Blanco.
+    // Detiene el bucle: no se dispara más genMove
     // (marca `endedRef` YA, antes del `setResult`, para que un genMove/analyzeToScore en vuelo que
     // resuelva después no pise este resultado — ver comentario de `endedRef` arriba). Puede
     // resignarse MIENTRAS la IA piensa (`busy===true`): `setBusy(false)` aquí es indispensable,
@@ -618,7 +628,7 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
     // llegar a su propio `setBusy(false)` — sin esto, `busy` quedaría pegado en true para siempre
     // (tablero/nav deshabilitados en una partida ya terminada).
     endedRef.current = true
-    const resultStr = formatResult(0, 'black')
+    const resultStr = formatResult(0, humanColor)
     tree.meta.result = resultStr // Task 5 R2: mismo canal RE que la rama de score.
     setResult(resultStr)
     setBusy(false)
@@ -694,6 +704,7 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         rules: importedTree.meta.rules,
         handicap: importedTree.meta.handicap,
         opponent: config.opponent,
+        humanColor: importedTree.meta.humanColor,
       })
       // FIX 4 (fix wave post-Fase 2): persiste el árbol importado ANTES de remontar — sin esto, una
       // partida importada y recargada antes de la primera jugada se perdía (localStorage seguía
@@ -722,8 +733,8 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   const exploring = isExploring()
   const markerMap = buildMarkerMap(config.boardSize, tree.current.move)
   // Piedra fantasma en hover: solo si un clic ahí realmente jugaría algo (mismo gate que
-  // handleVertexClick — en exploración cualquier color puede jugar; en partida viva solo Negro).
-  const canHoverPlace = !busy && (exploring || turn === 'black')
+  // handleVertexClick — en exploración cualquier color puede jugar; en partida viva solo el humano).
+  const canHoverPlace = !busy && (exploring || turn === humanColor)
   const hoverVertexEmpty =
     hoveredVertex !== null && signMap[hoveredVertex[1]]?.[hoveredVertex[0]] === 0
   const ghostStoneMap = buildHoverGhostStoneMap(
@@ -765,6 +776,11 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
           </div>
         )}
         <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>
+        {/* Indicador pasivo del color del humano: visible desde el montaje (incluso durante
+            "Preparando motor…"), así "ver qué color te tocó" (nigiri) es legible antes del 1er turno. */}
+        <p class="play-you">
+          Tú: {humanColor === 'black' ? '●' : '○'} {colorLabel(humanColor)}
+        </p>
         <p class="play-turn">
           {result !== null
             ? 'Partida terminada'
@@ -774,9 +790,9 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
                 ? 'Preparando motor…'
                 : busy
                   ? 'IA pensando…'
-                  : turn === 'black'
-                    ? 'Tu turno (Negro)'
-                    : 'Turno de la IA (Blanco)'}
+                  : turn === humanColor
+                    ? `Tu turno (${colorLabel(humanColor)})`
+                    : `Turno de la IA (${colorLabel(aiColor)})`}
         </p>
         <p class="play-captures">
           Capturas — Negro: {captures.black} · Blanco: {captures.white}
@@ -789,7 +805,7 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
 
         <div class="play-controls">
-          <button onClick={handlePass} disabled={busy || (!exploring && turn !== 'black')}>
+          <button onClick={handlePass} disabled={busy || (!exploring && turn !== humanColor)}>
             Pasar
           </button>
           <button onClick={handleResign} disabled={result !== null}>

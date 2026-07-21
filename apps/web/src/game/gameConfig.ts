@@ -2,7 +2,7 @@
 // Sin UI, sin motor: solo reglas de negocio sobre los parámetros que el usuario elige antes de
 // empezar. validateConfig() es el único punto donde se sanea la config (normaliza handicap 1→0,
 // clampa visits, y rechaza combinaciones no soportadas).
-import type { BoardSize, ClockConfig, NetworkId, RankLevel, Rules } from '@tengen/engine'
+import type { BoardSize, ClockConfig, NetworkId, RankLevel, Rules, StoneColor } from '@tengen/engine'
 
 export interface GameConfig {
   boardSize: BoardSize
@@ -11,9 +11,31 @@ export interface GameConfig {
   /** 0 = sin handicap; 2..9 = piedras (solo 19×19). 1 se normaliza a 0 (solo komi, sin piedra). */
   handicap: number
   opponent: RankLevel
+  /** Color CONCRETO que juega el humano (la IA juega el opuesto). Se resuelve UNA vez al empezar
+   *  (ver `resolveHumanColor`, que colapsa la elección "nigiri" a negro/blanco) y viaja intacto por
+   *  el SGF (`meta.humanColor` → `TGHC`), así una recarga NO re-sortea. Con handicap≥2 `validateConfig`
+   *  lo fuerza a 'black' (el humano toma el handicap). Default histórico = 'black'. */
+  humanColor: StoneColor
   /** Reloj de partida (tiempo principal + byoyomi japonés), opcional — ausente = "sin reloj" (el
    *  comportamiento de siempre). Ver spec 2026-07-16-reloj-partida-design.md. */
   clock?: ClockConfig
+}
+
+/** Elección de color en el formulario de nueva partida: negro/blanco fijos, o `nigiri` (al azar).
+ *  `resolveHumanColor` la colapsa a un `StoneColor` concreto en el submit. */
+export type HumanColorChoice = 'black' | 'white' | 'nigiri'
+
+/** Colapsa la elección del formulario a un color concreto. El `nigiri` sortea con `rng` (inyectable
+ *  para tests deterministas): `< 0.5 → black`, `>= 0.5 → white`. ÚNICO punto de aleatoriedad del
+ *  feature; separado de la UI para poder testearlo puro. */
+export function resolveHumanColor(choice: HumanColorChoice, rng: () => number = Math.random): StoneColor {
+  if (choice === 'nigiri') return rng() < 0.5 ? 'black' : 'white'
+  return choice
+}
+
+/** Color opuesto (helper trivial reutilizado por `PlayView` para derivar el color de la IA). */
+export function oppositeColor(c: StoneColor): StoneColor {
+  return c === 'black' ? 'white' : 'black'
 }
 
 /**
@@ -42,6 +64,11 @@ export function validateConfig(c: GameConfig): GameConfig {
   if (handicap > 1 && c.boardSize !== 19) {
     throw new Error(`handicap >1 solo soportado en 19×19 (boardSize: ${c.boardSize})`)
   }
+
+  // Color del humano: con handicap≥2 queda FORZADO a negro (el humano toma las piedras de handicap =
+  // Negro; el nigiri solo aplica a partidas igualadas). Sin handicap, se respeta la elección ya
+  // resuelta (`?? 'black'` cubre datos legacy sin el campo — p.ej. un SGF viejo sin `TGHC`).
+  const humanColor: StoneColor = handicap >= 2 ? 'black' : (c.humanColor ?? 'black')
 
   // Task 13a: el motor asume visits >= 1; clampamos en vez de lanzar (normalización silenciosa).
   const opponent: RankLevel =
@@ -74,6 +101,7 @@ export function validateConfig(c: GameConfig): GameConfig {
     rules: c.rules,
     handicap,
     opponent,
+    humanColor,
     ...(c.clock !== undefined ? { clock: c.clock } : {}),
   }
 }

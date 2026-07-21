@@ -88,6 +88,8 @@ function restoreFromPendingOpen(): Session | null {
       rules: tree.meta.rules,
       handicap: tree.meta.handicap,
       opponent: pendingGame.opponent,
+      // El SGF de D1 ya trae el color (vía TGHC): reabrir desde "Mis partidas" conserva tu color.
+      humanColor: tree.meta.humanColor,
     })
     try {
       saveGame(window.localStorage, config.opponent, tree, pendingGame.id)
@@ -115,6 +117,8 @@ function restoreSession(): Session | null {
       rules: restored.tree.meta.rules,
       handicap: restored.tree.meta.handicap,
       opponent: restored.opponent,
+      // El color viaja en el SGF persistido (TGHC): recargar conserva tu color, no re-sortea nigiri.
+      humanColor: restored.tree.meta.humanColor,
     })
     return { config, initialTree: restored.tree, cloudId: restored.cloudId }
   } catch {

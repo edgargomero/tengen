@@ -4,7 +4,7 @@ import { GameTree } from '../src/game/gameTree'
 
 // Metadata base reutilizable (sin handicap, 9×9).
 function tree9(): GameTree {
-  return new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+  return new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
 }
 
 const B = (x: number, y: number): Move => ({ color: 'black', vertex: { x, y } })
@@ -16,7 +16,7 @@ describe('GameTree — construcción', () => {
     expect(t.root.move).toBeNull()
     expect(t.root.parent).toBeNull()
     expect(t.current).toBe(t.root)
-    expect(t.meta).toEqual({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    expect(t.meta).toEqual({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
   })
 
   it('fromConfig deriva la metadata desde una GameConfig (descarta opponent)', () => {
@@ -26,8 +26,9 @@ describe('GameTree — construcción', () => {
       rules: 'japanese',
       handicap: 2,
       opponent: { kind: 'kata', visits: 100 },
+      humanColor: 'black',
     })
-    expect(t.meta).toEqual({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2 })
+    expect(t.meta).toEqual({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2, humanColor: 'black' })
   })
 })
 
@@ -170,7 +171,7 @@ describe('GameTree — positionAt (pieza de correctitud central)', () => {
   })
 
   it('con handicap≥2, moves NO incluye piedras de handicap y arranca en Blanco', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15)) // Blanco mueve primero con handicap
     t.addMove(B(3, 3))
     const pos = t.positionAt(t.current)
@@ -184,7 +185,7 @@ describe('GameTree — positionAt (pieza de correctitud central)', () => {
 
 describe('GameTree — helpers de display (delegan en rules)', () => {
   it('boardAt refleja el tablero en el cursor (incluye handicap)', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     const board = t.boardAt(t.root)
     // piedras de handicap presentes (negras) sin jugadas aún
     expect(board.get([3, 15])).toBe(1)
@@ -193,7 +194,7 @@ describe('GameTree — helpers de display (delegan en rules)', () => {
 
   it('currentTurnAt: sin handicap arranca Negro; con handicap≥2 arranca Blanco', () => {
     expect(tree9().currentTurnAt(tree9().root)).toBe('black')
-    const th = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const th = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     expect(th.currentTurnAt(th.root)).toBe('white')
   })
 })
@@ -254,7 +255,7 @@ describe('GameTree — isAtLiveTip (Fase 2, Task 5: guard del modo exploración)
   })
 
   it('partida con handicap: cursor en la raíz (sin jugadas aún) → true', () => {
-    const th = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const th = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     expect(th.isAtLiveTip()).toBe(true)
   })
 })
@@ -267,6 +268,7 @@ describe('GameTree — fromConfig con reloj', () => {
       rules: 'chinese',
       handicap: 0,
       opponent: { kind: 'kata', visits: 100 },
+      humanColor: 'black',
     })
     expect(t.meta.clock).toBeUndefined()
   })
@@ -279,6 +281,7 @@ describe('GameTree — fromConfig con reloj', () => {
       rules: 'chinese',
       handicap: 0,
       opponent: { kind: 'kata', visits: 100 },
+      humanColor: 'black',
       clock,
     })
     expect(t.meta.clock).toEqual({
@@ -298,6 +301,7 @@ describe('GameTree — fromConfig con reloj', () => {
       rules: 'chinese',
       handicap: 0,
       opponent: { kind: 'kata', visits: 100 },
+      humanColor: 'black',
       clock,
     })
     expect(t.meta.clock?.state.black.inByoyomi).toBe(true)

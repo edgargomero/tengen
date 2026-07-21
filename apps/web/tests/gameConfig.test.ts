@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GameConfig } from '../src/game/gameConfig'
-import { networkForOpponent, validateConfig } from '../src/game/gameConfig'
+import { networkForOpponent, oppositeColor, resolveHumanColor, validateConfig } from '../src/game/gameConfig'
 
 // Config base válida reutilizable; cada test sobrescribe lo que le interesa.
 function base(overrides: Partial<GameConfig> = {}): GameConfig {
@@ -10,6 +10,7 @@ function base(overrides: Partial<GameConfig> = {}): GameConfig {
     rules: 'chinese',
     handicap: 0,
     opponent: { kind: 'kata', visits: 100 },
+    humanColor: 'black',
     ...overrides,
   }
 }
@@ -88,6 +89,55 @@ describe('validateConfig — komi finito', () => {
   it('komi 0 (o reverse komi) es válido', () => {
     expect(validateConfig(base({ komi: 0 })).komi).toBe(0)
     expect(validateConfig(base({ komi: -5.5 })).komi).toBe(-5.5)
+  })
+})
+
+describe('resolveHumanColor — sorteo del nigiri (rng inyectable)', () => {
+  it('negro/blanco fijos son identidad (no sortean)', () => {
+    // rng que lanzaría si se lo llamara: prueba que el camino fijo NUNCA sortea.
+    const boom = (): number => {
+      throw new Error('no debe sortear en color fijo')
+    }
+    expect(resolveHumanColor('black', boom)).toBe('black')
+    expect(resolveHumanColor('white', boom)).toBe('white')
+  })
+
+  it('nigiri: rng < 0.5 → negro', () => {
+    expect(resolveHumanColor('nigiri', () => 0.2)).toBe('black')
+  })
+
+  it('nigiri: rng >= 0.5 → blanco', () => {
+    expect(resolveHumanColor('nigiri', () => 0.7)).toBe('white')
+  })
+
+  it('nigiri: frontera exacta 0.5 → blanco (el corte es `< 0.5`)', () => {
+    expect(resolveHumanColor('nigiri', () => 0.5)).toBe('white')
+  })
+})
+
+describe('oppositeColor', () => {
+  it('negro↔blanco, ida y vuelta', () => {
+    expect(oppositeColor('black')).toBe('white')
+    expect(oppositeColor('white')).toBe('black')
+    expect(oppositeColor(oppositeColor('black'))).toBe('black')
+  })
+})
+
+describe('validateConfig — humanColor', () => {
+  it('humanColor=white con handicap 0 se conserva', () => {
+    expect(validateConfig(base({ boardSize: 9, handicap: 0, humanColor: 'white' })).humanColor).toBe('white')
+  })
+
+  it('humanColor=white con handicap 1 (normalizado a 0) se conserva', () => {
+    expect(validateConfig(base({ boardSize: 19, handicap: 1, humanColor: 'white' })).humanColor).toBe('white')
+  })
+
+  it('handicap≥2 fuerza humanColor a negro (el humano toma el handicap)', () => {
+    expect(validateConfig(base({ boardSize: 19, handicap: 2, humanColor: 'white' })).humanColor).toBe('black')
+  })
+
+  it('humanColor siempre presente en la salida (default negro)', () => {
+    expect(validateConfig(base()).humanColor).toBe('black')
   })
 })
 

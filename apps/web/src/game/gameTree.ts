@@ -24,6 +24,11 @@ export interface GameTreeMeta {
   komi: number
   rules: Rules
   handicap: number
+  /** Color CONCRETO del humano (la IA juega el opuesto). Viaja en el SGF vía `TGHC` (ver sgf.ts) para
+   *  que reabrir una partida —local o desde la nube— conserve el color. NO es derivable del SGF: en
+   *  igualada la primera jugada siempre es de Negro, sea humano o IA quien la juegue. Requerido para
+   *  que ningún lector deba manejar `undefined`; en Modo Analizar (sin humano) es 'black' inocuo. */
+  humanColor: StoneColor
   /** Resultado en formato SGF RE (p.ej. "B+Resign", "W+7.5"). Presente solo si la partida terminó. */
   result?: string
   /** Reloj de la partida: config fija + estado vivo por color. Ausente = "sin reloj" (de siempre).
@@ -73,6 +78,7 @@ export class GameTree {
       komi: config.komi,
       rules: config.rules,
       handicap: config.handicap,
+      humanColor: config.humanColor,
       ...(config.clock !== undefined
         ? {
             clock: {

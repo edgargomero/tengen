@@ -24,7 +24,7 @@ function memStorage(): StorageLike & { map: Map<string, string> } {
 
 describe('persistence — save/load round-trip', () => {
   it('reconstruye un árbol equivalente: metadata, jugadas, cursor y opponent (kata)', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15))
     t.addMove(B(3, 3))
     t.toRoot()
@@ -37,7 +37,7 @@ describe('persistence — save/load round-trip', () => {
 
     expect(loaded).not.toBeNull()
     expect(loaded!.opponent).toEqual(KATA_OPPONENT)
-    expect(loaded!.tree.meta).toEqual({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2 })
+    expect(loaded!.tree.meta).toEqual({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2, humanColor: 'black' })
     // línea principal preservada (primeros hijos)
     expect(loaded!.tree.mainLine().map((n) => n.move)).toEqual([W(15, 15), B(3, 3)])
     // la variación (segundo hijo de la raíz) también
@@ -48,7 +48,7 @@ describe('persistence — save/load round-trip', () => {
   })
 
   it('preserva el opponent Human SL (kind human + rank)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     const storage = memStorage()
     saveGame(storage, HUMAN_OPPONENT, t)
@@ -58,7 +58,7 @@ describe('persistence — save/load round-trip', () => {
   })
 
   it('preserva un cursor en la raíz', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     t.toRoot()
     const storage = memStorage()
@@ -73,7 +73,7 @@ describe('persistence — save/load round-trip', () => {
   // persistencia (round-trip de `meta.result` vía el `RE` del SGF) + que los dos pases finales
   // sobreviven (el input que `boot()` inspecciona con `isGameOverByTwoPasses`).
   it("preserva meta.result='Void' y los dos pases finales de una partida terminada (FIX 2)", () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     t.addMove({ color: 'white', vertex: 'pass' })
     t.addMove({ color: 'black', vertex: 'pass' })
@@ -89,7 +89,7 @@ describe('persistence — save/load round-trip', () => {
 
 describe('persistence — cloudId (Fase 5)', () => {
   it('round-trip con cloudId presente', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     const storage = memStorage()
     saveGame(storage, KATA_OPPONENT, t, 'game-abc-123')
@@ -99,7 +99,7 @@ describe('persistence — cloudId (Fase 5)', () => {
   })
 
   it('sin cloudId (partida nunca guardada en la nube) → loadGame no lo incluye', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     const storage = memStorage()
     saveGame(storage, KATA_OPPONENT, t)
@@ -159,7 +159,7 @@ describe('persistence — casos de fallo (nunca lanza, devuelve null)', () => {
   })
 
   it('payload viejo v1 sin `opponent` (Task 2) → null (R3: el guard nuevo lo rechaza)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     const storage = memStorage()
     // Forma exacta del payload de Task 2: sin `opponent`.
@@ -203,13 +203,39 @@ describe('persistence — casos de fallo (nunca lanza, devuelve null)', () => {
 
 describe('persistence — clearGame', () => {
   it('borra la partida guardada (loadGame posterior → null)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(4, 4))
     const storage = memStorage()
     saveGame(storage, KATA_OPPONENT, t)
     expect(loadGame(storage)).not.toBeNull()
     clearGame(storage)
     expect(loadGame(storage)).toBeNull()
+  })
+})
+
+describe('persistence — color del humano', () => {
+  it('una partida de Blanco conserva humanColor tras save/load (viaja en el SGF, persistence.ts intacto)', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'white' })
+    t.addMove(B(2, 2)) // igualada: abre Negro (la IA)
+    t.addMove(W(6, 6))
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+
+    expect(loaded).not.toBeNull()
+    expect(loaded!.tree.meta.humanColor).toBe('white')
+  })
+
+  it('una partida de Negro (default) carga humanColor negro', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
+    t.addMove(B(2, 2))
+
+    const storage = memStorage()
+    saveGame(storage, KATA_OPPONENT, t)
+    const loaded = loadGame(storage)
+
+    expect(loaded!.tree.meta.humanColor).toBe('black')
   })
 })
 
@@ -221,6 +247,7 @@ describe('persistence — reloj', () => {
       komi: 7,
       rules: 'chinese',
       handicap: 0,
+      humanColor: 'black',
       clock: {
         config: clock,
         state: {
@@ -240,7 +267,7 @@ describe('persistence — reloj', () => {
   })
 
   it('sin reloj configurado, meta.clock sigue ausente tras el round-trip (compat)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
 
     const storage = memStorage()
@@ -251,7 +278,7 @@ describe('persistence — reloj', () => {
   })
 
   it('sin reloj configurado, el SGF guardado es byte-idéntico al de exportSgf(tree) sin segundo argumento', () => {
-    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 7, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
 
     const storage = memStorage()
@@ -272,6 +299,7 @@ describe('persistence — reloj', () => {
       komi: 7,
       rules: 'chinese',
       handicap: 0,
+      humanColor: 'black',
       clock: {
         config: clock,
         state: {

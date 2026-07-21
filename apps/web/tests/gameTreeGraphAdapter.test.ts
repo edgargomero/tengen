@@ -5,7 +5,7 @@ import { computeMoveTreeLayout } from '../src/ui/vendor/web-katrain/moveTreeLayo
 import { flattenGameTree, gameTreeNodeLabel } from '../src/ui/gameTreeGraphAdapter'
 
 function tree9(): GameTree {
-  return new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+  return new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
 }
 
 const blackMove = (x: number, y: number): Move => ({ color: 'black', vertex: { x, y } })

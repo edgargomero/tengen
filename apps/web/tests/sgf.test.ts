@@ -23,7 +23,7 @@ describe('coordenadas SGF (0-based, columna=x primero)', () => {
 
 describe('exportSgf — propiedades de la raíz', () => {
   it('escribe GM/FF/SZ/KM/RU y arranca en (;...)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     const out = exportSgf(t)
     expect(out.startsWith('(')).toBe(true)
     expect(out).toContain('GM[1]')
@@ -34,7 +34,7 @@ describe('exportSgf — propiedades de la raíz', () => {
   })
 
   it('un pase se serializa como B[] / W[] (valor vacío, NO tt)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     t.addMove({ color: 'white', vertex: 'pass' })
     const out = exportSgf(t)
@@ -43,7 +43,7 @@ describe('exportSgf — propiedades de la raíz', () => {
   })
 
   it('handicap≥2 emite HA[n]+AB[..] y la primera jugada es de Blanco (AB no es move)', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15))
     const out = exportSgf(t)
     expect(out).toContain('HA[2]')
@@ -69,16 +69,16 @@ function assertIdempotent(t: GameTree): string {
 
 describe('importSgf — reconstrucción de metadata y jugadas', () => {
   it('mapea SZ/KM/RU y las jugadas del camino', () => {
-    const t = new GameTree({ boardSize: 13, komi: 7.5, rules: 'japanese', handicap: 0 })
+    const t = new GameTree({ boardSize: 13, komi: 7.5, rules: 'japanese', handicap: 0, humanColor: 'black' })
     t.addMove(B(3, 3))
     t.addMove(W(9, 9))
     const t2 = importSgf(exportSgf(t))
-    expect(t2.meta).toEqual({ boardSize: 13, komi: 7.5, rules: 'japanese', handicap: 0 })
+    expect(t2.meta).toEqual({ boardSize: 13, komi: 7.5, rules: 'japanese', handicap: 0, humanColor: 'black' })
     expect(t2.mainLine().map((n) => n.move)).toEqual([B(3, 3), W(9, 9)])
   })
 
   it('handicap: HA→meta.handicap; los AB NO se convierten en moves', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15))
     t.addMove(B(3, 3))
     const t2 = importSgf(exportSgf(t))
@@ -91,7 +91,7 @@ describe('importSgf — reconstrucción de metadata y jugadas', () => {
 
 describe('round-trip idempotente (export∘import∘export byte-idéntico)', () => {
   it('partida simple 9×9', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     t.addMove(W(6, 6))
     t.addMove(B(4, 4))
@@ -99,7 +99,7 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
   })
 
   it('con un pase', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     t.addMove({ color: 'white', vertex: 'pass' })
     t.addMove(B(4, 4))
@@ -107,7 +107,7 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
   })
 
   it('con una variación (retroceder y jugar distinto → dos hijos)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     t.addMove(W(6, 6))
     t.toRoot()
@@ -117,7 +117,7 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
   })
 
   it('con handicap 2 en 19×19', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'japanese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15))
     t.addMove(B(3, 3))
     t.addMove(W(9, 9))
@@ -125,7 +125,7 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
   })
 
   it('con resultado (RE)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, result: 'B+Resign' })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black', result: 'B+Resign' })
     t.addMove(B(2, 2))
     const out = assertIdempotent(t)
     expect(out).toContain('RE[B+Resign]')
@@ -133,8 +133,29 @@ describe('round-trip idempotente (export∘import∘export byte-idéntico)', () 
   })
 
   it('partida vacía (estado de arranque de la app)', () => {
-    const t = new GameTree({ boardSize: 19, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 19, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     assertIdempotent(t)
+  })
+})
+
+// Nigiri / elección de color: `humanColor` viaja en la propiedad TG-prefijada `TGHC`, escrita SOLO
+// para partidas de Blanco (el default Negro no emite nada → SGFs byte-idénticos a los históricos).
+describe('exportSgf/importSgf — color del humano (TGHC)', () => {
+  it('partida de Blanco: escribe TGHC[white], el import lo recupera, y es idempotente', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'white' })
+    t.addMove(B(2, 2)) // en igualada abre Negro (la IA), sea quien sea el humano
+    t.addMove(W(6, 6))
+    const out = assertIdempotent(t)
+    expect(out).toContain('TGHC[white]')
+    expect(importSgf(out).meta.humanColor).toBe('white')
+  })
+
+  it('partida de Negro (default): NO escribe TGHC y el import da black', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
+    t.addMove(B(2, 2))
+    const out = exportSgf(t)
+    expect(out).not.toContain('TGHC')
+    expect(importSgf(out).meta.humanColor).toBe('black')
   })
 })
 
@@ -184,7 +205,7 @@ describe('importSgf — normaliza HA[1]→0 (FIX 6)', () => {
   })
 
   it('el round-trip de Task 2 (handicap 2) sigue verde: nuestro exporter nunca emite HA[1]', () => {
-    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2 })
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
     t.addMove(W(15, 15))
     t.addMove(B(3, 3))
     assertIdempotent(t)
@@ -193,7 +214,7 @@ describe('importSgf — normaliza HA[1]→0 (FIX 6)', () => {
 
 describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase 6, análisis persistido)', () => {
   it('exportSgf: getExtraData mergea propiedades en el nodo correspondiente, sin pisar B/W', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     const n1 = t.addMove(B(2, 2))
     const out = exportSgf(t, (node) => (node.id === n1.id ? { XX: ['hola'] } : undefined))
     expect(out).toContain('B[cc]')
@@ -201,14 +222,14 @@ describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase
   })
 
   it('exportSgf: la raíz también puede llevar datos extra, junto al game-info', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     const out = exportSgf(t, (node) => (node.id === t.root.id ? { XX: ['raiz'] } : undefined))
     expect(out).toContain('GM[1]')
     expect(out).toContain('XX[raiz]')
   })
 
   it('exportSgf: cada rama de una variación recibe SU PROPIO dato extra, sin mezclarse con su hermana', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     const mainBranch = t.addMove(W(6, 6))
     t.toRoot()
@@ -228,7 +249,7 @@ describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase
   })
 
   it('importSgf: onNodeData se invoca por cada nodo creado (incluida la raíz, primero) con su data cruda', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     const out = exportSgf(t, (node) => (node.id === t.root.id ? { XX: ['raiz'] } : { XX: ['jugada'] }))
 
@@ -241,7 +262,7 @@ describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase
   })
 
   it('sin callback (llamado como antes), exportSgf/importSgf se comportan exactamente igual (regresión)', () => {
-    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0 })
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
     t.addMove(B(2, 2))
     t.addMove(W(6, 6))
     const out = exportSgf(t)

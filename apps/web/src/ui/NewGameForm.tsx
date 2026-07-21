@@ -5,8 +5,8 @@
 import { useState } from 'preact/hooks'
 import type { BoardSize, HumanRank, RankLevel, Rules } from '@tengen/engine'
 import { HUMAN_RANKS } from '@tengen/engine'
-import type { GameConfig } from '../game/gameConfig'
-import { validateConfig } from '../game/gameConfig'
+import type { GameConfig, HumanColorChoice } from '../game/gameConfig'
+import { resolveHumanColor, validateConfig } from '../game/gameConfig'
 import { KATA_STRENGTH_PRESETS } from '../game/opponentStrength'
 
 interface NewGameFormProps {
@@ -44,6 +44,10 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   const [komi, setKomi] = useState<number>(defaultKomi('chinese'))
   const [komiTouched, setKomiTouched] = useState(false)
   const [handicap, setHandicap] = useState(0)
+  // Color del humano: negro (default, = comportamiento histórico) / blanco / nigiri (al azar). El
+  // sorteo del nigiri ocurre en `handleSubmit`, sin pantalla intermedia (decisión de producto: como
+  // OGS, ves el color que te tocó al arrancar la partida, no una ceremonia de adivinanza).
+  const [colorChoice, setColorChoice] = useState<HumanColorChoice>('black')
   // Reloj (Fase reloj, 2026-07-16): activado por defecto con valores sugeridos, con un toggle "Sin
   // reloj". `clockTouched` seguido del mismo patrón que `komiTouched`: no pisar un valor de tiempo
   // principal que el usuario ya tocó a mano al cambiar de tamaño de tablero.
@@ -55,6 +59,10 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handicapAllowed = boardSize === 19
+  // Con handicap≥2 el color queda forzado (el humano toma las piedras de handicap = Negro), así que
+  // el selector se deshabilita. Al salir de 19×19, `handleBoardSizeChange` ya resetea handicap→0, lo
+  // que re-habilita el selector sin código extra.
+  const colorLocked = handicap >= 2
 
   function handleRulesChange(next: Rules): void {
     setRules(next)
@@ -72,12 +80,16 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
     setErrorMsg(null)
     const opponent: RankLevel =
       opponentKind === 'human' ? { kind: 'human', rank: humanRank } : { kind: 'kata', visits: kataVisits }
+    // El sorteo del nigiri (único Math.random() del feature) ocurre ACÁ, una sola vez. Con el color
+    // bloqueado (handicap≥2) forzamos negro sin sortear (validateConfig lo forzaría igual).
+    const humanColor = colorLocked ? 'black' : resolveHumanColor(colorChoice)
     const config: GameConfig = {
       boardSize,
       komi,
       rules,
       handicap,
       opponent,
+      humanColor,
       ...(clockEnabled
         ? {
             clock: {
@@ -101,7 +113,7 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
         Volver
       </button>
       <h1>tengen</h1>
-      <p class="new-game-subtitle">Nueva partida contra la IA (tú juegas Negro).</p>
+      <p class="new-game-subtitle">Nueva partida contra la IA.</p>
 
       <div class="field-group">
         <label class="field">
@@ -163,6 +175,41 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
               ))}
             </select>
           )}
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>Tu color</legend>
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="colorChoice"
+              checked={colorChoice === 'black'}
+              disabled={colorLocked}
+              onChange={() => setColorChoice('black')}
+            />
+            Negro (yo)
+          </label>
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="colorChoice"
+              checked={colorChoice === 'white'}
+              disabled={colorLocked}
+              onChange={() => setColorChoice('white')}
+            />
+            Blanco (yo)
+          </label>
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="colorChoice"
+              checked={colorChoice === 'nigiri'}
+              disabled={colorLocked}
+              onChange={() => setColorChoice('nigiri')}
+            />
+            Nigiri (al azar)
+          </label>
+          {colorLocked && <span class="field-hint">Con handicap juegas Negro</span>}
         </fieldset>
       </div>
 

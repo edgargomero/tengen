@@ -88,7 +88,7 @@ function toSgfNode(node: GameNode, getExtraData?: ExtraDataGetter, extraRootData
 
 /**
  * Serializa el árbol completo a SGF. Orden de propiedades de la raíz FIJO (idempotencia):
- * GM, FF, SZ, KM, RU, [HA, AB], [RE], [getExtraData]. `stringify([root])` envuelve el juego en `(;...)`.
+ * GM, FF, SZ, KM, RU, [TGHC], [HA, AB], [RE], [getExtraData]. `stringify([root])` envuelve en `(;...)`.
  *
  * `getExtraData` (opcional): por cada nodo, propiedades adicionales a fusionar — el árbol NO sabe
  * qué significan (p.ej. análisis del motor cacheado); es el mecanismo genérico que usa Fase 6 sin
@@ -96,7 +96,7 @@ function toSgfNode(node: GameNode, getExtraData?: ExtraDataGetter, extraRootData
  * a antes (todos los callers existentes — `game/persistence.ts`, `PlayView.tsx` — no lo pasan).
  */
 export function exportSgf(tree: GameTree, getExtraData?: ExtraDataGetter): string {
-  const { boardSize, komi, rules, handicap, result } = tree.meta
+  const { boardSize, komi, rules, handicap, humanColor, result } = tree.meta
   // Orden de inserción = orden de emisión de stringify (itera `for id in data`): mantenerlo estable.
   const rootData: Record<string, string[]> = {
     GM: ['1'],
@@ -105,6 +105,12 @@ export function exportSgf(tree: GameTree, getExtraData?: ExtraDataGetter): strin
     KM: [String(komi)],
     RU: [rulesToSgf(rules)],
   }
+  // Color del humano: propiedad propia TG-prefijada (mismo criterio que `TGBP`/`TGBT` del reloj), en
+  // posición FIJA tras RU. Se escribe SOLO cuando el humano es Blanco: el default Negro no emite nada,
+  // así los SGF de partidas Negro quedan byte-idénticos a los de siempre (no rompe idempotencia ni
+  // round-trips existentes). `humanColor==='white'` nunca coexiste con handicap≥2 (validateConfig lo
+  // fuerza a negro), pero el orden es determinista igual.
+  if (humanColor === 'white') rootData.TGHC = ['white']
   if (handicap >= 2) {
     rootData.HA = [String(handicap)]
     rootData.AB = handicapVertices(boardSize, handicap).map(([x, y]) => vertexToSgf({ x, y }))
@@ -116,7 +122,7 @@ export function exportSgf(tree: GameTree, getExtraData?: ExtraDataGetter): strin
 
 /**
  * Parsea SGF a un GameTree. Asume el formato que produce `exportSgf` (game-info en la raíz). Mapea
- * SZ/KM/RU/HA/RE; los AB del raíz se IGNORAN (handicap ya en HA). Lanza si el SGF es inválido (el
+ * SZ/KM/RU/HA/RE/TGHC; los AB del raíz se IGNORAN (handicap ya en HA). Lanza si el SGF es inválido (el
  * caller de persistencia lo envuelve en try/catch). El cursor queda en la raíz.
  *
  * `onNodeData` (opcional): se invoca UNA vez por cada `GameNode` creado (incluida la raíz, PRIMERO)
@@ -147,7 +153,11 @@ export function importSgf(
   // idempotencia de Task 2: `exportSgf` nunca emite HA[1] (sólo escribe HA si handicap>=2).
   const handicap = handicapParsed === 1 ? 0 : handicapParsed
 
-  const meta = { boardSize, komi, rules, handicap } as const
+  // Color del humano: `TGHC[white]` (lo escribe `exportSgf` solo para partidas de Blanco). Cualquier
+  // otra cosa (ausente, o un valor inesperado) → 'black', el default de siempre. Nunca lanza.
+  const humanColor: StoneColor = data.TGHC?.[0] === 'white' ? 'white' : 'black'
+
+  const meta = { boardSize, komi, rules, handicap, humanColor } as const
   const tree = new GameTree(data.RE?.[0] !== undefined ? { ...meta, result: data.RE[0] } : meta)
   onNodeData?.(tree.root, data)
 

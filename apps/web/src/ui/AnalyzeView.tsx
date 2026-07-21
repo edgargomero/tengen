@@ -236,7 +236,9 @@ const SCRATCH_BOARD_SIZES: BoardSize[] = [9, 13, 19]
  * komi=defaultKomi('chinese')=7, sin hándicap). Sin selector — colocar piedras de hándicap a mano
  * ya lo cubre el editor de variaciones existente; decisión del brainstorm, no re-litigar. */
 function emptyAnalyzeTree(boardSize: BoardSize): GameTree {
-  return new GameTree({ boardSize, komi: 7, rules: 'chinese', handicap: 0 })
+  // `humanColor: 'black'` es inocuo en Modo Analizar (no hay "humano vs IA"); el campo es requerido
+  // en `GameTreeMeta` y 'black' no emite `TGHC`, así que los SGF de Analizar quedan byte-idénticos.
+  return new GameTree({ boardSize, komi: 7, rules: 'chinese', handicap: 0, humanColor: 'black' })
 }
 
 /** Pantalla mostrada cuando aún no hay árbol cargado. Dos caminos: subir un SGF (la config ya
