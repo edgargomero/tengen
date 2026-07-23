@@ -260,6 +260,87 @@ describe('GameTree — isAtLiveTip (Fase 2, Task 5: guard del modo exploración)
   })
 })
 
+describe('GameTree — removeNode (Fase 1 editor de repaso)', () => {
+  it('borra una hoja: desaparece de parent.children', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    const n2 = t.addMove(W(6, 6))
+    t.removeNode(n2)
+    expect(n1.children).toEqual([])
+  })
+
+  it('si el cursor estaba en el nodo borrado, se reubica en el padre', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    const n2 = t.addMove(W(6, 6)) // cursor en n2
+    t.removeNode(n2)
+    expect(t.current).toBe(n1)
+  })
+
+  it('borra un subárbol entero y reubica el cursor al padre del nodo borrado', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2)) // primer hijo de la raíz
+    t.addMove(W(6, 6)) // cursor profundo dentro del subárbol de n1
+    t.removeNode(n1)
+    expect(t.root.children).toEqual([]) // todo el subárbol desapareció
+    expect(t.current).toBe(t.root) // cursor reubicado al padre de n1 (la raíz)
+  })
+
+  it('el cursor fuera del subárbol borrado NO se mueve', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2)) // primer hijo
+    t.toRoot()
+    const alt = t.addMove(B(6, 6)) // segundo hijo; cursor en alt
+    t.removeNode(n1) // borra el OTRO subárbol
+    expect(t.root.children).toEqual([alt])
+    expect(t.current).toBe(alt) // intacto
+  })
+
+  it('la raíz está protegida: removeNode(root) es no-op', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    t.removeNode(t.root)
+    expect(t.root.children).toEqual([n1]) // intacto
+    expect(t.current).toBe(n1) // intacto
+  })
+})
+
+describe('GameTree — promoteToMainLine (Fase 1 editor de repaso)', () => {
+  it('promueve una variación de primer nivel: mainLine() pasa por ella y queda como children[0]', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2)) // línea principal original
+    t.toRoot()
+    const alt = t.addMove(B(6, 6)) // segundo hijo de la raíz (variación)
+    t.promoteToMainLine(alt)
+    expect(t.root.children).toEqual([alt, n1]) // alt al frente, n1 corrido
+    expect(t.mainLine()).toEqual([alt])
+  })
+
+  it('promueve un nodo PROFUNDO: cada ancestro del camino queda con el hijo correcto en índice 0', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2)) // línea principal original
+    t.toRoot()
+    const alt = t.addMove(B(6, 6)) // variación (segundo hijo de la raíz)
+    const altChild = t.addMove(W(3, 3)) // hijo de alt
+    t.promoteToMainLine(altChild)
+    expect(t.root.children[0]).toBe(alt) // ancestro 1: alt al frente
+    expect(alt.children[0]).toBe(altChild) // ancestro 2: altChild al frente (ya lo estaba)
+    expect(t.mainLine()).toEqual([alt, altChild]) // la línea principal ahora recorre la variación
+    expect(t.root.children[1]).toBe(n1) // la vieja principal corrida atrás
+  })
+
+  it('promover un nodo que YA está en la línea principal no cambia nada', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    const n2 = t.addMove(W(6, 6))
+    t.toRoot()
+    t.addMove(B(6, 6)) // una variación cualquiera
+    t.promoteToMainLine(n2)
+    expect(t.mainLine()).toEqual([n1, n2])
+    expect(t.root.children[0]).toBe(n1)
+  })
+})
+
 describe('GameTree — fromConfig con reloj', () => {
   it('sin clock en la config, meta.clock queda ausente', () => {
     const t = GameTree.fromConfig({

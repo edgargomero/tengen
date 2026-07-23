@@ -11,7 +11,8 @@ App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataG
 ## Comandos
 
 - `npm test` — Vitest de todos los workspaces (`npm test -w @tengen/engine` para uno).
-- `npx -w @tengen/engine tsc --noEmit` — typecheck (strict + noUncheckedIndexedAccess).
+- `npm run typecheck` — `tsc --noEmit` de los 3 workspaces (`npx -w @tengen/engine tsc --noEmit` para uno; strict + noUncheckedIndexedAccess).
+- **CI** (`.github/workflows/ci.yml`): en cada PR y push a `main` corre `typecheck` → `npm test` → build del web. Hermético (sin modelos ni secretos): `build` no bundlea los ONNX y `test:nn` NO corre ahí. Frontera de testing en `docs/TESTING.md`.
 - `packages/engine/scripts/download-models.sh` — descarga los ONNX publicados a `packages/engine/models/` (gitignored) validando bytes.
 - `npm run bench` — harness de benchmark en Chrome (`bench.html` vía Vite; requiere modelos descargados). El dev server sirve `/models/` y `/ort-dist/` (runtime de onnxruntime-web) vía middlewares propios en `vite.config.ts` — Vite no puede servir imports de módulo desde `public/`, y el worker de ORT exige header COEP: no "simplificar" eso.
 - Conversión de redes (herramienta local, no del producto): clon de kaya-go/katago-onnx en `~/dev/vendor/katago-onnx` (`pixi install`); Human SL requiere `packages/engine/scripts/convert-humanv0.py` (AGPL, solo uso local).
@@ -43,7 +44,7 @@ El producto depende de repos externos (KataGo, katago-onnx, onnxruntime-web, `@s
 
 ## Estructura planificada (según spec)
 
-Monorepo npm workspaces: `packages/engine` (MCTS + ONNX, sin UI, detrás de la interfaz `Engine`), `apps/web` (SPA Preact), `apps/worker` (Worker + D1 + R2). Testing: Vitest (reglas, SGF, encoding contra vectores de referencia de KataGo desktop; MCTS con red mock determinista) + Playwright smoke.
+Monorepo npm workspaces: `packages/engine` (MCTS + ONNX, sin UI, detrás de la interfaz `Engine`), `apps/web` (SPA Preact), `apps/worker` (Worker + D1 + R2). Testing: Vitest — dominio en Node (reglas, SGF, encoding contra vectores de referencia de KataGo desktop; MCTS con red mock determinista) + componentes presentacionales en jsdom (`@testing-library/preact`, opt-in por-archivo con `// @vitest-environment jsdom`). El motor real (WebGPU) es **gate manual**, no CI; Playwright smoke acotado queda como trabajo futuro. Convención completa en `docs/TESTING.md`.
 
 ## Idioma
 

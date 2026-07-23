@@ -37,6 +37,19 @@ export interface GameTreeMeta {
   clock?: { config: ClockConfig; state: { black: ClockState; white: ClockState } }
 }
 
+/** Tipo de marca que se puede pintar sobre una casilla (mapea 1:1 a las propiedades SGF
+ *  TR/SQ/CR/MA/LB y a los `type` de marker de Shudan). */
+export type MarkupType = 'triangle' | 'square' | 'circle' | 'cross' | 'label'
+
+/** Marca autorada sobre UNA casilla del tablero (Fase 1, editor de repaso). `label` solo está
+ *  presente (y solo es válido) cuando `type === 'label'`. El vértice es siempre una intersección
+ *  real `{x,y}` (nunca 'pass': un pase no tiene casilla). Se serializa vía `game/sgfAnnotationCodec.ts`. */
+export interface Markup {
+  type: MarkupType
+  vertex: { x: number; y: number }
+  label?: string
+}
+
 /** Nodo del árbol. La raíz tiene `move === null` y `parent === null`. */
 export interface GameNode {
   readonly id: number
@@ -44,6 +57,22 @@ export interface GameNode {
   readonly move: Move | null
   readonly parent: GameNode | null
   readonly children: GameNode[]
+  /** Comentario autorado del nodo (Fase 1). MUTABLE en el lugar (mismo espíritu que `tree.meta.result`);
+   *  se serializa a `C[]`. Ausente = sin comentario (no emite propiedad). */
+  comment?: string
+  /** Marcas autoradas sobre el tablero (Fase 1). MUTABLE en el lugar; a lo sumo UNA marca por vértice
+   *  (Shudan pinta un marker por casilla). Ausente/vacío = sin marcas (no emite propiedades). */
+  markup?: Markup[]
+}
+
+/** true si `maybeDescendant` es `ancestor` o desciende de él (recorriendo el camino de padres). */
+function isSelfOrDescendant(ancestor: GameNode, maybeDescendant: GameNode): boolean {
+  let n: GameNode | null = maybeDescendant
+  while (n) {
+    if (n === ancestor) return true
+    n = n.parent
+  }
+  return false
 }
 
 /** ¿Son la misma jugada? (mismo color y mismo vértice; el pase se compara aparte). */
@@ -114,6 +143,39 @@ export class GameTree {
     const node: GameNode = { id: this.nextId++, move, parent, children: [] }
     parent.children.push(node)
     return node
+  }
+
+  // ── Mutaciones estructurales (Fase 1, editor de repaso) ─────────────────────────────────────
+
+  /**
+   * Desengancha `node` (y todo su subárbol) de `node.parent.children`. No-op si `node` es la raíz
+   * (la raíz no se borra). Si el cursor estaba DENTRO del subárbol borrado (incluido `node` mismo),
+   * se reubica en `node.parent` — así navegar/pintar sigue apuntando a un nodo vivo del árbol.
+   */
+  removeNode(node: GameNode): void {
+    const parent = node.parent
+    if (!parent) return // la raíz no se borra
+    const idx = parent.children.indexOf(node)
+    if (idx >= 0) parent.children.splice(idx, 1)
+    if (isSelfOrDescendant(node, this.current)) this.current = parent
+  }
+
+  /**
+   * Reordena los hijos a lo largo del camino raíz→`node` para que cada uno quede en índice 0. Como
+   * `mainLine()` sigue `children[0]`, tras esto la línea principal PASA por `node`. Idempotente si
+   * `node` ya estaba en la principal; incluye "promover un nivel" como subconjunto. No toca el cursor.
+   */
+  promoteToMainLine(node: GameNode): void {
+    let n: GameNode = node
+    while (n.parent) {
+      const parent = n.parent
+      const idx = parent.children.indexOf(n)
+      if (idx > 0) {
+        parent.children.splice(idx, 1)
+        parent.children.unshift(n)
+      }
+      n = parent
+    }
   }
 
   // ── Navegación (mutan el cursor; devuelven si hubo movimiento) ──────────────────────────────
