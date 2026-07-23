@@ -1,0 +1,42 @@
+# CI de tengen — corre en cada Pull Request y en cada push a `main`.
+#
+# Alcance deliberado (ver docs/TESTING.md): valida TODO lo que NO necesita el motor
+# (WebGPU + ONNX de 115 MB no corren en un runner headless). Es decir: typecheck de los
+# 3 workspaces, la suite de dominio + componentes (Vitest), y el build de producción del web.
+# El gate "motor en un navegador real" es manual y queda fuera de CI (mismo patrón que Lizzie/KaTrain).
+#
+# Hermético: sin secretos ni descarga de modelos.
+#   - `build` no bundlea los .onnx (se sirven de R2 en runtime), así que no los necesita.
+#   - `npm test` corre el script `test` de cada workspace; en @tengen/engine eso es la suite de
+#     dominio (red mock determinista), NO `test:nn` (script aparte que sí exige los ONNX descargados).
+#   - Los tests de @tengen/worker usan @cloudflare/vitest-pool-workers (miniflare local, bindings
+#     de test mockeados) → corren sin red ni credenciales reales de Cloudflare.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build (web)
+        run: npm run build -w @tengen/web

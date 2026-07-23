@@ -56,6 +56,7 @@ import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
 import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
 import type { AnalyzeSpeed } from '../analysis/speedPreference'
+import { AnnotationEditor } from './AnnotationEditor'
 import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
@@ -766,53 +767,21 @@ function ReadyAnalyzeView({
         </button>
         {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
 
-        <button onClick={handleToggleEditVariation} disabled={booting}>
-          {editingVariation ? 'Dejar de editar' : 'Editar'}
-        </button>
-        {editingVariation && (
-          <div class="analyze-edit">
-            <p class="analyze-editing">
-              Modo edición: le toca a {tree.currentTurnAt() === 'black' ? 'Negro' : 'Blanco'}
-            </p>
-            <div class="analyze-tools">
-              <button class={editTool === 'stone' ? 'active' : ''} onClick={() => setEditTool('stone')} title="Jugar piedra">
-                ● Piedra
-              </button>
-              <button class={editTool === 'triangle' ? 'active' : ''} onClick={() => setEditTool('triangle')} title="Triángulo">
-                △
-              </button>
-              <button class={editTool === 'square' ? 'active' : ''} onClick={() => setEditTool('square')} title="Cuadrado">
-                □
-              </button>
-              <button class={editTool === 'circle' ? 'active' : ''} onClick={() => setEditTool('circle')} title="Círculo">
-                ○
-              </button>
-              <button class={editTool === 'cross' ? 'active' : ''} onClick={() => setEditTool('cross')} title="Cruz">
-                ✕
-              </button>
-              <button class={editTool === 'label' ? 'active' : ''} onClick={() => setEditTool('label')} title="Etiqueta (A, B, C…)">
-                A
-              </button>
-            </div>
-            <textarea
-              class="analyze-comment-edit"
-              value={tree.current.comment ?? ''}
-              placeholder="Comentario de esta jugada…"
-              onInput={(e) => handleCommentInput((e.currentTarget as HTMLTextAreaElement).value)}
-              onChange={() => cloud.save(cloudSnapshot())}
-            />
-            <div class="analyze-tree-ops">
-              <button onClick={handleDeleteBranch} disabled={tree.current === tree.root}>
-                Borrar rama
-              </button>
-              <button onClick={handlePromote} disabled={tree.current === tree.root}>
-                Promover a principal
-              </button>
-              <button onClick={handlePass}>Pasar</button>
-            </div>
-          </div>
-        )}
-        {!editingVariation && tree.current.comment && <p class="analyze-comment">{tree.current.comment}</p>}
+        <AnnotationEditor
+          node={tree.current}
+          editing={editingVariation}
+          editTool={editTool}
+          turn={tree.currentTurnAt()}
+          atRoot={tree.current === tree.root}
+          booting={booting}
+          onToggleEdit={handleToggleEditVariation}
+          onSelectTool={setEditTool}
+          onCommentInput={handleCommentInput}
+          onCommentBlur={() => cloud.save(cloudSnapshot())}
+          onDeleteBranch={handleDeleteBranch}
+          onPromote={handlePromote}
+          onPass={handlePass}
+        />
         {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
 
         <div class="analyze-speed">
