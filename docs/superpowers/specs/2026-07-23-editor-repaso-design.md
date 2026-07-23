@@ -1,6 +1,6 @@
 # Editor avanzado de partidas — Fase 1: "Editor de repaso"
 
-**Fecha:** 2026-07-23 · **Estado:** en revisión de Edgar · **Extiende:** [Editor de variaciones](2026-07-12-analyze-editor-variaciones.md), [Análisis persistido en el SGF](2026-07-15-analisis-persistido-sgf-design.md) · **Spec de producto:** [`2026-07-08-tengen-design.md`](2026-07-08-tengen-design.md)
+**Fecha:** 2026-07-23 · **Estado:** aprobado por Edgar (alcance solo-Analizar) · implementado (`ff11f5e`), pendiente deploy · **Extiende:** [Editor de variaciones](2026-07-12-analyze-editor-variaciones.md), [Análisis persistido en el SGF](2026-07-15-analisis-persistido-sgf-design.md) · **Spec de producto:** [`2026-07-08-tengen-design.md`](2026-07-08-tengen-design.md)
 
 ## Contexto y objetivo
 

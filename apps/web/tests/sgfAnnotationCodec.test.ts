@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { Analysis } from '@tengen/engine'
 import { GameTree, type GameNode, type Markup } from '../src/game/gameTree'
 import { decodeAnnotationFromNodeData, encodeAnnotationForNode } from '../src/game/sgfAnnotationCodec'
+import { decodeAnalysisFromNodeData, encodeAnalysisForNode } from '../src/analysis/sgfAnalysisCodec'
 import { exportSgf, importSgf } from '../src/game/sgf'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,5 +157,67 @@ describe('idempotencia byte-idéntica por la ruta real de @sabaki/sgf', () => {
     t.addMove({ color: 'black', vertex: { x: 2, y: 2 } })
     t.addMove({ color: 'white', vertex: { x: 6, y: 6 } })
     expect(exportSgf(t, encodeAnnotationForNode)).toBe(exportSgf(t))
+  })
+})
+
+// El seam de integración que la UI usa pero que ningún test aislado ejercitaba: `AnalyzeView`
+// COMPONE anotación (C/TR/SQ/CR/MA/LB) + análisis cacheado (TGW/TGS/TGN/TGP) en UN solo getExtraData
+// al exportar (`extraDataForNode`), y decodifica AMBOS al importar (`decodeNodeExtras`). Las claves no
+// se solapan, pero el orden de fusión y que cada decoder respete lo del otro es lo que se confirma acá.
+describe('round-trip COMPUESTO: anotación + análisis en el mismo nodo (seam de AnalyzeView)', () => {
+  const mkAnalysis = (): Analysis => ({
+    winrate: 0.6212,
+    scoreLead: 3.45,
+    scoreStdev: 2,
+    visits: 100,
+    moves: [{ vertex: { x: 2, y: 2 }, visits: 100, winrate: 0.62, scoreLead: 3.4, prior: 0.3, pv: [{ x: 6, y: 6 }] }],
+  })
+
+  /** Espeja `AnalyzeView.extraDataForNode`: anotación PRIMERO, análisis DESPUÉS. */
+  const mergedExtra = (store: Map<number, Analysis>) => (node: GameNode): Record<string, string[]> | undefined => {
+    const analysis = store.get(node.id)
+    const merged = { ...encodeAnnotationForNode(node), ...(analysis ? encodeAnalysisForNode(analysis) : {}) }
+    return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
+  /** Espeja `AnalyzeView.decodeNodeExtras`: restaura anotación al nodo y siembra el análisis. */
+  const importBoth = (text: string, seed: Map<number, Analysis>): GameTree =>
+    importSgf(text, (node, data) => {
+      const analysis = decodeAnalysisFromNodeData(data)
+      if (analysis) seed.set(node.id, analysis)
+      const { comment, markup } = decodeAnnotationFromNodeData(data)
+      if (comment !== undefined) node.comment = comment
+      if (markup !== undefined) node.markup = markup
+    })
+
+  it('comentario + marcas + análisis coexisten y sobreviven export→import; y el round-trip es byte-idéntico', () => {
+    const t = tree9()
+    const n1 = t.addMove({ color: 'black', vertex: { x: 3, y: 3 } })
+    n1.comment = 'jugada clave ] con \\ raro'
+    n1.markup = [M('triangle', 3, 3), M('label', 5, 5, 'A')]
+    const store = new Map<number, Analysis>([[n1.id, mkAnalysis()]])
+
+    const s1 = exportSgf(t, mergedExtra(store))
+
+    // Reimport: todo se restaura por su canal (nodo ← anotación; seed ← análisis).
+    const seed = new Map<number, Analysis>()
+    const reimported = importBoth(s1, seed)
+    const node = reimported.mainLine()[0]!
+    expect(node.comment).toBe('jugada clave ] con \\ raro')
+    expect(node.markup).toEqual(
+      expect.arrayContaining([
+        { type: 'triangle', vertex: { x: 3, y: 3 } },
+        { type: 'label', vertex: { x: 5, y: 5 }, label: 'A' },
+      ]),
+    )
+    const restoredAnalysis = seed.get(node.id)
+    expect(restoredAnalysis).toBeDefined()
+    expect(restoredAnalysis!.winrate).toBeCloseTo(0.6212, 4)
+    expect(restoredAnalysis!.scoreLead).toBeCloseTo(3.45, 2)
+    expect(restoredAnalysis!.moves[0]!.vertex).toEqual({ x: 2, y: 2 })
+
+    // Byte-idéntico: reexportar el árbol reimportado (con su seed) da los mismos bytes.
+    const s2 = exportSgf(reimported, mergedExtra(seed))
+    expect(s2).toBe(s1)
   })
 })
