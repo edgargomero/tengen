@@ -64,12 +64,6 @@
   --ctl-pad-y: 0.3rem;
   --ctl-pad-x: 0.6rem;
   --ctl-font: 0.85rem;
-
-  /* Aliases retrocompat: referencias existentes (.primary, relojes, árbol, review…) siguen resolviendo
-     al mismo valor sin editarlas una por una. */
-  --tengen-accent: var(--kaya);
-  --tengen-accent-hover: var(--kaya-hover);
-  --surface-legacy: var(--surface);
 }
 
 *,
@@ -482,7 +476,7 @@ fieldset.field {
 
 .play-clock-active {
   font-weight: 600;
-  color: var(--tengen-accent);
+  color: var(--kaya);
 }
 
 .play-error {
@@ -586,8 +580,8 @@ fieldset.field {
 }
 
 .tree-node-current {
-  background: var(--tengen-accent);
-  border-color: var(--tengen-accent);
+  background: var(--kaya);
+  border-color: var(--kaya);
   color: var(--kaya-on);
 }
 
@@ -641,12 +635,12 @@ fieldset.field {
 }
 
 .tree-graph-node-halo {
-  stroke: var(--tengen-accent);
+  stroke: var(--kaya);
   stroke-width: 2;
 }
 
 .tree-graph-node:focus-visible {
-  outline: 2px solid var(--tengen-accent);
+  outline: 2px solid var(--kaya);
   outline-offset: 1px;
 }
 
@@ -894,12 +888,12 @@ fieldset.field {
 }
 
 .review-graph-line {
-  stroke: var(--tengen-accent);
+  stroke: var(--kaya);
   stroke-width: 1.5;
 }
 
 .review-graph-point {
-  fill: var(--tengen-accent);
+  fill: var(--kaya);
   cursor: pointer;
 }
 

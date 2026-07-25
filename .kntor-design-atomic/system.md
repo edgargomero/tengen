@@ -20,7 +20,13 @@ estructura, el color comunica*.
   modales (`--radius-lg 12px`).
 - **Un solo acento:** `--kaya` (el oro de la madera del goban). Nunca un segundo hue decorativo.
 
-## Nivel 0 — Tokens (el ADN; todo consume esto, cero hex suelto)
+## Nivel 0 — Tokens (el ADN)
+
+> Estado de aplicación: **color 100% tokenizado** (cero hex de color suelto en `app.css`, salvo el teal
+> funcional del marcador "analizado"). **Espaciado/radios: escala definida pero aplicada parcialmente**
+> — quedan ~91 valores de padding/gap y ~16 de border-radius literales (muchos fuera del grid 4px). Es
+> deuda documentada abajo, no un bug: migrarlos snappea espaciados y cambia visuales, requiere pasada
+> con verificación en navegador.
 
 Definidos en `:root` de `app.css`.
 
@@ -101,6 +107,11 @@ al mundo) · Atomic (page → template estudio → organismos → moléculas →
 
 ## Deuda conocida
 
+- **Espaciado/radios parcialmente tokenizados:** las escalas `--sp-1..6` y `--radius-sm/md/lg` están
+  definidas pero solo aplicadas en las reglas reescritas; quedan ~91 padding/gap y ~16 border-radius
+  literales (varios fuera del grid 4px, p.ej. 0.3/0.4/0.6rem). Pasada pendiente: snappear al grid +
+  aplicar la escala, verificando en navegador (cambia visuales). `--radius-lg`/`--sp-1`/`--sp-5`/`--sp-6`
+  quedan definidos pero aún sin uso (los usará esa pasada; las tarjetas/modales deberían usar `--radius-lg`).
 - Marcador "analizado" del árbol = teal `#14b8a6` hardcodeado (único color funcional sin token). A tokenizar
   como `--analyzed` si se quiere purismo total.
 - Alineación del TopBar (ancho 80rem) vs board+panel (centrado, más angosto) — leve desfase, aceptable.
