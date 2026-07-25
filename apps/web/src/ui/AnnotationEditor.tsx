@@ -27,6 +27,9 @@ export interface AnnotationEditorProps {
   atRoot: boolean
   /** Motor aún inicializando: deshabilita el toggle "Editar" (mismo criterio que "Analizar esta posición"). */
   booting: boolean
+  /** Muestra el botón toggle "Editar"/"Dejar de editar". `false` cuando el modo edición se controla
+   *  desde afuera (p.ej. una pestaña del panel) y el toggle sería redundante. Default `true`. */
+  showToggle?: boolean
   onToggleEdit(): void
   onSelectTool(tool: 'stone' | MarkupType): void
   onCommentInput(value: string): void
@@ -56,6 +59,7 @@ export function AnnotationEditor({
   turn,
   atRoot,
   booting,
+  showToggle = true,
   onToggleEdit,
   onSelectTool,
   onCommentInput,
@@ -66,9 +70,11 @@ export function AnnotationEditor({
 }: AnnotationEditorProps) {
   return (
     <>
-      <button type="button" onClick={onToggleEdit} disabled={booting}>
-        {editing ? 'Dejar de editar' : 'Editar'}
-      </button>
+      {showToggle && (
+        <button type="button" onClick={onToggleEdit} disabled={booting}>
+          {editing ? 'Dejar de editar' : 'Editar'}
+        </button>
+      )}
       {editing && (
         <div class="analyze-edit">
           <p class="analyze-editing">Modo edición: le toca a {turn === 'black' ? 'Negro' : 'Blanco'}</p>

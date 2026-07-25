@@ -57,6 +57,7 @@ import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
 import type { AnalyzeSpeed } from '../analysis/speedPreference'
 import { AnnotationEditor } from './AnnotationEditor'
+import { TopBar } from './TopBar'
 import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
@@ -77,10 +78,23 @@ const ANALYZE_NETWORK: NetworkId = 'b18'
 
 /** vertexSize por tamaño de tablero: MISMA tabla que `PlayView.tsx` (duplicada a propósito — ese
  * archivo no la exporta; 1 línea de duplicación, mismo patrón ya aceptado que `errorMessage`). */
-const VERTEX_SIZE: Record<BoardSize, number> = { 9: 44, 13: 32, 19: 24 }
+const VERTEX_SIZE: Record<BoardSize, number> = { 9: 70, 13: 50, 19: 38 }
 
 const SPEED_LEVELS: AnalyzeSpeed[] = ['fast', 'normal', 'precise']
 const SPEED_LABELS: Record<AnalyzeSpeed, string> = { fast: 'Rápido', normal: 'Normal', precise: 'Preciso' }
+
+/** Pestañas del panel de Analizar (spec no-scroll 2026-07-25): en desktop la vista entra completa en
+ * el viewport, así que las secciones antes apiladas (review, editor, adivinar, árbol) se muestran de a
+ * una por pestaña. La pestaña activa TAMBIÉN es el modo de interacción del tablero: 'editor' coloca
+ * piedras/marcas; 'adivinar' arma la adivinanza; 'repaso'/'arbol' son de solo-navegación. Mutuamente
+ * excluyentes por construcción — reemplaza al par de flags `editingVariation`/`guessWaiting`. */
+type AnalyzeTab = 'repaso' | 'editor' | 'adivinar' | 'arbol'
+const ANALYZE_TABS: { id: AnalyzeTab; label: string }[] = [
+  { id: 'repaso', label: 'Repaso' },
+  { id: 'editor', label: 'Editor' },
+  { id: 'adivinar', label: 'Adivinar' },
+  { id: 'arbol', label: 'Árbol' },
+]
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -308,8 +322,8 @@ interface ReadyAnalyzeViewProps {
   tree: GameTree
   /** Id de D1 (Fase 5): ver nota en `AnalyzeView`. */
   cloudId?: string
-  /** true si esta sesión viene del camino "empezar desde cero" (spec 2026-07-15): arranca el
-   * editor de variaciones ya activado, ver `editingVariation` más abajo. */
+  /** true si esta sesión viene del camino "empezar desde cero" (spec 2026-07-15): arranca en la
+   * pestaña Editor (modo edición activo), ver `activeTab` más abajo. */
   startEditing: boolean
   /** Análisis persistido en el SGF (Fase 6): siembra `AnalysisStore` en el montaje, ver más abajo. */
   analysisSeed?: Map<number, Analysis>
@@ -395,10 +409,6 @@ function ReadyAnalyzeView({
   /** "Volver"/"Cargar otro SGF" cierran la sesión de análisis: dispara el backup a Drive (spec
    * §Flujo de guardado — Analizar no tiene un "fin de partida" natural, así que el trigger es
    * salir). Fire-and-forget: no espera al backup para navegar. */
-  function handleBack(): void {
-    cloud.finish()
-    onBack()
-  }
   function handleLoadAnother(): void {
     cloud.finish()
     onLoadAnother()
@@ -424,14 +434,13 @@ function ReadyAnalyzeView({
   // staleness por-nodo en `handleBoardGuessClick`.
   const [guessNodeId, setGuessNodeId] = useState<number | null>(null)
 
-  // Editor de variaciones (spec 2026-07-12-analyze-editor-variaciones.md): true = el próximo clic en
-  // el tablero juega una piedra (ambos colores, reglas normales) en vez de contar como adivinanza.
-  // Mutuamente excluyente con `guessWaiting` — ambos modos consumen el único `onVertexClick` del
-  // tablero, ver `handleToggleEditVariation`/`handleGuessStart`.
-  // Arranca en `startEditing` (spec 2026-07-15): en un tablero vacío ("empezar desde cero") no hay
-  // nada más para hacer, así que el primer click ya coloca piedra. `startEditing` es una prop
-  // estable durante la vida de este componente (una sesión = un montaje, mismo patrón que `tree`).
-  const [editingVariation, setEditingVariation] = useState(startEditing)
+  // Pestaña activa del panel (= modo de interacción del tablero, ver `AnalyzeTab`). `editing` es un
+  // derivado directo: estar en la pestaña Editor ES el modo edición — reemplaza al flag
+  // `editingVariation` + su toggle, y la exclusividad con 'adivinar' pasa a ser automática (una sola
+  // pestaña activa). Arranca en 'editor' cuando `startEditing` (tablero vacío "empezar desde cero",
+  // spec 2026-07-15: el primer clic ya coloca piedra); si no, en 'repaso'.
+  const [activeTab, setActiveTab] = useState<AnalyzeTab>(startEditing ? 'editor' : 'repaso')
+  const editing = activeTab === 'editor'
   // Herramienta activa DENTRO del modo edición (Fase 1). 'stone' = jugar piedra (comportamiento
   // histórico); un `MarkupType` = colocar/quitar esa marca. Sub-modos mutuamente excluyentes: un clic
   // en el tablero nunca hace las dos cosas a la vez. Salir de edición la resetea a 'stone'.
@@ -566,19 +575,22 @@ function ReadyAnalyzeView({
   }
 
   function handleGuessStart(): void {
-    setEditingVariation(false) // mutuamente excluyente con el editor de variaciones
     setGuessWaiting(true)
     setGuessResult(null)
     setGuessErrorMsg(null)
   }
 
-  function handleToggleEditVariation(): void {
-    setEditingVariation((current) => {
-      const next = !current
-      if (next) setGuessWaiting(false) // mutuamente excluyente con el modo adivinanza
-      else setEditTool('stone') // salir de edición vuelve a la herramienta por defecto
-      return next
-    })
+  /** Cambiar de pestaña = cambiar el modo de interacción del tablero. Al salir de una pestaña se limpia
+   * su estado transitorio (herramienta de marcas → 'stone', adivinanza en curso cancelada, hint de
+   * jugada ilegal). Reemplaza la exclusividad de modos que antes hacían a mano
+   * `handleToggleEditVariation`/`handleGuessStart`. */
+  function selectTab(tab: AnalyzeTab): void {
+    setActiveTab(tab)
+    setEditTool('stone')
+    setGuessWaiting(false)
+    setGuessResult(null)
+    setGuessErrorMsg(null)
+    setIllegalMoveHint(null)
   }
 
   /** Clic en el tablero con el editor activo. Despacha por `editTool`: 'stone' juega una piedra;
@@ -730,7 +742,9 @@ function ReadyAnalyzeView({
   const nextMistake = turningPoints.find((e) => e.moveNumber > currentMoveNumber)
 
   return (
-    <div class="analyze-view">
+    <div class="study-shell">
+      <TopBar mode="analizar" onLeave={() => cloud.finish()} />
+      <div class="analyze-view">
       <div class={`analyze-board${bubbleTone ? ` analyze-board--loss-${bubbleTone}` : ''}`} ref={boardRef}>
         {boardBounds && (
           <BoundedGoban
@@ -743,9 +757,9 @@ function ReadyAnalyzeView({
             maxVertexSize={VERTEX_SIZE[boardSize]}
             showCoordinates
             onVertexClick={
-              editingVariation
+              editing
                 ? (_evt, v) => handleEditVertexClick(v)
-                : guessWaiting
+                : activeTab === 'adivinar' && guessWaiting
                   ? (_evt, v) => handleBoardGuessClick(v)
                   : undefined
             }
@@ -753,103 +767,146 @@ function ReadyAnalyzeView({
         )}
       </div>
       <aside class="analyze-panel">
-        {booting && <p>Preparando motor…</p>}
-        {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
+        {/* Header FIJO: estado del análisis + la acción primaria + el comentario en modo lectura. */}
+        <div class="analyze-panel-header">
+          {booting && <p>Preparando motor…</p>}
+          {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
 
-        <p class="analyze-score">
-          Negro — Winrate: {formatAnalysisWinRate(analysis?.winrate)} · Score:{' '}
-          {formatAnalysisScoreLead(analysis?.scoreLead)}
-        </p>
-        {analysis === undefined && <p class="analyze-score-hint">Sin analizar todavía.</p>}
+          <p class="analyze-score">
+            Negro — Winrate: {formatAnalysisWinRate(analysis?.winrate)} · Score:{' '}
+            {formatAnalysisScoreLead(analysis?.scoreLead)}
+          </p>
+          {analysis === undefined && <p class="analyze-score-hint">Sin analizar todavía.</p>}
 
-        <button onClick={handleAnalyzeClick} disabled={booting || analyzing}>
-          {analyzing ? 'Analizando…' : 'Analizar esta posición'}
-        </button>
-        {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
+          <button class="primary" onClick={handleAnalyzeClick} disabled={booting || analyzing}>
+            {analyzing ? 'Analizando…' : 'Analizar esta posición'}
+          </button>
+          {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
+          {/* El comentario autorado se ve mientras revisás (fuera de la pestaña Editor, que ya lo edita). */}
+          {activeTab !== 'editor' && tree.current.comment && (
+            <p class="analyze-comment">{tree.current.comment}</p>
+          )}
+        </div>
 
-        <AnnotationEditor
-          node={tree.current}
-          editing={editingVariation}
-          editTool={editTool}
-          turn={tree.currentTurnAt()}
-          atRoot={tree.current === tree.root}
-          booting={booting}
-          onToggleEdit={handleToggleEditVariation}
-          onSelectTool={setEditTool}
-          onCommentInput={handleCommentInput}
-          onCommentBlur={() => cloud.save(cloudSnapshot())}
-          onDeleteBranch={handleDeleteBranch}
-          onPromote={handlePromote}
-          onPass={handlePass}
-        />
-        {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
-
-        <div class="analyze-speed">
-          <span>Velocidad de análisis:</span>
-          {SPEED_LEVELS.map((level) => (
+        {/* Pestañas: la activa es la sección visible Y el modo de interacción del tablero. */}
+        <div class="analyze-tabs" role="tablist">
+          {ANALYZE_TABS.map((t) => (
             <button
-              key={level}
-              class={speed === level ? 'active' : ''}
-              onClick={() => onChangeSpeed(level)}
-              disabled={speed === level}
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              class={activeTab === t.id ? 'active' : ''}
+              onClick={() => selectTab(t.id)}
             >
-              {speed === level ? `• ${SPEED_LABELS[level]}` : SPEED_LABELS[level]}
+              {t.label}
             </button>
           ))}
         </div>
 
-        <WinrateGraphPanel
-          points={graphPoints}
-          totalMoves={totalMoves}
-          currentNodeId={tree.current.id}
-          onSelectPoint={handleSelectGraphPoint}
-        />
-        <GameReviewPanel
-          progress={reviewProgress}
-          turningPoints={turningPoints}
-          prevMistake={prevMistake}
-          nextMistake={nextMistake}
-          onSelectEntry={handleSelectTurningPoint}
-        />
-        {qualityHistogram && phasePrecision && (
-          <GameReviewSummary qualityHistogram={qualityHistogram} phasePrecision={phasePrecision} />
-        )}
-        <GuessMovePanel
-          waiting={guessWaiting}
-          busy={guessBusy}
-          result={guessResult}
-          errorMsg={guessErrorMsg}
-          expectedLabel={guessResult ? formatVertexLabel(guessResult.expected, boardSize) : null}
-          onStart={handleGuessStart}
-          onCancel={handleGuessCancel}
-        />
-
-        <div class="play-nav">
-          <button onClick={goFirst} title="Primera jugada">
-            ⏮
-          </button>
-          <button onClick={goPrev} title="Jugada anterior">
-            ◀
-          </button>
-          <button onClick={goNext} title="Jugada siguiente">
-            ▶
-          </button>
-          <button onClick={goLast} title="Última jugada">
-            ⏭
-          </button>
+        {/* Cuerpo de la pestaña activa. Contenido diseñado para entrar sin scroll de página; solo el
+            árbol de jugadas (voluminoso) trae su propio scroll interno acotado. */}
+        <div class="analyze-tab-body">
+          {activeTab === 'repaso' && (
+            <>
+              <WinrateGraphPanel
+                points={graphPoints}
+                totalMoves={totalMoves}
+                currentNodeId={tree.current.id}
+                onSelectPoint={handleSelectGraphPoint}
+              />
+              <GameReviewPanel
+                progress={reviewProgress}
+                turningPoints={turningPoints}
+                prevMistake={prevMistake}
+                nextMistake={nextMistake}
+                onSelectEntry={handleSelectTurningPoint}
+              />
+              {qualityHistogram && phasePrecision && (
+                <GameReviewSummary qualityHistogram={qualityHistogram} phasePrecision={phasePrecision} />
+              )}
+            </>
+          )}
+          {activeTab === 'editor' && (
+            <>
+              <AnnotationEditor
+                node={tree.current}
+                editing
+                showToggle={false}
+                editTool={editTool}
+                turn={tree.currentTurnAt()}
+                atRoot={tree.current === tree.root}
+                booting={booting}
+                onToggleEdit={() => {}}
+                onSelectTool={setEditTool}
+                onCommentInput={handleCommentInput}
+                onCommentBlur={() => cloud.save(cloudSnapshot())}
+                onDeleteBranch={handleDeleteBranch}
+                onPromote={handlePromote}
+                onPass={handlePass}
+              />
+              {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
+            </>
+          )}
+          {activeTab === 'adivinar' && (
+            <GuessMovePanel
+              waiting={guessWaiting}
+              busy={guessBusy}
+              result={guessResult}
+              errorMsg={guessErrorMsg}
+              expectedLabel={guessResult ? formatVertexLabel(guessResult.expected, boardSize) : null}
+              onStart={handleGuessStart}
+              onCancel={handleGuessCancel}
+            />
+          )}
+          {activeTab === 'arbol' && (
+            <GameTreeGraph
+              tree={tree}
+              onNavigate={handleTreeNavigate}
+              annotationFor={(node) => (store.has(node.id) ? '•' : undefined)}
+            />
+          )}
         </div>
 
-        <button onClick={handleExportSgf}>Exportar SGF</button>
-        <button onClick={handleLoadAnother}>Elegir otra partida</button>
-        <button onClick={handleBack}>Volver</button>
-        {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
+        {/* Footer FIJO: navegación + velocidad + acciones secundarias (siempre a mano, sin scroll). */}
+        <div class="analyze-panel-footer">
+          <div class="play-nav">
+            <button onClick={goFirst} title="Primera jugada">
+              ⏮
+            </button>
+            <button onClick={goPrev} title="Jugada anterior">
+              ◀
+            </button>
+            <button onClick={goNext} title="Jugada siguiente">
+              ▶
+            </button>
+            <button onClick={goLast} title="Última jugada">
+              ⏭
+            </button>
+          </div>
 
-        <GameTreeGraph
-          tree={tree}
-          onNavigate={handleTreeNavigate}
-          annotationFor={(node) => (store.has(node.id) ? '•' : undefined)}
-        />
+          <div class="analyze-speed">
+            <span>Velocidad:</span>
+            {SPEED_LEVELS.map((level) => (
+              <button
+                key={level}
+                class={speed === level ? 'active' : ''}
+                onClick={() => onChangeSpeed(level)}
+                disabled={speed === level}
+              >
+                {speed === level ? `• ${SPEED_LABELS[level]}` : SPEED_LABELS[level]}
+              </button>
+            ))}
+          </div>
+
+          <div class="analyze-actions">
+            <button onClick={handleExportSgf}>Exportar SGF</button>
+            <button onClick={handleLoadAnother}>Elegir otra partida</button>
+          </div>
+          {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
+        </div>
       </aside>
+      </div>
     </div>
   )
 }

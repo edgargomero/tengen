@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'preact/hooks'
 
-/** Margen vertical reservado fuera del tablero (panel/nav del navegador) al derivar `maxHeight` de
- * `window.innerHeight` — evita que el tablero quede pegado al borde en apaisado. */
-const HEIGHT_MARGIN = 64
+/** Margen vertical reservado fuera del tablero al derivar `maxHeight` de `window.innerHeight`:
+ * la barra de navegación superior (~48px) + el padding de la vista + un colchón. Evita que el tablero
+ * empuje la página más allá del viewport (el objetivo no-scroll de desktop). */
+const HEIGHT_MARGIN = 96
 
 export interface BoundedBoardSize {
   maxWidth: number

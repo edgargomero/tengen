@@ -51,6 +51,7 @@ import { exportSgf, importSgf } from '../game/sgf'
 import { colorToSign, engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
+import { TopBar } from './TopBar'
 import { useBoundedBoardSize } from './useBoundedBoardSize'
 
 interface PlayViewProps {
@@ -74,7 +75,7 @@ const SCORE_VISITS = 100
 
 /** vertexSize por tamaño de tablero: mantiene un ancho físico de tablero similar entre 9/13/19
  * (más grande en 9×9, donde hay pocas líneas y conviene que se vea cómodo). */
-const VERTEX_SIZE: Record<BoardSize, number> = { 9: 44, 13: 32, 19: 24 }
+const VERTEX_SIZE: Record<BoardSize, number> = { 9: 70, 13: 50, 19: 38 }
 
 function opponentLabel(opponent: RankLevel): string {
   return opponent.kind === 'human' ? `Human SL ${opponent.rank}` : `KataGo (${kataStrengthLabel(opponent.visits)})`
@@ -744,7 +745,9 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   )
 
   return (
-    <div class="play-view">
+    <div class="study-shell">
+      <TopBar mode="jugar" onHome={onBack} />
+      <div class="play-view">
       <div class="play-board" ref={boardRef}>
         {boardBounds && (
           <BoundedGoban
@@ -763,95 +766,101 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
         )}
       </div>
       <aside class="play-panel">
-        {tree.meta.clock && (
-          <div class="play-clock">
-            <p class={liveTurn() === 'black' ? 'play-clock-active' : ''}>
-              Negro: {formatClockMs(displayedClock('black').ms)}
-              {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
-            </p>
-            <p class={liveTurn() === 'white' ? 'play-clock-active' : ''}>
-              Blanco: {formatClockMs(displayedClock('white').ms)}
-              {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
-            </p>
+        {/* Header FIJO: estado de la partida (reloj, oponente, color, turno, capturas, mensajes). */}
+        <div class="play-panel-header">
+          {tree.meta.clock && (
+            <div class="play-clock">
+              <p class={liveTurn() === 'black' ? 'play-clock-active' : ''}>
+                Negro: {formatClockMs(displayedClock('black').ms)}
+                {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
+              </p>
+              <p class={liveTurn() === 'white' ? 'play-clock-active' : ''}>
+                Blanco: {formatClockMs(displayedClock('white').ms)}
+                {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
+              </p>
+            </div>
+          )}
+          <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>
+          {/* Indicador pasivo del color del humano: visible desde el montaje (incluso durante
+              "Preparando motor…"), así "ver qué color te tocó" (nigiri) es legible antes del 1er turno. */}
+          <p class="play-you">
+            Tú: {humanColor === 'black' ? '●' : '○'} {colorLabel(humanColor)}
+          </p>
+          <p class="play-turn">
+            {result !== null
+              ? 'Partida terminada'
+              : scoring
+                ? 'Estimando resultado…'
+                : booting
+                  ? 'Preparando motor…'
+                  : busy
+                    ? 'IA pensando…'
+                    : turn === humanColor
+                      ? `Tu turno (${colorLabel(humanColor)})`
+                      : `Turno de la IA (${colorLabel(aiColor)})`}
+          </p>
+          <p class="play-captures">
+            Capturas — Negro: {captures.black} · Blanco: {captures.white}
+          </p>
+          {exploring && result === null && <p class="play-exploring">Modo exploración: construyendo variación.</p>}
+          {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
+          {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
+          {result !== null && <p class="play-result">Resultado: {result}</p>}
+          {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
+        </div>
+
+        {/* Cuerpo: el árbol de jugadas (único elemento voluminoso; scrollea solo si hace falta). */}
+        <div class="play-tree-body">
+          <GameTreePanel tree={tree} onNavigate={handleTreeNavigate} disabled={busy} />
+        </div>
+
+        {/* Footer FIJO: acciones de la partida (jugar, navegar, archivo, sesión), siempre a mano. */}
+        <div class="play-panel-footer">
+          <div class="play-controls">
+            <button onClick={handlePass} disabled={busy || (!exploring && turn !== humanColor)}>
+              Pasar
+            </button>
+            <button onClick={handleResign} disabled={result !== null}>
+              Rendirse
+            </button>
           </div>
-        )}
-        <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>
-        {/* Indicador pasivo del color del humano: visible desde el montaje (incluso durante
-            "Preparando motor…"), así "ver qué color te tocó" (nigiri) es legible antes del 1er turno. */}
-        <p class="play-you">
-          Tú: {humanColor === 'black' ? '●' : '○'} {colorLabel(humanColor)}
-        </p>
-        <p class="play-turn">
-          {result !== null
-            ? 'Partida terminada'
-            : scoring
-              ? 'Estimando resultado…'
-              : booting
-                ? 'Preparando motor…'
-                : busy
-                  ? 'IA pensando…'
-                  : turn === humanColor
-                    ? `Tu turno (${colorLabel(humanColor)})`
-                    : `Turno de la IA (${colorLabel(aiColor)})`}
-        </p>
-        <p class="play-captures">
-          Capturas — Negro: {captures.black} · Blanco: {captures.white}
-        </p>
-        {exploring && result === null && <p class="play-exploring">Modo exploración: construyendo variación.</p>}
 
-        {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
-        {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
-        {result !== null && <p class="play-result">Resultado: {result}</p>}
-        {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
+          <div class="play-nav">
+            <button onClick={goFirst} disabled={busy} title="Primera jugada">
+              ⏮
+            </button>
+            <button onClick={goPrev} disabled={busy} title="Jugada anterior">
+              ◀
+            </button>
+            <button onClick={goNext} disabled={busy} title="Jugada siguiente">
+              ▶
+            </button>
+            <button onClick={goLast} disabled={busy} title="Última jugada">
+              ⏭
+            </button>
+          </div>
 
-        <div class="play-controls">
-          <button onClick={handlePass} disabled={busy || (!exploring && turn !== humanColor)}>
-            Pasar
-          </button>
-          <button onClick={handleResign} disabled={result !== null}>
-            Rendirse
-          </button>
+          <div class="play-io">
+            <button onClick={handleExportSgf}>Exportar SGF</button>
+            <button onClick={() => fileInputRef.current?.click()} disabled={busy}>
+              Importar SGF
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".sgf"
+              style="display: none"
+              onChange={(e) => void handleImportFile(e)}
+            />
+          </div>
+          {importError !== null && <p class="play-error">{importError}</p>}
+
+          <div class="play-actions">
+            <button onClick={onNewGame}>Nueva partida</button>
+          </div>
         </div>
-
-        <div class="play-nav">
-          <button onClick={goFirst} disabled={busy} title="Primera jugada">
-            ⏮
-          </button>
-          <button onClick={goPrev} disabled={busy} title="Jugada anterior">
-            ◀
-          </button>
-          <button onClick={goNext} disabled={busy} title="Jugada siguiente">
-            ▶
-          </button>
-          <button onClick={goLast} disabled={busy} title="Última jugada">
-            ⏭
-          </button>
-        </div>
-
-        <div class="play-io">
-          <button onClick={handleExportSgf}>Exportar SGF</button>
-          <button onClick={() => fileInputRef.current?.click()} disabled={busy}>
-            Importar SGF
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".sgf"
-            style="display: none"
-            onChange={(e) => void handleImportFile(e)}
-          />
-        </div>
-        {importError !== null && <p class="play-error">{importError}</p>}
-
-        <button class="play-new-game" onClick={onNewGame}>
-          Nueva partida
-        </button>
-        <button class="play-back" onClick={onBack}>
-          Volver
-        </button>
-
-        <GameTreePanel tree={tree} onNavigate={handleTreeNavigate} disabled={busy} />
       </aside>
+      </div>
     </div>
   )
 }
