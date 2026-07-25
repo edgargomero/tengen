@@ -182,6 +182,26 @@ export function pointsLostBubbleTone(
   return bubble ? qualityCategoryForPointsLost(bubble.pointsLost).tone : null
 }
 
+/**
+ * Grilla `[y][x]` con las marcas AUTORADAS del usuario (`node.markup`, Fase 1 editor de repaso) —
+ * las 5 clases mapean 1:1 a los `type` de marker de Shudan. Todo `null` salvo las casillas con marca.
+ * Se fusiona en `AnalyzeView` POR ENCIMA de los markers del análisis (#9 / PV) vía `mergeMarkerMaps`,
+ * así una marca del usuario nunca queda tapada por una burbuja/label del motor (precedencia
+ * usuario > análisis). No hay colisión posible entre las 4 marcas sin-label y el label del PV en la
+ * misma casilla salvo que el usuario deliberadamente marque ahí — y en ese caso gana el usuario.
+ */
+export function buildAnnotationMarkerMap(
+  node: Pick<TengenGameNode, 'markup'>,
+  boardSize: BoardSize,
+): (Marker | null)[][] {
+  const grid = emptyGrid<Marker>(boardSize)
+  for (const m of node.markup ?? []) {
+    const row = grid[m.vertex.y]
+    if (row) row[m.vertex.x] = m.type === 'label' ? { type: 'label', label: m.label } : { type: m.type }
+  }
+  return grid
+}
+
 /** ¿Son el mismo vértice? Comparación local (mismo patrón que `gameTree.ts`, no exportado de ahí). */
 function sameVertex(a: TengenVertex, b: TengenVertex): boolean {
   if (a === 'pass' || b === 'pass') return a === b

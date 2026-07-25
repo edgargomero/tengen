@@ -562,6 +562,67 @@ fieldset.field {
   color: #fff;
 }
 
+/* ── Editor de repaso (Fase 1): paleta de marcas + comentario + ops de árbol ─────────────────── */
+
+.analyze-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.analyze-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.analyze-tools button {
+  min-width: 2.2rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Herramienta activa resaltada (mismo criterio que el pill de velocidad: opacity:1 explícito). */
+.analyze-tools button.active {
+  opacity: 1;
+  background: var(--tengen-accent);
+  border-color: var(--tengen-accent);
+  color: #fff;
+}
+
+.analyze-comment-edit {
+  width: 100%;
+  min-height: 4rem;
+  resize: vertical;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.analyze-tree-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* Comentario del nodo en modo lectura (bajo el panel, siempre visible al navegar). */
+.analyze-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0.4rem 0.6rem;
+  background: #f2f6ff;
+  border: 1px solid #d6e0f5;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
 /* ── Paneles del review de fondo (Fase 3a, Task 10) ─────────────────────────────────────────── */
 
 .review-graph {

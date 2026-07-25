@@ -25,8 +25,10 @@ import { takePendingOpen } from '../cloud/pendingOpen'
 import { SyncBadge } from '../cloud/SyncBadge'
 import { buildGameSnapshot } from '../cloud/snapshot'
 import { useCloudSync } from '../cloud/useCloudSync'
-import { GameTree, type GameNode } from '../game/gameTree'
+import { GameTree, type GameNode, type MarkupType } from '../game/gameTree'
+import { applyMarkToggle } from '../game/markup'
 import { decodeAnalysisFromNodeData, encodeAnalysisForNode } from '../analysis/sgfAnalysisCodec'
+import { decodeAnnotationFromNodeData, encodeAnnotationForNode } from '../game/sgfAnnotationCodec'
 import { isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
 import { sabakiToEngineVertex } from '../game/coords'
@@ -34,6 +36,7 @@ import { ModelGate } from '../models/ModelGate'
 import { AnalysisStore } from '../analysis/analysisStore'
 import { ReviewScheduler } from '../analysis/reviewScheduler'
 import {
+  buildAnnotationMarkerMap,
   buildGhostStoneMap,
   buildHeatMap,
   buildPointsLostLabelMap,
@@ -53,6 +56,7 @@ import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
 import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
 import type { AnalyzeSpeed } from '../analysis/speedPreference'
+import { AnnotationEditor } from './AnnotationEditor'
 import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
@@ -125,6 +129,16 @@ interface InitialAnalyzeState {
   analysisSeed?: Map<number, Analysis>
 }
 
+/** Callback compartido de `importSgf` (los dos caminos de carga de Analizar): siembra el análisis
+ * cacheado (Fase 6) en `seed` y restaura comentario/marcas autoradas (Fase 1) sobre el `GameNode`. */
+function decodeNodeExtras(node: GameNode, data: Record<string, string[]>, seed: Map<number, Analysis>): void {
+  const analysis = decodeAnalysisFromNodeData(data)
+  if (analysis) seed.set(node.id, analysis)
+  const { comment, markup } = decodeAnnotationFromNodeData(data)
+  if (comment !== undefined) node.comment = comment
+  if (markup !== undefined) node.markup = markup
+}
+
 /** Consume `takePendingOpen('analizar')` UNA sola vez (take-once — no puede recalcularse en cada
  * render): si hay una partida pendiente de reabrir y su SGF es válido, arranca directo en ella,
  * saltando `SgfPicker`. SGF corrupto → cae al picker como si no hubiera pendingOpen (nunca deja la
@@ -134,10 +148,7 @@ function computeInitialAnalyzeState(): InitialAnalyzeState {
   if (!pendingGame) return { tree: null }
   try {
     const analysisSeed = new Map<number, Analysis>()
-    const tree = importSgf(pendingGame.sgf, (node, data) => {
-      const decoded = decodeAnalysisFromNodeData(data)
-      if (decoded) analysisSeed.set(node.id, decoded)
-    })
+    const tree = importSgf(pendingGame.sgf, (node, data) => decodeNodeExtras(node, data, analysisSeed))
     // Mismo criterio que SgfPicker/PlayView import: cursor en el tip de la línea principal (D1 no
     // guarda el cursor exacto, solo el SGF).
     while (tree.toChild(0)) {
@@ -256,10 +267,7 @@ function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
     try {
       const text = await file.text()
       const analysisSeed = new Map<number, Analysis>()
-      const loaded = importSgf(text, (node, data) => {
-        const decoded = decodeAnalysisFromNodeData(data)
-        if (decoded) analysisSeed.set(node.id, decoded)
-      })
+      const loaded = importSgf(text, (node, data) => decodeNodeExtras(node, data, analysisSeed))
       // Deja el cursor en el tip de la línea principal (mismo UX que import de PlayView: se ve la
       // partida completa de inmediato). Validar DESPUÉS de avanzar, para cubrir exactamente la
       // línea que se va a mostrar/analizar.
@@ -368,9 +376,17 @@ function ReadyAnalyzeView({
     return store.has(node.id) ? encodeAnalysisForNode(store.get(node.id)!) : undefined
   }
 
+  /** Datos extra COMPUESTOS por nodo (Fase 1 + Fase 6): anotaciones autoradas (C/TR/SQ/CR/MA/LB) PRIMERO,
+   * análisis cacheado (TG*) DESPUÉS — orden de emisión determinista (idempotencia). `undefined` si el
+   * nodo no tiene ninguno. Reemplaza a `analysisExtraData` en los dos caminos de serialización. */
+  function extraDataForNode(node: GameNode): Record<string, string[]> | undefined {
+    const merged = { ...encodeAnnotationForNode(node), ...(analysisExtraData(node) ?? {}) }
+    return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
   function cloudSnapshot(): GameSnapshot {
     return buildGameSnapshot(
-      { sgf: exportSgf(tree, analysisExtraData), boardSize: tree.meta.boardSize, mode: 'analizar' },
+      { sgf: exportSgf(tree, extraDataForNode), boardSize: tree.meta.boardSize, mode: 'analizar' },
       cloudNameRef.current!,
       cloudId !== undefined,
     )
@@ -416,6 +432,10 @@ function ReadyAnalyzeView({
   // nada más para hacer, así que el primer click ya coloca piedra. `startEditing` es una prop
   // estable durante la vida de este componente (una sesión = un montaje, mismo patrón que `tree`).
   const [editingVariation, setEditingVariation] = useState(startEditing)
+  // Herramienta activa DENTRO del modo edición (Fase 1). 'stone' = jugar piedra (comportamiento
+  // histórico); un `MarkupType` = colocar/quitar esa marca. Sub-modos mutuamente excluyentes: un clic
+  // en el tablero nunca hace las dos cosas a la vez. Salir de edición la resetea a 'stone'.
+  const [editTool, setEditTool] = useState<'stone' | MarkupType>('stone')
   const [illegalMoveHint, setIllegalMoveHint] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const boardBounds = useBoundedBoardSize(boardRef)
@@ -556,16 +576,22 @@ function ReadyAnalyzeView({
     setEditingVariation((current) => {
       const next = !current
       if (next) setGuessWaiting(false) // mutuamente excluyente con el modo adivinanza
+      else setEditTool('stone') // salir de edición vuelve a la herramienta por defecto
       return next
     })
   }
 
-  /** Jugar una piedra en el editor de variaciones: valida contra el oráculo `go-board` y, si es
-   * legal, la agrega al árbol vía `GameTree.addMove` (crea una variación si el cursor no está en el
-   * tip). Precedente exacto: `PlayView.tsx` modo exploración (`handleVertexClick`, líneas 284-296),
-   * sin `persist()` (Modo Analizar no persiste a localStorage) y sin turno de IA. */
+  /** Clic en el tablero con el editor activo. Despacha por `editTool`: 'stone' juega una piedra;
+   * cualquier `MarkupType` coloca/quita esa marca. Sub-modos mutuamente excluyentes (nunca ambos). */
   function handleEditVertexClick(v: [number, number]): void {
     const vertex = sabakiToEngineVertex(v)
+    if (editTool !== 'stone') {
+      handlePlaceMark(vertex, editTool)
+      return
+    }
+    // Jugar una piedra: valida contra el oráculo `go-board` y, si es legal, la agrega al árbol vía
+    // `GameTree.addMove` (crea una variación si el cursor no está en el tip). Precedente exacto:
+    // `PlayView.tsx` modo exploración, sin `persist()` a localStorage y sin turno de IA.
     const turnAtCursor = tree.currentTurnAt()
     const validation = validateMove(tree.boardAt(), turnAtCursor, vertex)
     if (!validation.legal) {
@@ -575,11 +601,52 @@ function ReadyAnalyzeView({
     setIllegalMoveHint(null)
     tree.addMove({ color: turnAtCursor, vertex })
     bump()
-    cloud.save(cloudSnapshot()) // trigger de guardado en Analizar: cada edición de variación (Fase 5)
+    cloud.save(cloudSnapshot()) // trigger de guardado en Analizar: cada edición (Fase 5)
+  }
+
+  /** Coloca/quita una marca en `tree.current.markup`. ≤1 marca por vértice: la misma herramienta
+   * sobre la misma casilla hace toggle-off; una herramienta distinta reemplaza. Las etiquetas usan
+   * la próxima letra libre del nodo. Persiste como una edición más. */
+  function handlePlaceMark(vertex: { x: number; y: number }, type: MarkupType): void {
+    const node = tree.current
+    const next = applyMarkToggle(node.markup ?? [], vertex, type)
+    node.markup = next.length > 0 ? next : undefined
+    bump()
+    cloud.save(cloudSnapshot())
+  }
+
+  /** Edición del comentario del nodo actual: actualiza + repinta en vivo (barato). El guardado en la
+   * nube se dispara en `onChange`/blur del textarea (evita serializar el árbol entero en cada tecla). */
+  function handleCommentInput(value: string): void {
+    tree.current.comment = value === '' ? undefined : value
+    bump()
+  }
+
+  /** Pasar: agrega una jugada de pase desde el cursor (mismo patrón que Modo Jugar). Fase 1. */
+  function handlePass(): void {
+    tree.addMove({ color: tree.currentTurnAt(), vertex: 'pass' })
+    bump()
+    cloud.save(cloudSnapshot())
+  }
+
+  /** Borrar la rama del cursor (`removeNode` reubica el cursor al padre). `afterNavigate` limpia
+   * adivinanza/errores y repinta. No-op en la raíz (el botón se deshabilita ahí igual). Fase 1. */
+  function handleDeleteBranch(): void {
+    if (tree.current === tree.root) return
+    tree.removeNode(tree.current)
+    afterNavigate()
+    cloud.save(cloudSnapshot())
+  }
+
+  /** Promover la rama del cursor a línea principal (`mainLine()` pasa a recorrerla). Fase 1. */
+  function handlePromote(): void {
+    tree.promoteToMainLine(tree.current)
+    bump()
+    cloud.save(cloudSnapshot())
   }
 
   function handleExportSgf(): void {
-    const text = exportSgf(tree, analysisExtraData)
+    const text = exportSgf(tree, extraDataForNode)
     const blob = new Blob([text], { type: 'application/x-go-sgf' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -639,6 +706,11 @@ function ReadyAnalyzeView({
       : undefined
   const pvOverlay = topMove ? buildPvOverlay(topMove, boardSize, tree.currentTurnAt()) : undefined
   const ghostStoneMap = mergeGhostStoneMaps(playedMoveGhostStoneMap, pvOverlay?.ghostStoneMap, boardSize)
+  // markerMap final: marcas autoradas del usuario (Fase 1) POR ENCIMA de los markers del análisis
+  // (burbuja de pérdida #9 > labels del PV). Shudan admite un marker por casilla → precedencia
+  // usuario > análisis vía el orden de `mergeMarkerMaps` (el primer argumento gana la casilla).
+  const analysisMarkerMap = mergeMarkerMaps(pointsLostMarkerMap, pvOverlay?.markerMap, boardSize)
+  const markerMap = mergeMarkerMaps(buildAnnotationMarkerMap(tree.current, boardSize), analysisMarkerMap, boardSize)
   const analyzing = analyzingNodeId === tree.current.id
 
   const now = Date.now() // válido en render de un componente Preact real
@@ -665,7 +737,7 @@ function ReadyAnalyzeView({
             signMap={signMap}
             heatMap={heatMap}
             ghostStoneMap={ghostStoneMap}
-            markerMap={mergeMarkerMaps(pointsLostMarkerMap, pvOverlay?.markerMap, boardSize)}
+            markerMap={markerMap}
             maxWidth={boardBounds.maxWidth}
             maxHeight={boardBounds.maxHeight}
             maxVertexSize={VERTEX_SIZE[boardSize]}
@@ -695,14 +767,21 @@ function ReadyAnalyzeView({
         </button>
         {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
 
-        <button onClick={handleToggleEditVariation} disabled={booting}>
-          {editingVariation ? 'Dejar de editar' : 'Editar variación'}
-        </button>
-        {editingVariation && (
-          <p class="analyze-editing">
-            Modo edición: le toca a {tree.currentTurnAt() === 'black' ? 'Negro' : 'Blanco'}
-          </p>
-        )}
+        <AnnotationEditor
+          node={tree.current}
+          editing={editingVariation}
+          editTool={editTool}
+          turn={tree.currentTurnAt()}
+          atRoot={tree.current === tree.root}
+          booting={booting}
+          onToggleEdit={handleToggleEditVariation}
+          onSelectTool={setEditTool}
+          onCommentInput={handleCommentInput}
+          onCommentBlur={() => cloud.save(cloudSnapshot())}
+          onDeleteBranch={handleDeleteBranch}
+          onPromote={handlePromote}
+          onPass={handlePass}
+        />
         {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
 
         <div class="analyze-speed">

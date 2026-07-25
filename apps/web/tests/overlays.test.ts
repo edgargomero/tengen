@@ -3,7 +3,9 @@ import type { Analysis, Move, MoveAnalysis, Vertex } from '@tengen/engine'
 import type { GhostStone, Marker } from '@sabaki/shudan'
 import { GameTree } from '../src/game/gameTree'
 import { AnalysisStore } from '../src/analysis/analysisStore'
+import type { Markup } from '../src/game/gameTree'
 import {
+  buildAnnotationMarkerMap,
   buildGhostStoneMap,
   buildHeatMap,
   buildPointsLostLabelMap,
@@ -478,5 +480,61 @@ describe('mergeMarkerMaps', () => {
     played[0]![0] = { type: 'label', label: '-1.0' }
 
     expect(mergeMarkerMaps(played, undefined, 9)).toBe(played)
+  })
+})
+
+// ── Fase 1 (editor de repaso): marcas autoradas del usuario ─────────────────────────────────────
+const MK = (type: Markup['type'], x: number, y: number, label?: string): Markup =>
+  label !== undefined ? { type, vertex: { x, y }, label } : { type, vertex: { x, y } }
+
+describe('buildAnnotationMarkerMap', () => {
+  it('indexa [y][x], no [x][y]: una marca en un vértice asimétrico vive en grid[y][x]', () => {
+    const grid = buildAnnotationMarkerMap({ markup: [MK('triangle', 2, 7)] }, 9)
+    expect(grid[7]![2]).toEqual({ type: 'triangle' })
+    expect(grid[2]![7]).toBeNull() // la celda transpuesta queda vacía
+  })
+
+  it('una etiqueta se pinta como marker label con su texto', () => {
+    const grid = buildAnnotationMarkerMap({ markup: [MK('label', 3, 5, 'A')] }, 9)
+    expect(grid[5]![3]).toEqual({ type: 'label', label: 'A' })
+  })
+
+  it('los 4 tipos sin etiqueta se pintan como marker de su tipo', () => {
+    const grid = buildAnnotationMarkerMap(
+      { markup: [MK('triangle', 0, 0), MK('square', 1, 1), MK('circle', 2, 2), MK('cross', 3, 3)] },
+      9,
+    )
+    expect(grid[0]![0]).toEqual({ type: 'triangle' })
+    expect(grid[1]![1]).toEqual({ type: 'square' })
+    expect(grid[2]![2]).toEqual({ type: 'circle' })
+    expect(grid[3]![3]).toEqual({ type: 'cross' })
+  })
+
+  it('sin markup (undefined) → grilla toda null', () => {
+    const grid = buildAnnotationMarkerMap({}, 9)
+    expect(grid.every((row) => row.every((cell) => cell === null))).toBe(true)
+  })
+})
+
+describe('precedencia del markerMap: usuario > análisis (#9 / PV)', () => {
+  it('la marca de usuario GANA sobre el marker de análisis en la MISMA casilla', () => {
+    const annotation = buildAnnotationMarkerMap({ markup: [MK('triangle', 3, 3)] }, 9)
+    const analysisMarkers = emptyMarkerGridOf9()
+    analysisMarkers[3]![3] = { type: 'label', label: '-5.0' } // simula burbuja #9 / label de PV en esa casilla
+
+    const merged = mergeMarkerMaps(annotation, analysisMarkers, 9)
+
+    expect(merged[3]![3]).toEqual({ type: 'triangle' }) // usuario > análisis
+  })
+
+  it('en casillas distintas ambas conviven (marca de usuario y marker de análisis)', () => {
+    const annotation = buildAnnotationMarkerMap({ markup: [MK('square', 6, 1)] }, 9)
+    const analysisMarkers = emptyMarkerGridOf9()
+    analysisMarkers[4]![4] = { type: 'label', label: '1' }
+
+    const merged = mergeMarkerMaps(annotation, analysisMarkers, 9)
+
+    expect(merged[1]![6]).toEqual({ type: 'square' }) // marca de usuario
+    expect(merged[4]![4]).toEqual({ type: 'label', label: '1' }) // marker de análisis intacto
   })
 })

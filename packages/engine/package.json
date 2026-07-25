@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:nn": "vitest run --config vitest.nn.config.ts",
     "bench": "vite --open /bench.html",
