@@ -250,6 +250,11 @@ export function buildPvOverlay(
   topMove: MoveAnalysis,
   boardSize: BoardSize,
   toMoveColor: StoneColor,
+  /** Tope de vértices a dibujar (preferencia de claridad, ver `pvDetailPreference.ts`). Sin tope se
+   * dibuja todo lo que el motor haya producido — el comportamiento previo a esa preferencia. Es un
+   * recorte de DIBUJO, no de cálculo: el PV ya viene construido, y acortarlo no ahorra ni una
+   * inferencia. */
+  maxMoves?: number,
 ): { ghostStoneMap: (GhostStone | null)[][]; markerMap: (Marker | null)[][] } {
   const sequence = buildPvSequence(topMove)
 
@@ -257,6 +262,10 @@ export function buildPvOverlay(
   for (const v of sequence) {
     if (v === 'pass' || !isOnBoard(v, boardSize)) break
     usable.push(v)
+    // El corte va DESPUÉS del push: `maxMoves` cuenta vértices dibujados, así que un tope de 3 dibuja
+    // tres. Y va después del filtro de validez, para que un `maxMoves` alto no cambie en nada el
+    // truncado defensivo de datos corruptos.
+    if (maxMoves !== undefined && usable.length >= maxMoves) break
   }
 
   const ghostStoneMap = emptyGrid<GhostStone>(boardSize)

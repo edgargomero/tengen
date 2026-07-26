@@ -116,7 +116,7 @@ describe('GameReview — la raíz también se analiza', () => {
     const tree = tree9()
     tree.addMove(B(2, 2)) // única jugada → targets = [raíz, jugada1]
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     // Orden de encolado documentado por el brief: [raíz, ...mainLine()] — la raíz se consume PRIMERO.
     engine.programNext({ chunks: [mkReportReadyAnalysis(5)] }) // raíz
@@ -153,7 +153,7 @@ describe('GameReview — progreso incremental (progresivo de verdad, sin esperar
     tree.addMove(W(6, 6))
     tree.addMove(B(4, 4))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
     const reports: ReturnType<typeof review.getLatestReport>[] = []
 
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] }) // raíz
@@ -169,7 +169,7 @@ describe('GameReview — progreso incremental (progresivo de verdad, sin esperar
 
     const p = review.progress(1000)!
     expect(p).not.toBeNull()
-    expect(p.countLabel).toBe('2/4') // raíz + jugada1 done, de un total de 4 (raíz + 3 jugadas)
+    expect(p.summary.countLabel).toBe('2/4') // raíz + jugada1 done, de un total de 4 (raíz + 3 jugadas)
 
     review.dispose() // limpieza: asienta los jobs colgados (jugada 2/3) sin reencolarlos.
     await startPromise // no debe colgar tras dispose().
@@ -189,7 +189,7 @@ describe('GameReview — turning points disponibles antes de terminar toda la l�
     tree.addMove(B(4, 4))
     tree.addMove(W(0, 8))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] }) // raíz
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] }) // jugada 1: sin pérdida
@@ -229,7 +229,7 @@ describe('GameReview — idempotencia: nodo ya en analysisStore no se re-encola'
     store.set(m1!.id, mkReportReadyAnalysis(1))
     store.set(m2!.id, mkReportReadyAnalysis(2))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
     const reports: ReturnType<typeof review.getLatestReport>[] = []
 
     await review.start((report) => reports.push(report))
@@ -240,7 +240,7 @@ describe('GameReview — idempotencia: nodo ya en analysisStore no se re-encola'
     expect(review.getLatestReport()).toBe(reports[0])
 
     const p = review.progress(1000)!
-    expect(p.countLabel).toBe('3/3')
+    expect(p.summary.countLabel).toBe('3/3')
   })
 })
 
@@ -254,7 +254,7 @@ describe('GameReview — reencolado tras cancelación benigna (preempt de un an�
     const tree = tree9()
     tree.addMove(B(2, 2)) // única jugada → targets = [raíz, jugada1]
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     // 1) la raíz se resuelve normal; jugada1 arranca de verdad en el motor y queda colgada (activa).
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] })
@@ -287,7 +287,7 @@ describe('GameReview — reencolado tras cancelación benigna (preempt de un an�
     expect(finalReport.moveEntries[0]!.moveNumber).toBe(1)
 
     const p = review.progress(1000)!
-    expect(p.countLabel).toBe('2/2') // completo — el nodo preemptado NO quedó en `failed`
+    expect(p.summary.countLabel).toBe('2/2') // completo — el nodo preemptado NO quedó en `failed`
     expect(engine.calls).toHaveLength(4) // raíz + jugada1(preemptada) + interactivo + jugada1(reintento)
     expect(engine.calls[1]!.cancelled).toBe(true) // el CancelFn real de jugada1 original se invocó
   })
@@ -304,7 +304,7 @@ describe('GameReview — error real del motor → failed, sin bloquear el resto 
     tree.addMove(B(2, 2))
     tree.addMove(W(6, 6))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] }) // raíz: éxito
     engine.programNext({ chunks: [mkReportReadyAnalysis(2)] }) // jugada 1: éxito
@@ -318,7 +318,7 @@ describe('GameReview — error real del motor → failed, sin bloquear el resto 
     expect(store.has(m2!.id)).toBe(false) // el nodo que falló nunca gana .analysis
 
     const p = review.progress(1000)!
-    expect(p.countLabel).toBe('3/3') // done cuenta la renuncia definitiva como "terminado"
+    expect(p.summary.countLabel).toBe('3/3') // done cuenta la renuncia definitiva como "terminado"
 
     const finalReport = review.getLatestReport()!
     // Jugada 1 SÍ aparece (el resto de la partida siguió progresando pese al error en jugada 2).
@@ -338,7 +338,7 @@ describe('GameReview — dispose() durante una cancelación benigna en vuelo no 
     const tree = tree9()
     tree.addMove(B(2, 2)) // targets = [raíz, jugada1]
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     engine.programNext({ chunks: [mkReportReadyAnalysis(0)] }) // raíz
     void review.start(() => {})
@@ -395,7 +395,7 @@ describe('GameReview — Finding 1: no pisa un análisis interactivo que llegó 
     const tree = tree9()
     tree.addMove(B(2, 2)) // única jugada → targets = [raíz, jugada1]
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     // 1) la raíz se resuelve normal; jugada1 arranca de verdad en el motor y queda colgada (activa,
     // sin behavior programado todavía) — mismo arranque que el test de "reencolado tras cancelación
@@ -456,7 +456,7 @@ describe('GameReview — Fase 6: nodo sembrado con menos visitas se re-analiza y
     const m1 = tree.mainLine()[0]!
     store.set(m1.id, mkAnalysis({ visits: 10, scoreLead: 1, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
 
     engine.programNext({ chunks: [mkAnalysis({ visits: VISITS, scoreLead: 9, moves: [mkMoveAnalysis({ x: 8, y: 8 })] })] }) // raíz, mejora
     engine.programNext({ chunks: [mkAnalysis({ visits: VISITS, scoreLead: 7, moves: [mkMoveAnalysis({ x: 8, y: 8 })] })] }) // jugada1, mejora
@@ -487,7 +487,7 @@ describe('GameReview — Fase 6: nodo sembrado con visitas suficientes NO se re-
     store.set(m1!.id, mkAnalysis({ visits: VISITS + 50, scoreLead: 1, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
     store.set(m2!.id, mkAnalysis({ visits: VISITS + 50, scoreLead: 2, moves: [mkMoveAnalysis({ x: 8, y: 8 })] }))
 
-    const review = new GameReview({ tree, store, scheduler, visits: VISITS })
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: VISITS })
     const reports: ReturnType<typeof review.getLatestReport>[] = []
 
     await review.start((report) => reports.push(report))
@@ -495,6 +495,156 @@ describe('GameReview — Fase 6: nodo sembrado con visitas suficientes NO se re-
     expect(engine.calls).toHaveLength(0) // cero re-análisis: el objetivo central de esta fase
     expect(reports[0]!.moveEntries).toHaveLength(2)
     const p = review.progress(1000)!
-    expect(p.countLabel).toBe('3/3')
+    expect(p.summary.countLabel).toBe('3/3')
+  })
+})
+
+// ── 10. Dos pasadas: el presupuesto se gasta donde importa ───────────────────────────────────
+//
+// La primera pasada mide TODA la partida a visitas bajas; la segunda re-analiza a fondo SÓLO las
+// posiciones con un salto grande de score. Lo que estos tests protegen no es el ahorro (que es
+// aritmética) sino las tres decisiones que lo hacen correcto: que la segunda pasada arranque recién
+// cuando el barrido terminó, que arrastre al PADRE de cada salto (sin eso el número refinado sería
+// menos confiable, no más) y que no gaste nada en una partida sin saltos.
+
+const SWEEP = 25
+const REFINE = 200
+
+/** `Analysis` listo para reporte con visitas explícitas: `runAnalyzeJob` sólo resuelve cuando el chunk
+ * trae `visits >= visits pedidas`, así que cada pasada necesita chunks a su propia altura. */
+function mkPass(visits: number, scoreLead: number): Analysis {
+  return mkAnalysis({ visits, scoreLead, moves: [mkMoveAnalysis({ x: 8, y: 8 })] })
+}
+
+const REFINE_PASS = { visits: REFINE, limit: 5, minScoreSwing: 5 }
+
+describe('GameReview — segunda pasada: sólo las posiciones con salto grande, y con su padre', () => {
+  it('refina la jugada del salto Y su padre, a las visitas altas, sin tocar el resto de la partida', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+    tree.addMove(B(4, 4))
+
+    const [m1, m2, m3] = tree.mainLine()
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP, refine: REFINE_PASS })
+
+    // Barrido: 4 posiciones. El salto grande se fabrica en la jugada 2 (score 0 → 8).
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] }) // raíz
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] }) // jugada 1
+    engine.programNext({ chunks: [mkPass(SWEEP, 8)] }) // jugada 2 ← salto
+    engine.programNext({ chunks: [mkPass(SWEEP, 8)] }) // jugada 3
+    // Refinamiento: la jugada 2 y su padre (jugada 1), en el orden del Map.
+    engine.programNext({ chunks: [mkPass(REFINE, 8)] })
+    engine.programNext({ chunks: [mkPass(REFINE, 0)] })
+
+    await review.start(() => {})
+
+    // 4 del barrido + 2 del refinamiento. Ni una más: la raíz y la jugada 3 no se re-analizan.
+    expect(engine.calls).toHaveLength(6)
+    expect(engine.calls.slice(0, 4).map((c) => c.visits)).toEqual([SWEEP, SWEEP, SWEEP, SWEEP])
+    expect(engine.calls.slice(4).map((c) => c.visits)).toEqual([REFINE, REFINE])
+
+    // El par refinado quedó a visitas altas; los otros dos siguen en las del barrido.
+    expect(store.get(m2!.id)!.visits).toBe(REFINE)
+    expect(store.get(m1!.id)!.visits).toBe(REFINE) // el PADRE del salto: sin él, pointsLost mezclaría escalas
+    expect(store.get(tree.root.id)!.visits).toBe(SWEEP)
+    expect(store.get(m3!.id)!.visits).toBe(SWEEP)
+  })
+
+  it('una partida sin saltos grandes no gasta NADA en la segunda pasada', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP, refine: REFINE_PASS })
+
+    // Score plano: ninguna jugada supera el umbral de 5 puntos de swing.
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 1)] })
+
+    await review.start(() => {})
+
+    expect(engine.calls).toHaveLength(3) // sólo el barrido
+    expect(review.progress(1000)!.phase).toBe('sweep')
+  })
+
+  it('sin `refine` hay una sola pasada, aunque haya un salto grande (el comportamiento previo)', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP })
+
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 9)] }) // salto grande, y aun así nadie lo refina
+
+    await review.start(() => {})
+
+    expect(engine.calls).toHaveLength(3)
+    expect(review.progress(1000)!.phase).toBe('sweep')
+  })
+
+  it('el progreso nombra la pasada y cuenta cada una por separado (un total común haría RETROCEDER el %)', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+    tree.addMove(B(4, 4))
+
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP, refine: REFINE_PASS })
+
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 8)] })
+    engine.programNext({ chunks: [mkPass(SWEEP, 8)] })
+    engine.programNext({ chunks: [mkPass(REFINE, 8)] })
+    engine.programNext({ chunks: [mkPass(REFINE, 0)] })
+
+    await review.start(() => {})
+
+    const progress = review.progress(1000)!
+    expect(progress.phase).toBe('refine')
+    // 2 de 2 posiciones refinadas — NO "6/6" ni "2/6": el conjunto a refinar no se conoce hasta que
+    // el barrido termina, así que sumar los totales haría caer el porcentaje a mitad de camino.
+    expect(progress.summary.countLabel).toBe('2/2')
+  })
+
+  it('un nodo sembrado con visitas suficientes para el REFINAMIENTO no se re-analiza en la segunda pasada', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2))
+    tree.addMove(W(6, 6))
+
+    // La jugada 2 (el salto) llega del SGF ya analizada a más visitas que las del refinamiento; su
+    // padre, en cambio, sólo tiene las del barrido.
+    const [m1, m2] = tree.mainLine()
+    store.set(m2!.id, mkPass(REFINE + 100, 8))
+
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP, refine: REFINE_PASS })
+
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] }) // raíz
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] }) // jugada 1
+    engine.programNext({ chunks: [mkPass(REFINE, 0)] }) // refinamiento SÓLO del padre
+
+    await review.start(() => {})
+
+    expect(engine.calls.map((c) => c.visits)).toEqual([SWEEP, SWEEP, REFINE])
+    expect(store.get(m2!.id)!.visits).toBe(REFINE + 100) // lo sembrado, intacto
+    expect(store.get(m1!.id)!.visits).toBe(REFINE)
   })
 })

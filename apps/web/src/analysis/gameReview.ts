@@ -7,6 +7,22 @@
 // 100% NATIVO de tengen — no es un port, no lleva cabecera MIT ni entrada en
 // THIRD-PARTY-LICENSES/adaptaciones-upstream.md.
 //
+// ── Dos pasadas: el presupuesto se gasta donde importa ─────────────────────────────────────────
+// El review analiza TODAS las posiciones sin muestreo, y como 1 visita = 1 inferencia de red, repartir
+// las mismas visitas entre las 42 posiciones de una partida de 41 jugadas era el costo dominante de la
+// pantalla (42 × 100 = 4.200 inferencias ≈ 15 min a las 4,64 inf/s de fase 0). El 42× era la palanca
+// sin explotar: bajar las visitas más allá de 50/100/200 sólo degradaba calidad.
+//
+//   1. **Barrido** — todas las posiciones a visitas bajas (~25). Da el mapa COMPLETO de la partida
+//      cuatro veces antes que antes.
+//   2. **Refinamiento** — sólo las posiciones con un salto grande de score se re-analizan alto (200,
+//      el DOBLE de lo que antes recibía cada posición). Son justo las que alimentan los "turning
+//      points" que el usuario mira.
+//
+// El resultado es más rápido Y mejor a la vez, porque las posiciones aburridas dejaron de pagar como
+// las decisivas. Ver `refinePass` para las dos decisiones no obvias: por qué hay una barrera entre las
+// pasadas, y por qué refinar un nodo obliga a refinar también su padre.
+//
 // ── La raíz TAMBIÉN se analiza (requisito no explícito en la prosa del plan) ────────────────────
 // El texto del plan dice "recorre tree.mainLine()", que tomado literalmente omitiría la raíz
 // (`tree.root`, id 0: `GameTree.mainLine()` la excluye por diseño, ver `game/gameTree.ts`).
@@ -55,22 +71,63 @@ import { DEFAULT_EVAL_THRESHOLDS } from './vendor/web-katrain/nodeAnalysis'
 export { getReportTurningPoints, sortMoveReportEntries }
 export type { GameReport, MoveReportEntry, GameAnalysisProgressSummary }
 
+/** Etiqueta de cada pasada para la UI. Vive acá y no en el componente porque el nombre es parte del
+ * contrato de `ReviewProgress`: quien lea `phase` tiene que poder decir lo mismo que el panel. */
+// Cortas a propósito: comparten renglón con el contador, el porcentaje y el ETA en un rail de 18rem, y
+// una etiqueta larga parte el caption en dos líneas dentro de la zona más densa de la pantalla.
+export const REVIEW_PHASE_LABELS: Record<ReviewPhase, string> = {
+  sweep: 'Repasando',
+  refine: 'Afinando errores',
+}
+
+/** Segunda pasada: a qué posiciones se les da más presupuesto, y cuánto. */
+export interface RefinePass {
+  /** Visitas de la re-analización. Debe superar a `sweepVisits` o no habría nada que mejorar. */
+  visits: number
+  /** Cuántas posiciones interesantes refinar, como máximo. Acota el presupuesto de la segunda pasada
+   * en una partida llena de saltos (dos principiantes pueden producir treinta). */
+  limit: number
+  /** Salto de score mínimo (en puntos) para que una posición cuente como interesante. Es el mismo
+   * criterio de `getReportTurningPoints`, que es lo que el usuario ve en el panel. */
+  minScoreSwing: number
+}
+
+/** Qué pasada está corriendo. El progreso de cada una se cuenta aparte: sumarlas haría que el
+ * porcentaje CAYERA al empezar a refinar (el total crecería a mitad de camino), y un porcentaje que
+ * retrocede es peor que no tener porcentaje. */
+export type ReviewPhase = 'sweep' | 'refine'
+
+export interface ReviewProgress {
+  phase: ReviewPhase
+  summary: GameAnalysisProgressSummary
+}
+
 export class GameReview {
   private startedAtMs: number | null = null
+  private refineStartedAtMs: number | null = null
+  private phase: ReviewPhase = 'sweep'
   private disposed = false
   /** nodeIds a los que se renunció (error real, no cancelación benigna). */
   private readonly failed = new Set<number>()
   private latestReport: GameReport | null = null
   /** Fijado UNA VEZ al empezar `start()`: `[tree.root.id, ...tree.mainLine().map(n => n.id)]`. */
   private targetNodeIds: number[] = []
+  /** Los mismos nodos, en el mismo orden — `[root, ...mainLine()]`. Se guardan porque la segunda pasada
+   * necesita volver del reporte al árbol, y el índice en este array ES el `moveNumber` del reporte. */
+  private sweepTargets: TengenGameNode[] = []
+  /** Fijado al arrancar la segunda pasada: los nodos elegidos para refinar (con sus padres). */
+  private refineNodeIds: number[] = []
 
   constructor(
     private readonly deps: {
       tree: GameTree
       store: AnalysisStore
       scheduler: ReviewScheduler
-      /** Sin default deliberado — decisión de producto de quien construye `GameReview` (Task 10). */
-      visits: number
+      /** Visitas de la PRIMERA pasada, sobre todas las posiciones. Sin default deliberado — decisión
+       * de producto de quien construye `GameReview`. */
+      sweepVisits: number
+      /** Segunda pasada. Ausente = una sola pasada (el comportamiento anterior a las dos pasadas). */
+      refine?: RefinePass
     }
   ) {}
 
@@ -89,35 +146,108 @@ export class GameReview {
    */
   start(onReport: (report: GameReport) => void, startedAtMsOverride?: number): Promise<void> {
     this.startedAtMs = startedAtMsOverride ?? Date.now()
-    const { tree, store, visits } = this.deps
+    const { tree, sweepVisits } = this.deps
 
     const targets: TengenGameNode[] = [tree.root, ...tree.mainLine()]
+    this.sweepTargets = targets
     this.targetNodeIds = targets.map((node) => node.id)
 
     // Fase 6 (análisis persistido en SGF): un nodo sembrado desde el archivo con MENOS visitas que
     // las que pide esta sesión SÍ se re-encola (mejora la calidad); con visitas suficientes, se
     // salta igual que antes (evita el re-análisis completo que motivó esta fase).
     const pending = targets
-      .filter((node) => {
-        const cached = store.get(node.id)
-        return !cached || cached.visits < visits
-      })
-      .map((node) => this.analyzeTarget(node, onReport))
+      .filter((node) => this.needsAnalysis(node.id, sweepVisits))
+      .map((node) => this.analyzeTarget(node, onReport, sweepVisits))
 
     if (pending.length === 0) {
       // Nada que encolar, pero igual reporta lo ya cacheado (idempotencia con reporte completo).
       this.recomputeAndReport(onReport)
-      return Promise.resolve()
+      return this.refinePass(onReport, startedAtMsOverride)
     }
 
+    return Promise.all(pending).then(() => this.refinePass(onReport, startedAtMsOverride))
+  }
+
+  /**
+   * Segunda pasada: re-analiza a más visitas SÓLO las posiciones con un salto grande de score. Corre
+   * cuando el barrido completo ya se asentó, y esa barrera es deliberada — hasta no tener la partida
+   * entera evaluada no se sabe cuáles son las posiciones decisivas, y refinar antes gastaría el
+   * presupuesto en posiciones que después resultan aburridas.
+   *
+   * **Refina el nodo Y SU PADRE.** No es un detalle de implementación: `pointsLost` se calcula
+   * comparando la evaluación del padre con la del hijo (ver `computeGameReport`), así que re-analizar
+   * sólo el hijo mezclaría una evaluación gruesa con una fina, y el número resultante sería MENOS
+   * confiable que el del barrido en vez de más. Refinar de a pares es lo que hace que esta pasada
+   * mejore algo de verdad.
+   *
+   * No necesita mecanismo nuevo: se apoya en el mismo filtro que ya salta lo cacheado con visitas
+   * suficientes. La segunda pasada es la primera pidiendo más visitas sobre un subconjunto.
+   */
+  private refinePass(onReport: (report: GameReport) => void, startedAtMsOverride?: number): Promise<void> {
+    const refine = this.deps.refine
+    if (!refine || this.disposed) return Promise.resolve()
+
+    const report = this.latestReport
+    if (report === null) return Promise.resolve()
+
+    // Mismo criterio que ve el usuario en el panel (`getReportTurningPoints`): si la lista de saltos
+    // grandes es lo que mira, es lo que hay que afinar.
+    const turningPoints = getReportTurningPoints(report.moveEntries, refine.minScoreSwing, refine.limit)
+
+    // `entry.node` NO sirve para volver al árbol: es un nodo ADAPTADO a la forma de web-katrain
+    // (`katrainAdapter.ts` → `{ move, parent, analysis }`), sin `id` y sin relación de identidad con el
+    // `GameNode` de tengen. El puente es `moveNumber`, documentado como `depth + 1` sobre una
+    // `mainLine` que excluye la raíz — o sea, exactamente el índice en `this.sweepTargets`
+    // (`[root, ...mainLine()]`). De ahí sale también el padre, sin recorrer nada: `moveNumber - 1`
+    // (para la jugada 1 eso es la raíz, que es su padre de verdad).
+    const targets = new Map<number, TengenGameNode>()
+    for (const entry of turningPoints) {
+      for (const index of [entry.moveNumber, entry.moveNumber - 1]) {
+        const node = this.sweepTargets[index]
+        if (node) targets.set(node.id, node)
+      }
+    }
+
+    this.refineNodeIds = [...targets.keys()]
+    if (this.refineNodeIds.length === 0) return Promise.resolve()
+
+    // El cambio de fase va ANTES de encolar: `progress()` se consulta en cualquier momento
+    // (`AnalyzeView` lo hace en cada render y con un timer de 1 s).
+    this.phase = 'refine'
+    this.refineStartedAtMs = startedAtMsOverride ?? Date.now()
+
+    const pending = [...targets.values()]
+      .filter((node) => this.needsAnalysis(node.id, refine.visits))
+      .map((node) => this.analyzeTarget(node, onReport, refine.visits))
+
+    if (pending.length === 0) {
+      this.recomputeAndReport(onReport)
+      return Promise.resolve()
+    }
     return Promise.all(pending).then(() => undefined)
   }
 
-  /** `nowMs` explícito — nunca `Date.now()` interno aquí (mismo estilo que `summarizeGameAnalysisProgress`). */
-  progress(nowMs: number): GameAnalysisProgressSummary | null {
-    const total = this.targetNodeIds.length
-    const done = this.targetNodeIds.filter((id) => this.deps.store.has(id) || this.failed.has(id)).length
-    return summarizeGameAnalysisProgress({ done, total, startedAtMs: this.startedAtMs, nowMs })
+  /**
+   * Progreso de la pasada EN CURSO, con su nombre. `nowMs` explícito — nunca `Date.now()` interno aquí
+   * (mismo estilo que `summarizeGameAnalysisProgress`).
+   *
+   * Cada pasada se cuenta por separado en vez de sumarse en un total único, y es una decisión de
+   * honestidad: el conjunto a refinar no se conoce hasta que el barrido termina, así que un total común
+   * crecería a mitad de camino y el porcentaje RETROCEDERÍA justo cuando el trabajo avanza.
+   *
+   * "Terminado" es *tener análisis con visitas suficientes para esta pasada*, no *tener análisis*. La
+   * diferencia importa con un SGF que trae análisis sembrado (Fase 6) con menos visitas de las pedidas:
+   * ese nodo se re-encola, así que contarlo como listo adelantaría el ETA sobre trabajo que falta hacer.
+   */
+  progress(nowMs: number): ReviewProgress | null {
+    const refining = this.phase === 'refine'
+    const nodeIds = refining ? this.refineNodeIds : this.targetNodeIds
+    const visits = refining ? (this.deps.refine?.visits ?? this.deps.sweepVisits) : this.deps.sweepVisits
+    const startedAtMs = refining ? this.refineStartedAtMs : this.startedAtMs
+
+    const done = nodeIds.filter((id) => !this.needsAnalysis(id, visits) || this.failed.has(id)).length
+    const summary = summarizeGameAnalysisProgress({ done, total: nodeIds.length, startedAtMs, nowMs })
+    return summary === null ? null : { phase: this.phase, summary }
   }
 
   /**
@@ -142,12 +272,24 @@ export class GameReview {
 
   // ── privados ────────────────────────────────────────────────────────────────────────────────
 
-  private analyzeTarget(node: TengenGameNode, onReport: (report: GameReport) => void): Promise<void> {
+  /** ¿Este nodo necesita (re)análisis para alcanzar `visits`? Es el ÚNICO lugar donde se decide, y por
+   * eso lo comparten el filtro de encolado y el conteo de progreso: si divergieran, el ETA hablaría de
+   * un trabajo distinto del que se está haciendo. */
+  private needsAnalysis(nodeId: number, visits: number): boolean {
+    const cached = this.deps.store.get(nodeId)
+    return !cached || cached.visits < visits
+  }
+
+  private analyzeTarget(
+    node: TengenGameNode,
+    onReport: (report: GameReport) => void,
+    visits: number
+  ): Promise<void> {
     const attempt = (): Promise<void> =>
       this.deps.scheduler
         .analyzePosition({
           pos: this.deps.tree.positionAt(node),
-          visits: this.deps.visits,
+          visits,
           priority: 'review',
           group: 'review',
         })

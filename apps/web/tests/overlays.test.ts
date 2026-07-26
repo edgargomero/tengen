@@ -207,6 +207,36 @@ describe('buildPvOverlay', () => {
     expect(markerMap[5]![5]).toEqual({ type: 'label', label: '3' })
   })
 
+  // `maxMoves` es la preferencia de CLARIDAD (`pvDetailPreference.ts`): cuántas piedras fantasma se
+  // dibujan. Recorta el DIBUJO, nunca el cálculo — el PV ya viene construido del motor.
+  it('maxMoves recorta cuántas jugadas se dibujan, contando las dibujadas (un tope de 2 dibuja 2)', () => {
+    const topMove = mkMoveAnalysis({ x: 3, y: 3 }, { pv: [{ x: 4, y: 4 }, { x: 5, y: 5 }] })
+
+    const { markerMap, ghostStoneMap } = buildPvOverlay(topMove, 9, 'white', 2)
+
+    expect(markerMap[3]![3]).toEqual({ type: 'label', label: '1' })
+    expect(markerMap[4]![4]).toEqual({ type: 'label', label: '2' })
+    expect(markerMap[5]![5]).toBeNull() // el tercero no se dibuja
+    expect(ghostStoneMap[5]![5]).toBeNull()
+  })
+
+  it('sin maxMoves dibuja todo lo que el motor produjo (el comportamiento previo)', () => {
+    const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }] })
+
+    const { markerMap } = buildPvOverlay(topMove, 9, 'black')
+
+    expect(markerMap[3]![3]).toEqual({ type: 'label', label: '4' })
+  })
+
+  it('un maxMoves más alto que el PV no inventa jugadas ni rompe el truncado defensivo', () => {
+    const topMove = mkMoveAnalysis({ x: 0, y: 0 }, { pv: [{ x: 1, y: 1 }, 'pass', { x: 8, y: 8 }] })
+
+    const { markerMap } = buildPvOverlay(topMove, 9, 'black', 99)
+
+    expect(markerMap[1]![1]).toEqual({ type: 'label', label: '2' })
+    expect(markerMap[8]![8]).toBeNull() // el 'pass' sigue cortando, tope alto o no
+  })
+
   it('pv YA incluye el vértice de topMove como primer elemento → sin duplicado', () => {
     const topMove = mkMoveAnalysis(
       { x: 3, y: 3 },

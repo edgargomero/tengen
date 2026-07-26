@@ -2,11 +2,15 @@
 // portado) + lista de saltos grandes (`getReportTurningPoints`, ya filtrados/ordenados por
 // `GameReview`/`gameReport.ts`). Presentación pura: no posee `GameTree`/`AnalysisStore`/`GameReview`
 // — solo recibe datos ya calculados y navega vía `onSelectEntry` al hacer clic.
-import type { GameAnalysisProgressSummary, MoveReportEntry } from '../analysis/gameReview'
+import { REVIEW_PHASE_LABELS } from '../analysis/gameReview'
+import type { MoveReportEntry, ReviewProgress } from '../analysis/gameReview'
 import { qualityCategoryForPointsLost } from '../analysis/reviewSummary'
 
 interface GameReviewPanelProps {
-  progress: GameAnalysisProgressSummary | null
+  /** Progreso de la pasada en curso. El review va en dos: un repaso completo a visitas bajas y después
+   * un afinado de los saltos grandes (ver `gameReview.ts`). Nombrar la pasada no es cosmética: sin eso,
+   * ver el contador volver a arrancar desde 1 se lee como si el review hubiera empezado de nuevo. */
+  progress: ReviewProgress | null
   turningPoints: MoveReportEntry[]
   /** Turning point más cercano antes/después de la posición actual (`undefined` = no hay en esa
    * dirección) — ya resuelto por el caller (`AnalyzeView`, que es quien conoce `tree`). */
@@ -24,7 +28,11 @@ export function GameReviewPanel({
 }: GameReviewPanelProps) {
   return (
     <div class="review-panel">
-      <p class="hint">{progress === null ? 'Analizando partida…' : `Review: ${progress.captionLabel}`}</p>
+      <p class="hint">
+        {progress === null
+          ? 'Analizando partida…'
+          : `${REVIEW_PHASE_LABELS[progress.phase]}: ${progress.summary.captionLabel}`}
+      </p>
       <div class="nav-cluster">
         <button type="button" onClick={() => prevMistake && onSelectEntry(prevMistake)} disabled={!prevMistake}>
           ◀ Error anterior

@@ -14,10 +14,33 @@ function memStorage(): StorageLike & { map: Map<string, string> } {
 }
 
 describe('speedSettings', () => {
-  it('rápido < normal < preciso en ambos visits, normal coincide con el comportamiento actual', () => {
-    expect(speedSettings('fast')).toEqual({ reviewVisits: 50, interactiveVisits: 100 })
-    expect(speedSettings('normal')).toEqual({ reviewVisits: 100, interactiveVisits: 200 })
-    expect(speedSettings('precise')).toEqual({ reviewVisits: 200, interactiveVisits: 400 })
+  it('rápido < normal < preciso en las tres palancas', () => {
+    expect(speedSettings('fast')).toEqual({ sweepVisits: 20, refineVisits: 100, interactiveVisits: 100 })
+    expect(speedSettings('normal')).toEqual({ sweepVisits: 25, refineVisits: 200, interactiveVisits: 200 })
+    expect(speedSettings('precise')).toEqual({ sweepVisits: 40, refineVisits: 400, interactiveVisits: 400 })
+  })
+
+  it('el barrido siempre cuesta MUCHO menos que el refinamiento: es lo que se paga 42 veces', () => {
+    // La relación que hace que las dos pasadas valgan la pena. Si el barrido se acercara al
+    // refinamiento, se estaría pagando el precio alto en TODAS las posiciones otra vez — que es
+    // exactamente el reparto uniforme que estas dos pasadas reemplazan.
+    for (const speed of ['fast', 'normal', 'precise'] as const) {
+      const { sweepVisits, refineVisits } = speedSettings(speed)
+      expect(refineVisits).toBeGreaterThanOrEqual(sweepVisits * 4)
+    }
+  })
+
+  it('el barrido no baja de 20 visitas ni en Rápido: de él sale la selección de qué refinar', () => {
+    // Un barrido demasiado ruidoso elige mal las posiciones a afinar, y refinar las equivocadas es
+    // peor que refinar pocas.
+    expect(speedSettings('fast').sweepVisits).toBeGreaterThanOrEqual(20)
+  })
+
+  it('refinar un salto grande da la misma calidad que un análisis pedido a mano', () => {
+    for (const speed of ['fast', 'normal', 'precise'] as const) {
+      const { refineVisits, interactiveVisits } = speedSettings(speed)
+      expect(refineVisits).toBe(interactiveVisits)
+    }
   })
 })
 

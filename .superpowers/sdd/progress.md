@@ -434,3 +434,26 @@ Commits `5ea4d5a` (fases 1+2) y `c2ebeb6` (denylist de /diagnostico). BUILD_ID d
 **Verificado en producción real (Chrome escritorio):** `build: c2ebeb6 · …` (el `define` llega al bundle desplegado) · worker de sondeo con `adapter: ok` — el chunk nuevo carga bien bajo COEP `require-corp` servido por los static assets del Worker, que era la duda no resuelta del dev server · `crossOriginIsolated: sí` en AMBOS scopes · service worker `activated` y controlando la página · almacenamiento `persistente: sí` · b18 en caché con 115,8 MB · los límites de GPU ya sin unidades de memoria falsas. Cero avisos.
 
 **Falsa alarma descartada en el camino:** `curl -I` sobre `/assets/probeWorker-*.js` devolvía `content-type: text/html`. No es un problema del deploy: el Worker de assets responde HEAD con el fallback SPA. Con GET real llegan `text/javascript` y los 2769 bytes exactos del chunk local.
+
+## PLAN "actualización de la PWA + diagnóstico móvil + velocidad de análisis" — Fase 4 (2026-07-26)
+
+**El review pasa a DOS pasadas.** La propuesta original ("regular jugadas a predecir": 5/7/10) tenía la causalidad al revés y la investigación del plan lo desmontó: la longitud del PV ya era un parámetro fijo (`analysisPvLen: 10` → `pvDepth = 11`), calcularla es GRATIS (`buildPv` es un paseo por punteros de un árbol ya construido, cacheado por `(visits, depth)`, cero inferencias), y la relación real va al revés — el PV se corta donde el árbol se quedó sin visitas, así que bajar visitas ya lo acorta como efecto secundario. El PV es la sombra del dial, no el dial.
+
+Lo que sí cuesta: 1 visita = 1 hoja expandida = 1 inferencia. Y el review analiza TODAS las posiciones sin muestreo, así que el reparto uniforme entre las 42 posiciones de una partida de 41 jugadas era el 42× que nadie tocaba (42 × 100 = 4.200 inferencias ≈ 15 min en `normal`). Bajar de 50/100/200 ya degradaba calidad (KaTrain usa `fast_visits=25`), así que la palanca no era el nivel: era el REPARTO.
+
+- **Barrido** (`sweepVisits`: 20/25/40) — todas las posiciones. En `normal`: 42 × 25 = 1.050 ≈ 3,8 min → el mapa COMPLETO de la partida cuatro veces antes que antes.
+- **Refinamiento** (`refineVisits`: 100/200/400) — sólo los saltos grandes, al DOBLE de las 100 que antes recibía cada posición. Más rápido Y mejor a la vez, porque las posiciones aburridas dejaron de pagar como las decisivas.
+- El barrido no baja de 20 ni en `fast`: de él sale la SELECCIÓN de qué refinar, y un barrido ruidoso elige mal — refinar las posiciones equivocadas es peor que refinar pocas.
+
+**Tres decisiones no obvias, cada una con test que las fija:**
+1. **Refinar el nodo obliga a refinar su PADRE.** `pointsLost` se calcula comparando la evaluación del padre con la del hijo, así que re-analizar sólo el hijo mezclaría una evaluación gruesa con una fina — el número saldría MENOS confiable que el del barrido, no más. Se refina de a pares.
+2. **Hay una barrera entre las pasadas** (el refinamiento espera a que el barrido entero se asiente). Antes de tener la partida completa no se sabe qué posiciones son decisivas.
+3. **Cada pasada cuenta su progreso por separado**, con su propio ETA. Un total común crecería a mitad de camino y el porcentaje RETROCEDERÍA justo cuando el trabajo avanza. `progress()` devuelve `{ phase, summary }` y el panel nombra la pasada ("Repasando" / "Afinando errores") — sin eso, ver el contador volver a 1 se lee como si el review hubiera empezado de nuevo.
+
+**El bug que casi entró, y por qué:** la primera versión resolvía el nodo a refinar con `entry.node as TengenGameNode`. `MoveReportEntry.node` es un nodo ADAPTADO a la forma de web-katrain (`{ move, parent, analysis }`): no tiene `id` ni relación de identidad con el árbol, así que el cast producía `undefined` en silencio y TypeScript no podía objetar — un `as` es literalmente la instrucción "confía en mí". Lo delataron 3 tests fallando por refinar 1 posición en vez de 2. El puente correcto ya estaba documentado en el vendor: `moveNumber` es `depth + 1` sobre una `mainLine` que excluye la raíz, o sea el índice exacto en `[root, ...mainLine()]` — y de ahí el padre sale gratis en `moveNumber - 1`. Cero casts.
+
+**Aparte y sin mezclar: la longitud del PV como preferencia de VISUALIZACIÓN.** `pvDetailPreference.ts` (3 / 6 / Todas, persistida, mismo patrón que `speedPreference`) + un `maxMoves` opcional en `buildPvOverlay`. Etiquetada con NÚMEROS y no con adjetivos, deliberadamente: los números dicen qué cambia (cuánto se tapa el tablero) sin insinuar que el análisis vaya a ir más rápido. Estado local de la vista, no del padre con `key=`: cambiar cuánto se dibuja no invalida ningún análisis.
+
+**Verificación con el MOTOR REAL en Chrome (gate manual, SGF de 20 jugadas con dos errores groseros fabricados — `aa`/A19 y `ss`/T1):** barrido de 21 posiciones → transición automática a "Afinando errores: 2/4 · 50% · ETA 1m 12s" (4 = 2 saltos × nodo+padre, sin solapamiento porque las jugadas 13 y 19 no son contiguas) → los dos turning points detectados son EXACTAMENTE los errores fabricados (A19 Blunder −12,5 · T1 Error grave −11,5). Selector de variación verificado en vivo: con el tope en 3, los labels dibujados pasan de `2,3,4,5` a `2,3`. Contraste AA del rail: cero fallos.
+
+**Gates:** typecheck limpio en los 3 workspaces · 785 tests (120 engine + 621 web + 44 worker) · `vite build` OK.

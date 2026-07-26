@@ -56,6 +56,8 @@ import { guessAgainstEngine } from '../analysis/guessAgainstEngine'
 import type { GuessAgainstEngineResult } from '../analysis/guessAgainstEngine'
 import { loadAnalyzeSpeed, saveAnalyzeSpeed, speedSettings } from '../analysis/speedPreference'
 import type { AnalyzeSpeed } from '../analysis/speedPreference'
+import { loadPvDetail, PV_DETAIL_LEVELS, pvDetailMoves, savePvDetail } from '../analysis/pvDetailPreference'
+import type { PvDetail } from '../analysis/pvDetailPreference'
 import { AnnotationEditor } from './AnnotationEditor'
 import { TopBar } from './TopBar'
 import { GameTreeGraph } from './GameTreeGraph'
@@ -80,8 +82,22 @@ const ANALYZE_NETWORK: NetworkId = 'b18'
  * archivo no la exporta; 1 línea de duplicación, mismo patrón ya aceptado que `errorMessage`). */
 const VERTEX_SIZE: Record<BoardSize, number> = { 9: 70, 13: 50, 19: 38 }
 
+// Saltos grandes ("turning points"): el MISMO umbral y el MISMO tope en los dos lugares donde importan
+// — la lista que se dibuja en el panel y el conjunto que la segunda pasada del review re-analiza a
+// fondo. Son los defaults de `getReportTurningPoints`, ahora explícitos justamente para poder
+// compartirlos: si divergieran, el review afinaría posiciones que el usuario no ve, o dejaría sin afinar
+// las que sí mira.
+const TURNING_POINT_SWING = 5
+const TURNING_POINT_LIMIT = 5
+
 const SPEED_LEVELS: AnalyzeSpeed[] = ['fast', 'normal', 'precise']
 const SPEED_LABELS: Record<AnalyzeSpeed, string> = { fast: 'Rápido', normal: 'Normal', precise: 'Preciso' }
+
+// Cuántas jugadas fantasma se dibujan. Las etiquetas son NÚMEROS y no adjetivos a propósito: dicen
+// exactamente qué cambia (cuánto se tapa el tablero) y no insinúan que el análisis vaya a ir más
+// rápido, que es lo que el nombre "PV corto" sugeriría en falso — recortar el PV no ahorra ni una
+// inferencia (ver `pvDetailPreference.ts`).
+const PV_DETAIL_LABELS: Record<PvDetail, string> = { short: '3', medium: '6', full: 'Todas' }
 
 /** Pestañas del panel de Analizar (spec no-scroll 2026-07-25): en desktop la vista entra completa en
  * el viewport, así que las secciones antes apiladas (review, editor, adivinar, árbol) se muestran de a
@@ -351,7 +367,7 @@ function ReadyAnalyzeView({
   speed,
   onChangeSpeed,
 }: ReadyAnalyzeViewProps) {
-  const { reviewVisits, interactiveVisits } = speedSettings(speed)
+  const { sweepVisits, refineVisits, interactiveVisits } = speedSettings(speed)
   const managerRef = useRef<EngineManager | null>(null)
   if (!managerRef.current) managerRef.current = new EngineManager(createWorkerManagedEngine)
   const manager = managerRef.current
@@ -374,7 +390,16 @@ function ReadyAnalyzeView({
 
   const reviewRef = useRef<GameReview | null>(null)
   if (!reviewRef.current) {
-    reviewRef.current = new GameReview({ tree, store, scheduler, visits: reviewVisits })
+    reviewRef.current = new GameReview({
+      tree,
+      store,
+      scheduler,
+      sweepVisits,
+      // Segunda pasada sobre los saltos grandes. `minScoreSwing`/`limit` son los MISMOS valores por
+      // default de `getReportTurningPoints`, que es lo que se dibuja en el panel: lo que el usuario ve
+      // marcado como error es exactamente lo que se re-analiza a fondo.
+      refine: { visits: refineVisits, limit: TURNING_POINT_LIMIT, minScoreSwing: TURNING_POINT_SWING },
+    })
   }
   const review = reviewRef.current
 
@@ -433,6 +458,16 @@ function ReadyAnalyzeView({
   // no bloquear el botón de arranque tras navegar); documenta el estado y respalda el guard de
   // staleness por-nodo en `handleBoardGuessClick`.
   const [guessNodeId, setGuessNodeId] = useState<number | null>(null)
+
+  // Cuántas jugadas fantasma dibujar. Estado LOCAL de esta vista, a diferencia de `speed`, que vive en
+  // el padre con `key={speed}` para forzar el remount: cambiar las visitas invalida el review entero,
+  // pero cambiar cuánto se dibuja no invalida ningún análisis — es un repintado y nada más.
+  const [pvDetail, setPvDetail] = useState<PvDetail>(() => loadPvDetail(window.localStorage))
+
+  function handleChangePvDetail(next: PvDetail): void {
+    savePvDetail(window.localStorage, next)
+    setPvDetail(next)
+  }
 
   // Pestaña activa del panel (= modo de interacción del tablero, ver `AnalyzeTab`). `editing` es un
   // derivado directo: estar en la pestaña Editor ES el modo edición — reemplaza al flag
@@ -716,7 +751,9 @@ function ReadyAnalyzeView({
     analysis && analysis.moves.length > 0
       ? analysis.moves.reduce((best, m) => (m.visits > best.visits ? m : best), analysis.moves[0]!)
       : undefined
-  const pvOverlay = topMove ? buildPvOverlay(topMove, boardSize, tree.currentTurnAt()) : undefined
+  const pvOverlay = topMove
+    ? buildPvOverlay(topMove, boardSize, tree.currentTurnAt(), pvDetailMoves(pvDetail))
+    : undefined
   const ghostStoneMap = mergeGhostStoneMaps(playedMoveGhostStoneMap, pvOverlay?.ghostStoneMap, boardSize)
   // markerMap final: marcas autoradas del usuario (Fase 1) POR ENCIMA de los markers del análisis
   // (burbuja de pérdida #9 > labels del PV). Shudan admite un marker por casilla → precedencia
@@ -730,7 +767,9 @@ function ReadyAnalyzeView({
   const totalMoves = tree.mainLine().length
   const reviewProgress = review.progress(now)
   const report = review.getLatestReport()
-  const turningPoints = report ? getReportTurningPoints(report.moveEntries) : []
+  const turningPoints = report
+    ? getReportTurningPoints(report.moveEntries, TURNING_POINT_SWING, TURNING_POINT_LIMIT)
+    : []
   // #6: agregado de calidad + precisión por fase, derivado del MISMO reporte que los turning points
   // (cero cómputo de motor extra). `null` mientras el review de fondo aún no produjo ningún reporte.
   const qualityHistogram = report ? buildQualityHistogram(report) : null
@@ -919,6 +958,28 @@ function ReadyAnalyzeView({
                   onClick={() => onChangeSpeed(level)}
                 >
                   {SPEED_LABELS[level]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cuántas jugadas fantasma se dibujan. Va al lado de Velocidad porque las dos son ajustes,
+              pero NO es una segunda perilla de rendimiento: recortar la variación no ahorra ni una
+              inferencia (el PV ya está calculado), sólo despeja el tablero. */}
+          <div class="rail-field">
+            <span class="eyebrow" id="analyze-pv-label">
+              Variación
+            </span>
+            <div class="choice-row" role="group" aria-labelledby="analyze-pv-label">
+              {PV_DETAIL_LEVELS.map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  aria-pressed={pvDetail === level}
+                  class={pvDetail === level ? 'active' : ''}
+                  onClick={() => handleChangePvDetail(level)}
+                >
+                  {PV_DETAIL_LABELS[level]}
                 </button>
               ))}
             </div>
