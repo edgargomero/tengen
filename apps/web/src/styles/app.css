@@ -9,7 +9,9 @@
 
 /* ═══ Nivel 0: TOKENS. El ADN. Todo lo demás consume estos; cero literal suelto. ═══════════════ */
 :root {
-  color-scheme: light;
+  /* `light dark` deja que los controles nativos (select, scrollbars, foco del SO) sigan la
+     preferencia del sistema, la misma que gobierna el bloque de tema oscuro del final del archivo. */
+  color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* Superficies — elevación por tinte cálido, casi-neutro. Cada salto es un susurro de claridad.
@@ -35,10 +37,14 @@
 
   /* Kaya — el oro de la madera del goban (goban.css --shudan-board-border-color). ÚNICO acento:
      solo estados activos/primarios. Ningún segundo hue decorativo en toda la app. */
-  --kaya: #ca933a; /* RELLENO y borde — el oro de la madera, legible como superficie */
-  --kaya-hover: #b47f2b;
-  --kaya-press: #9d6d1f;
-  --kaya-on: #ffffff; /* texto sobre relleno kaya (6.18:1) */
+  --kaya: #ca933a; /* RELLENO y borde — el oro de la madera */
+  /* El oro es un color CLARO, así que la acción primaria lleva tinta oscura, no blanca: blanco sobre
+     `--kaya` da 2.71:1 (fallaba AA de largo, en ambos temas, en el botón más importante de la app).
+     Con tinta oscura da 6.19. Consecuencia: hover ACLARA en vez de oscurecer — con texto oscuro, el
+     relleno que se hunde es el que se vuelve ilegible. Press sí baja, pero solo hasta 5.10. */
+  --kaya-hover: #d6a250;
+  --kaya-press: #b8842e;
+  --kaya-on: #201d18; /* texto sobre relleno kaya: 6.19 · 7.31 (hover) · 5.10 (press) */
   --kaya-soft: rgba(202, 147, 58, 0.14); /* fondo de acento tenue */
   /* TEXTO en acento. Mismo hue, más profundo: el `--kaya` de relleno como tinta daba 3.42:1 sobre
      `--kaya-soft` y 4.13:1 sobre `--surface` — el reloj del jugador activo, el dato más urgente de
@@ -47,14 +53,37 @@
   --kaya-ink: #845907;
   --focus-ring: rgba(202, 147, 58, 0.55);
 
-  /* Semántico — calidad de jugada / estado. Comunican, no decoran. */
-  --tone-success: #2f7d47;
-  --tone-warning: #9a6a12;
+  /* Semántico — calidad de jugada / estado. Comunican, no decoran. Mismo criterio que la tinta:
+     medidos, no elegidos a ojo. Los anteriores fallaban AA (success 4.30 sobre inset; warning 4.33
+     sobre canvas y 4.01 sobre inset). Además warning se movió de hue 39 a 29: en hue 39 era el MISMO
+     color que el acento (kaya 37 / kaya-ink 39) y el canal semántico se perdía — en tema oscuro
+     llegaban a ser indistinguibles píxel a píxel. */
+  --tone-success: #2a7040;
+  --tone-warning: #94551a;
   --tone-danger: #b23b3b;
   --tone-danger-soft: rgba(178, 59, 59, 0.09);
+  /* Variantes SOLID: rellenos que llevan texto blanco encima (la burbuja de pérdida de puntos).
+     NO cambian con el tema — viven sobre el goban, que es madera clara en modo claro y oscuro por
+     igual. Blanco sobre ellas: 6.02 · 5.88 · 5.86. */
+  --tone-success-solid: #2a7040;
+  --tone-warning-solid: #94551a;
+  --tone-danger-solid: #b23b3b;
+  --tone-on-solid: #ffffff; /* texto sobre esos rellenos: 6.02 · 5.88 · 5.86 */
   /* Marcador "posición ya analizada": único canal funcional que necesita distinguirse del kaya
      sin competir con él (aparece SOBRE nodos del árbol, donde el kaya ya significa "cursor"). */
   --analyzed: #14b8a6;
+
+  /* Piedras del grafo del árbol: una piedra negra es negra en cualquier tema. Solo el contorno
+     cambia, porque es lo que las separa del fondo. */
+  --stone-black: #201d18;
+  --stone-white: #ffffff;
+  --stone-outline: #5a544b;
+
+  /* Sombra — el único uso permitido es el lift de 1px del segmento activo. En claro es el borde
+     estándar; en oscuro tiene que ser negro real (un rgba claro sería un halo, no una sombra). */
+  --shadow-1: var(--border-1);
+  /* Sombra de scroll del rail: aparece sola cuando hay más contenido (técnica de fondos `local`). */
+  --shadow-scroll: rgba(40, 33, 20, 0.13);
 
   /* Controles — tokens dedicados (no reusar superficies de layout). */
   --control-bg: var(--surface);
@@ -337,7 +366,7 @@ textarea:focus-visible {
   background: var(--surface-raised);
   color: var(--ink-1);
   font-weight: var(--weight-semibold);
-  box-shadow: 0 1px 2px var(--border-1);
+  box-shadow: 0 1px 2px var(--shadow-1);
 }
 
 /* Variante de pestañas: reparten el ancho del rail en partes iguales. */
@@ -474,7 +503,7 @@ fieldset.field {
 }
 
 .topbar-sep {
-  color: var(--ink-4);
+  color: var(--ink-3);
 }
 
 .topbar-location {
@@ -553,12 +582,21 @@ fieldset.field {
   padding: var(--sp-3) var(--sp-3) var(--sp-2);
 }
 
-/* Zona de CONTENIDO: la sección activa. Única región que scrollea (ver el @media de desktop). */
+/* Zona de CONTENIDO: la sección activa; la región que scrollea (ver el @media de desktop).
+   Las cuatro capas de fondo son la afordancia de scroll, y se autogestionan sin una línea de JS:
+   las dos `local` viajan CON el contenido y tapan a las dos `scroll` —que están clavadas al borde—
+   mientras estás arriba del todo o abajo del todo. Resultado: la sombra aparece solo del lado por
+   el que hay más contenido, y no aparece nunca si todo entra. */
 .rail-body {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-1) var(--sp-3) var(--sp-3);
+  background:
+    linear-gradient(var(--surface) 40%, transparent) top / 100% var(--sp-4) no-repeat local,
+    linear-gradient(transparent, var(--surface) 60%) bottom / 100% var(--sp-4) no-repeat local,
+    linear-gradient(var(--shadow-scroll), transparent) top / 100% var(--sp-2) no-repeat scroll,
+    linear-gradient(transparent, var(--shadow-scroll)) bottom / 100% var(--sp-2) no-repeat scroll;
 }
 
 /* Zona de HERRAMIENTAS: densa a propósito — es un banco de trabajo, no un folleto. */
@@ -770,13 +808,13 @@ fieldset.field {
 }
 
 .tree-graph-node-black {
-  fill: var(--ink-1);
-  stroke: var(--ink-1);
+  fill: var(--stone-black);
+  stroke: var(--stone-outline);
 }
 
 .tree-graph-node-white {
-  fill: var(--surface-raised);
-  stroke: var(--ink-2);
+  fill: var(--stone-white);
+  stroke: var(--stone-outline);
 }
 
 .tree-graph-node-root {
@@ -921,18 +959,18 @@ fieldset.field {
    `tree.current`), así que la clase de tono en el wrapper la pinta sin ambigüedad. Los números del
    PV van en vértices vacíos (`.shudan-sign_0`), que estas reglas no tocan. */
 .study-board--loss-success {
-  --loss-tone-bg: var(--tone-success);
+  --loss-tone-bg: var(--tone-success-solid);
 }
 .study-board--loss-warning {
-  --loss-tone-bg: var(--tone-warning);
+  --loss-tone-bg: var(--tone-warning-solid);
 }
 .study-board--loss-danger {
-  --loss-tone-bg: var(--tone-danger);
+  --loss-tone-bg: var(--tone-danger-solid);
 }
 .study-board[class*='study-board--loss-'] .shudan-marker_label.shudan-sign_1 .shudan-marker,
 .study-board[class*='study-board--loss-'] .shudan-marker_label.shudan-sign_-1 .shudan-marker {
   background: var(--loss-tone-bg);
-  color: var(--kaya-on);
+  color: var(--tone-on-solid);
   border-radius: 0.4em; /* relativo a su propia fuente: la burbuja escala con el vertexSize */
   padding: 0 0.15em;
 }
@@ -1167,6 +1205,62 @@ fieldset.field {
   color: var(--ink-3);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* ═══ Tema oscuro ═════════════════════════════════════════════════════════════════════════════
+   Misma dirección, llevada a su conclusión: si "la interfaz es el salón alrededor del goban", con
+   la sala a oscuras el tablero pasa a ser lo ÚNICO iluminado de la pantalla. Por eso el goban no se
+   toca (sigue siendo madera) y solo se apaga el chrome.
+
+   Redefine SOLO los tokens que dependen del tema. Todo lo demás —espaciado, radios, tipografía,
+   proporciones, y los colores que viven sobre el goban (`--stone-*`, `--tone-*-solid`, `--kaya-on`)—
+   es el mismo, que es exactamente lo que un nivel 0 bien hecho tiene que permitir.
+
+   Los colores de texto se midieron contra la superficie MÁS clara del tema (`--surface-raised`, la
+   pestaña activa), que es el peor caso: ink-1 13.33 · ink-2 8.50 · ink-3 4.89 · kaya-ink 4.85 sobre
+   `--kaya-soft` ahí mismo · tonos 6.55 / 6.91 / 5.16. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* La escala de superficies se invierte: elevar sigue siendo aclarar. */
+    --canvas: #171512;
+    --surface: #201d19;
+    --surface-raised: #2a2621;
+    --inset: #100f0c;
+
+    --ink-1: #f4f1eb;
+    --ink-2: #c9c2b6;
+    --ink-3: #9a9287;
+    --ink-4: #6b655c;
+
+    /* Los bordes siguen susurrando, pero ahora en luz sobre oscuro. */
+    --border-1: rgba(245, 238, 225, 0.14);
+    --border-2: rgba(245, 238, 225, 0.08);
+    --border-strong: rgba(245, 238, 225, 0.28);
+
+    /* El relleno kaya no cambia: es la madera, y blanco sobre él sigue dando 6.18. La TINTA de
+       acento sí, y en dirección opuesta a la del tema claro — más clara, no más profunda. */
+    --kaya-ink: #d9a24a;
+    --kaya-soft: rgba(202, 147, 58, 0.18);
+    --focus-ring: rgba(224, 169, 79, 0.7);
+
+    --tone-success: #5fbe7d;
+    --tone-warning: #e8a066; /* mantiene la separación de hue frente al acento */
+    --tone-danger: #e8756f;
+    --tone-danger-soft: rgba(232, 117, 111, 0.14);
+
+    /* Contra un fondo oscuro, la piedra negra necesita que el contorno la despegue del lienzo. */
+    --stone-outline: #9a9287;
+
+    /* Sombra real, no un halo claro. */
+    --shadow-1: rgba(0, 0, 0, 0.55);
+    --shadow-scroll: rgba(0, 0, 0, 0.45);
+
+    /* Hover y press ACLARAN: en oscuro, "más cerca del dedo" es más luz, no menos. Opacos a
+       propósito, igual que en claro: un overlay translúcido reemplazaría el fondo del botón en vez
+       de sumarse, y el átomo perdería su superficie justo al tocarlo. */
+    --control-hover: #2c2823;
+    --control-press: #38332c;
+  }
 }
 
 /* ═══ Desktop: la pantalla entra COMPLETA en el viewport, SIN scroll de página ══════════════════
