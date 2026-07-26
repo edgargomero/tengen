@@ -387,8 +387,14 @@ describe('GameReview — dispose() durante una cancelación benigna en vuelo no 
 // nada, así que nunca llega a ejercitar el guard de ESCRITURA del handler de éxito. Aquí la escritura
 // interactiva llega DESPUÉS de que el job de review ya está encolado/activo, así que solo el guard en
 // el sitio de escritura (`analyzeTarget`) puede salvar el resultado interactivo.
+// NOTA (dos pasadas): desde que el guard de reencolado también chequea `needsAnalysis`, este escenario
+// ya no llega al reintento — el análisis interactivo simulado cubre el nodo con las MISMAS visitas que
+// pide el review, así que el job preemptado se descarta antes (ver el test #11). Los asserts siguen
+// siendo válidos y valiosos: fijan que el store conserva el valor interactivo. Lo que ya no ejercitan es
+// el camino "el reintento se asienta con éxito y su escritura es un no-op"; ese guard de escritura sigue
+// existiendo como defensa en profundidad.
 describe('GameReview — Finding 1: no pisa un análisis interactivo que llegó mientras su job de review estaba en vuelo', () => {
-  it('jugada1 recibe un análisis interactivo mientras su job de review sigue activo; cuando el job de review (tras reintento) se asienta con éxito, el store conserva el valor interactivo', async () => {
+  it('jugada1 recibe un análisis interactivo mientras su job de review sigue activo; el store conserva el valor interactivo', async () => {
     const { mgr, engine } = await makeReadyHarness()
     const scheduler = new ReviewScheduler(mgr)
     const store = new AnalysisStore()
@@ -646,5 +652,62 @@ describe('GameReview — segunda pasada: sólo las posiciones con salto grande, 
     expect(engine.calls.map((c) => c.visits)).toEqual([SWEEP, SWEEP, REFINE])
     expect(store.get(m2!.id)!.visits).toBe(REFINE + 100) // lo sembrado, intacto
     expect(store.get(m1!.id)!.visits).toBe(REFINE)
+  })
+})
+
+// ── 11. Un preempt no puede dejar la segunda pasada sin arrancar ──────────────────────────────
+//
+// El fallo que este test cierra era silencioso y fácil de alcanzar: apretar "Analizar esta posición"
+// durante el review preempta el job de review de ESA posición, y la rama de cancelación benigna lo
+// reencolaba SIEMPRE. Pero quien preemptó fue justamente un análisis interactivo de esa misma posición,
+// que corre a MÁS visitas que el review — así que el reintento gastaba inferencias (el recurso escaso)
+// en un resultado que el guard de escritura ni guardaría. Con dos pasadas eso dejó de ser sólo
+// desperdicio: `refinePass` espera a que TODO el barrido se asiente, así que la cadena de reintentos
+// retrasaba —o con preempts repetidos, impedía— la segunda pasada, mientras el progreso ya mostraba el
+// barrido completo. La UI diciendo 21/21 y el refinamiento sin arrancar nunca, sin ningún error.
+
+describe('GameReview — un nodo ya cubierto por un análisis interactivo no se reencola tras el preempt', () => {
+  it('el barrido se asienta y la segunda pasada ARRANCA, sin gastar un reintento inútil', async () => {
+    const { mgr, engine } = await makeReadyHarness()
+    const scheduler = new ReviewScheduler(mgr)
+    const store = new AnalysisStore()
+    const tree = tree9()
+    tree.addMove(B(2, 2)) // targets del barrido = [raíz, jugada1]
+
+    const review = new GameReview({ tree, store, scheduler, sweepVisits: SWEEP, refine: REFINE_PASS })
+
+    // 1) la raíz resuelve; jugada1 arranca en el motor y queda colgada (sin behavior programado).
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    const startPromise = review.start(() => {})
+    await flush(16)
+
+    const m1 = tree.mainLine()[0]!
+    expect(store.has(m1.id)).toBe(false)
+
+    // 2) el usuario pidió "Analizar esta posición" sobre jugada1: su resultado aterriza en el store con
+    //    las visitas ALTAS del interactivo, y fabrica de paso el salto grande (0 → 8).
+    store.set(m1.id, mkPass(REFINE, 8))
+
+    // 3) el preempt real que cancela el job de review de jugada1. El primer behavior lo consume este
+    //    análisis interactivo; el segundo, el refinamiento de la raíz (el PADRE del salto).
+    engine.programNext({ chunks: [mkPass(SWEEP, 0)] })
+    engine.programNext({ chunks: [mkPass(REFINE, 0)] })
+    await expect(
+      scheduler.analyzePosition({ pos: tree.positionAt(tree.root), visits: SWEEP, priority: 'interactive', group: 'nav' }),
+    ).resolves.toMatchObject({ visits: SWEEP })
+
+    await flush(24)
+    await startPromise // NO cuelga: el job preemptado se descartó en vez de reencolarse
+
+    // La segunda pasada arrancó de verdad — es lo que el reintento inútil impedía.
+    expect(review.progress(1000)!.phase).toBe('refine')
+    // La raíz (padre del salto) quedó refinada; jugada1 conserva lo que trajo el interactivo.
+    expect(store.get(tree.root.id)!.visits).toBe(REFINE)
+    expect(store.get(m1.id)!.visits).toBe(REFINE)
+    // 4 llamadas: raíz(barrido) · jugada1(preemptada) · el interactivo · raíz(refinamiento).
+    // Una quinta sería el reintento inútil que este fix elimina.
+    expect(engine.calls).toHaveLength(4)
+
+    review.dispose()
   })
 })

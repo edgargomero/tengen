@@ -47,11 +47,14 @@
 //   - Éxito: cachea en `store` y recomputa/reporta.
 //   - Rechazo BENIGNO (`isAnalysisQueueCanceledError`/`isAnalysisQueueStaleError` — el job fue
 //     interrumpido por un análisis interactivo con preempt, o quedó stale): reencola el MISMO
-//     nodo. Antes de reencolar, verifica `disposed` — si `dispose()` corrió mientras este job
-//     estaba en vuelo, reencolar de todos modos resucitaría trabajo contra un scheduler ya
-//     desechado. Ese guard vive DENTRO de este handler (no alcanza con chequearlo solo al
-//     principio de `start()`: el rechazo puede llegar en cualquier momento, incluso después de
-//     `dispose()`).
+//     nodo, salvo por dos guards que viven DENTRO de este handler (no alcanza con chequearlos al
+//     principio de `start()`: el rechazo puede llegar en cualquier momento). (a) `disposed` — si
+//     `dispose()` corrió mientras el job estaba en vuelo, reencolar resucitaría trabajo contra un
+//     scheduler ya desechado. (b) el nodo YA está cubierto con visitas suficientes — quien preempta
+//     suele ser un análisis interactivo de esa misma posición, que corre a más visitas, así que el
+//     reintento gastaría inferencias en un resultado que ni se guardaría. Ese segundo guard es
+//     además lo que evita que una cadena de reintentos inútiles deje la segunda pasada sin arrancar
+//     (ver `refinePass`).
 //   - Error REAL (cualquier otro rechazo): renuncia definitiva (`failed.add(nodeId)`), sin
 //     reintentar — evita un bucle infinito si el motor está genuinamente roto para esa posición.
 //     El resto de la partida sigue progresando; `computeGameReport` ya sabe omitir nodos sin
@@ -311,9 +314,28 @@ export class GameReview {
           },
           (err: unknown) => {
             if (isAnalysisQueueCanceledError(err) || isAnalysisQueueStaleError(err)) {
-              // Cancelación benigna (preempt de un análisis interactivo, o staleness). Trampa a
-              // evitar: si `dispose()` ya corrió mientras este job estaba en vuelo, NO reencolar.
+              // Cancelación benigna (preempt de un análisis interactivo, o staleness). Dos razones para
+              // NO reencolar, y las dos son necesarias:
+              //
+              //   1. `dispose()` corrió mientras este job estaba en vuelo — reencolar resucitaría
+              //      trabajo contra un scheduler ya desechado.
+              //   2. Alguien MÁS ya cubrió este nodo. Es el caso normal, no el raro: quien preemptó fue
+              //      justamente un análisis interactivo de ESTA posición, y ése corre a más visitas que
+              //      el review. Reencolar entonces gastaría inferencias —el recurso escaso— en un
+              //      resultado que el guard de más arriba ni siquiera guardaría, por ser peor que el que
+              //      ya está. Y con las dos pasadas ese desperdicio dejó de ser sólo desperdicio:
+              //      `refinePass` espera a que TODO el barrido se asiente, así que una cadena de
+              //      reintentos inútiles retrasa (o con preempts repetidos, impide) la segunda pasada
+              //      mientras el progreso ya dice 21/21 — la UI afirmando que el barrido terminó y el
+              //      refinamiento sin arrancar nunca, en silencio.
+              // Las dos ramas se separan porque una reporta y la otra no: tras `dispose()` no hay a
+              // quién reportarle (la vista se desmontó), mientras que un nodo cubierto por otro SÍ trae
+              // un dato nuevo que el reporte debería incluir.
               if (this.disposed) return
+              if (!this.needsAnalysis(node.id, visits)) {
+                this.recomputeAndReport(onReport)
+                return
+              }
               return attempt()
             }
             // Error real (crash del motor, timeout sin ningún Analysis): renuncia definitiva para

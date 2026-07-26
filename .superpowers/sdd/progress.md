@@ -457,3 +457,17 @@ Lo que sí cuesta: 1 visita = 1 hoja expandida = 1 inferencia. Y el review anali
 **Verificación con el MOTOR REAL en Chrome (gate manual, SGF de 20 jugadas con dos errores groseros fabricados — `aa`/A19 y `ss`/T1):** barrido de 21 posiciones → transición automática a "Afinando errores: 2/4 · 50% · ETA 1m 12s" (4 = 2 saltos × nodo+padre, sin solapamiento porque las jugadas 13 y 19 no son contiguas) → los dos turning points detectados son EXACTAMENTE los errores fabricados (A19 Blunder −12,5 · T1 Error grave −11,5). Selector de variación verificado en vivo: con el tope en 3, los labels dibujados pasan de `2,3,4,5` a `2,3`. Contraste AA del rail: cero fallos.
 
 **Gates:** typecheck limpio en los 3 workspaces · 785 tests (120 engine + 621 web + 44 worker) · `vite build` OK.
+
+### Fase 4 — fix posterior al review: un preempt podía dejar la segunda pasada sin arrancar
+
+Encontrado en el review final (advisor), CONFIRMADO empíricamente y cerrado con test.
+
+**El fallo:** la rama de cancelación benigna de `analyzeTarget` reencolaba SIEMPRE (salvo `disposed`). Pero quien preempta un job de review es, típicamente, un análisis interactivo de ESA MISMA posición — que corre a más visitas que el review. Así que el reintento gastaba inferencias (el recurso escaso, el tema entero de esta fase) en un resultado que el guard de escritura ni guardaría por ser peor que el que ya está.
+
+**Por qué recién ahora importa:** antes, un barrido trabado sólo significaba una entrada faltante en un reporte por lo demás completo. Con dos pasadas, `refinePass` espera a que TODO el barrido se asiente (`Promise.all`), así que la cadena de reintentos retrasa —o con preempts repetidos, impide— la segunda pasada. Y el desfase es invisible: `progress()` cuenta `!needsAnalysis(...)`, que ya es false porque el interactivo escribió el store, así que **la UI muestra el barrido completo mientras el refinamiento no arranca nunca, sin ningún error**. Apretar "Analizar esta posición" durante un review es la forma normal de usar la pantalla, no un caso raro.
+
+**Fix:** el guard de reencolado también chequea `needsAnalysis(node.id, visits)`. Si alguien más ya cubrió el nodo, se recomputa el reporte y se resuelve en vez de reintentar. Las dos ramas (disposed / cubierto) se mantienen SEPARADAS a propósito: tras `dispose()` no hay a quién reportarle, mientras que un nodo cubierto por otro sí trae un dato nuevo para el reporte.
+
+**Verificado en las dos direcciones** (un test que pasa con y sin el fix no prueba nada): con el fix revertido a mano, el test nuevo falla por **timeout de 5 s** — `await startPromise` cuelga, que es exactamente el síntoma descrito. Restaurado, verde. Suite: 786 tests (120 + 622 + 44).
+
+Efecto colateral documentado en el propio test #8 ("Finding 1"): ese escenario ya no llega al reintento, así que sus asserts siguen valiendo pero dejaron de ejercitar el camino "el reintento se asienta y su escritura es un no-op". Ese guard de escritura queda como defensa en profundidad.
