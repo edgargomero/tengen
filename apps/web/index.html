@@ -3,5 +3,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>tengen</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+<!-- PWA. Declarado a mano y no por inyección automática del plugin: este index.html no tiene <head>
+     (los tags sueltos son válidos, el navegador arma el árbol), y sin un punto de inserción el
+     transform de vite-plugin-pwa no inyecta nada — el build salía sin <link rel="manifest"> y la
+     app no era instalable, sin ningún error visible. -->
+<link rel="manifest" href="/manifest.webmanifest" />
+<!-- iOS ignora el manifest para el icono de la pantalla de inicio: usa este. -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="tengen" />
+<!-- El color de la barra del navegador sigue al tema: los mismos `--canvas` claro y oscuro del
+     sistema de diseño, para que el chrome del sistema no corte contra la app. -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f2" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171512" />
+
 <div id="app"></div>
 <script type="module" src="/src/main.tsx"></script>

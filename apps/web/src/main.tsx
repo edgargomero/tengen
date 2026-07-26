@@ -16,6 +16,8 @@
 import { Component, render } from 'preact'
 import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
+import { PwaToast } from './pwa/PwaToast'
+import { useServiceWorker } from './pwa/useServiceWorker'
 import { Router, Link as RouterLink, route } from 'preact-router'
 import type { RoutableProps } from 'preact-router'
 import '@sabaki/shudan/css/goban.css'
@@ -288,11 +290,32 @@ function App() {
   return webgpu ? <ModeApp /> : <NoWebGpu />
 }
 
+/** Raíz de la app + avisos de la PWA. El service worker se registra acá, FUERA del gate de WebGPU:
+ * el precache del shell es útil incluso en un navegador sin WebGPU (la pantalla que explica por qué
+ * hace falta Chrome también debería abrir sin conexión), y registrar más adentro lo ataría a un
+ * árbol que se desmonta al cambiar de modo. */
+function Root() {
+  const sw = useServiceWorker()
+  const [offlineToast, setOfflineToast] = useState(true)
+  return (
+    <>
+      <App />
+      <PwaToast
+        updateReady={sw.updateReady}
+        offlineReady={sw.offlineReady && offlineToast}
+        onUpdate={sw.update}
+        onDismiss={sw.dismiss}
+        onDismissOfflineReady={() => setOfflineToast(false)}
+      />
+    </>
+  )
+}
+
 const root = document.getElementById('app')
 if (root)
   render(
     <ErrorBoundary>
-      <App />
+      <Root />
     </ErrorBoundary>,
     root,
   )

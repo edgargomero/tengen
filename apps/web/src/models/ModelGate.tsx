@@ -10,6 +10,7 @@ import { useEffect, useState } from 'preact/hooks'
 import type { NetworkId } from '@tengen/engine'
 import { ensureModel } from './modelCache'
 import { createOpfsModelStore } from './modelStore'
+import { ensurePersistentStorage, isDurable, type PersistenceResult } from './persistentStorage'
 import type { DownloadProgress } from './progress'
 
 type GateStatus = 'downloading' | 'ready' | 'error'
@@ -29,6 +30,10 @@ export function ModelGate({ net, children }: ModelGateProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   // Bump para re-disparar el efecto (botón "Reintentar") sin cambiar `net`.
   const [retry, setRetry] = useState(0)
+  // Qué contestó el navegador al pedido de almacenamiento persistente. `null` = todavía no se sabe.
+  // Gobierna la línea que promete durabilidad: sin esto, la app afirmaba "queda guardada en este
+  // navegador" mientras los 110 MB seguían en un bucket desalojable.
+  const [persistence, setPersistence] = useState<PersistenceResult | null>(null)
 
   useEffect(() => {
     // Última-solicitud-gana: si `net` cambia o el componente se desmonta mid-descarga, el cleanup
@@ -38,6 +43,13 @@ export function ModelGate({ net, children }: ModelGateProps) {
     setStatus('downloading')
     setProgress(null)
     setErrorMsg(null)
+
+    // ANTES de bajar 110 MB: pedir que el origen sea persistente. Es fire-and-forget a propósito —
+    // si el navegador lo niega, la descarga igual vale la pena (los datos siguen viviendo, solo que
+    // sin garantía de no ser desalojados); lo que cambia es lo que la pantalla promete.
+    void ensurePersistentStorage(navigator.storage).then((result) => {
+      if (!stale) setPersistence(result)
+    })
 
     ensureModel(
       net,
@@ -105,9 +117,12 @@ export function ModelGate({ net, children }: ModelGateProps) {
       <p class="system-note">
         {percent === null ? sizeLabel : `${percent}% — ${sizeLabel}`}
       </p>
+      {/* Esta línea dice exactamente lo que el navegador concedió, ni más. La versión anterior
+          prometía durabilidad siempre; medido en producción, el origen NO era persistente. */}
       <p class="system-note">
-        Se descarga una sola vez: queda guardada en este navegador y el motor corre entero en tu
-        equipo, sin servidor.
+        {persistence === null || isDurable(persistence)
+          ? 'Se descarga una sola vez: queda guardada en este navegador y el motor corre entero en tu equipo, sin servidor.'
+          : 'El motor corre entero en tu equipo, sin servidor. Este navegador no garantizó guardado permanente: si le falta espacio podría borrarla y habría que descargarla otra vez. Instalar tengen como app evita eso.'}
       </p>
     </div>
   )

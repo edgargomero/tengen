@@ -7,6 +7,7 @@
 // Es chrome de la VENTANA, no del contenido: la banda cruza el viewport entero y su alto es fijo
 // (`--topbar-h`) porque el cálculo no-scroll del tablero depende de que no cambie con su contenido.
 import { route } from 'preact-router'
+import { useOnlineStatus } from '../pwa/useOnlineStatus'
 
 interface TopBarProps {
   mode: 'jugar' | 'analizar'
@@ -22,6 +23,7 @@ const MODES: { id: 'jugar' | 'analizar'; label: string; path: string }[] = [
 ]
 
 export function TopBar({ mode, onLeave, onHome }: TopBarProps) {
+  const online = useOnlineStatus()
   function navTo(path: string): void {
     onLeave?.()
     route(path)
@@ -40,6 +42,13 @@ export function TopBar({ mode, onLeave, onHome }: TopBarProps) {
           ·
         </span>
         <span class="topbar-location">{mode === 'jugar' ? 'Jugar' : 'Analizar'}</span>
+        {/* Sin conexión NO es un error acá: el motor y los pesos están en el dispositivo, así que
+            jugar y analizar siguen funcionando. Lo único que se apaga es el guardado en la nube. */}
+        {!online && (
+          <span class="offline-chip" title="El motor corre en tu dispositivo: puedes seguir jugando y analizando. No se guardará en la nube hasta que vuelva la conexión.">
+            Sin conexión
+          </span>
+        )}
       </div>
       <nav class="segmented" aria-label="Cambiar modo">
         {MODES.map((m) => (

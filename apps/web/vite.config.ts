@@ -21,6 +21,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 const rootDir = import.meta.dirname ?? '.'
 const modelsDir = path.resolve(rootDir, '../../packages/engine/models')
@@ -117,5 +118,60 @@ export default defineConfig({
         }
       },
     },
+    // PWA. DEBE ir después de `copy-ort-dist-prod` en este array: ambos trabajan en `closeBundle` y
+    // Vite los corre en orden, así que el WASM de ORT tiene que estar YA copiado a dist/ cuando
+    // Workbox construye la lista de precache. Si se invierte el orden, el archivo más pesado y más
+    // importante (el que hace que el motor arranque) queda fuera del precache SIN error visible.
+    VitePWA({
+      // `injectManifest`: el service worker es nuestro (`src/sw.ts`, con las reglas de /models y
+      // /api que una config generada no puede expresar); Workbox solo inyecta la lista de assets
+      // con sus revisiones, que es justo lo que no queremos mantener a mano.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      // El usuario decide cuándo actualizar: `registerSW.ts` pregunta. Nunca recarga solo — podrías
+      // estar a mitad de una partida.
+      registerType: 'prompt',
+      injectRegister: null, // lo registra `src/pwa/registerSW.ts`, no un script inyectado
+      injectManifest: {
+        // El WASM de ORT pesa 25.5 MB en disco. El default de Workbox son 2 MB: sin subir este
+        // techo, el archivo se excluye del precache EN SILENCIO y la PWA arrancaría sin motor.
+        maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
+        // El manifest y los iconos de `icons/` los agrega el propio plugin: incluirlos también acá
+        // los metía DOS veces en la lista de precache. Con revisiones iguales Workbox los tolera,
+        // pero es ruido que se vuelve un error real (`add-to-cache-list-conflicting-entries`) en
+        // cuanto las dos vías calculen revisiones distintas. Se listan solo los PNG que son
+        // contenido de la app (la textura del tablero) y el icono de iOS, que el plugin no toca.
+        globPatterns: ['**/*.{js,mjs,css,html,svg,wasm}', 'assets/*.png', 'apple-touch-icon.png'],
+      },
+      // Manifest de la app. `display: standalone` + `start_url` en la raíz; los colores salen de los
+      // tokens del sistema de diseño (`--canvas` claro y oscuro), no de valores inventados.
+      manifest: {
+        name: 'tengen — Go contra KataGo',
+        short_name: 'tengen',
+        description:
+          'Juega y analiza Go contra KataGo. El motor corre entero en tu dispositivo: sin servidor y sin conexión.',
+        lang: 'es',
+        dir: 'ltr',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'any',
+        background_color: '#f6f5f2',
+        theme_color: '#f6f5f2',
+        categories: ['games', 'education'],
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      devOptions: {
+        // El SW en dev sirve para probar el flujo de actualización sin hacer un build; el precache
+        // real solo existe en producción.
+        enabled: false,
+        type: 'module',
+      },
+    }),
   ],
 })

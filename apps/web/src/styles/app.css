@@ -81,9 +81,13 @@
   --stone-white: #ffffff;
   --stone-outline: #5a544b;
 
-  /* Sombra — el único uso permitido es el lift de 1px del segmento activo. En claro es el borde
-     estándar; en oscuro tiene que ser negro real (un rgba claro sería un halo, no una sombra). */
+  /* Sombra — dos usos, ambos justificados y ninguno decorativo. `--shadow-1` es el lift de 1px del
+     segmento activo (en claro, el borde estándar; en oscuro, negro real: un rgba claro sería un halo
+     y no una sombra). `--shadow-overlay` es para lo ÚNICO que flota sobre el contenido, el aviso de
+     la PWA: un elemento despegado del plano no tiene detrás un fondo fijo contra el cual contrastar,
+     así que el tinte de superficie por sí solo no puede comunicar su elevación. */
   --shadow-1: var(--border-1);
+  --shadow-overlay: 0 var(--sp-1) var(--sp-4) rgba(40, 33, 20, 0.16);
   /* Sombra de scroll del rail: aparece sola cuando hay más contenido (técnica de fondos `local`). */
   --shadow-scroll: rgba(40, 33, 20, 0.13);
 
@@ -963,6 +967,62 @@ fieldset.field {
   color: var(--tone-danger);
 }
 
+/* Aviso flotante de la PWA (versión nueva / listo sin conexión). Es el ÚNICO elemento de la app que
+   flota sobre el contenido, y por eso es el único que usa `--shadow-overlay`: un elemento despegado
+   del plano no puede comunicar su elevación solo con tinte de superficie, porque no tiene un fondo
+   fijo detrás contra el cual contrastar. Discreto a propósito: ninguno de sus dos mensajes es
+   urgente y el héroe de la pantalla sigue siendo el tablero. */
+.pwa-toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--sp-4);
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: min(30rem, calc(100vw - var(--sp-6)));
+  padding: var(--sp-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--text-md);
+}
+
+.pwa-toast-text {
+  margin: 0;
+  color: var(--ink-1);
+}
+
+.pwa-toast-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.pwa-toast .primary,
+.pwa-toast .ghost {
+  padding: var(--ctl-pad-y) var(--sp-3);
+  font-size: var(--ctl-font);
+  white-space: nowrap;
+}
+
+/* Indicador de "sin conexión" en la TopBar. No es un error: con el motor y los pesos en el
+   dispositivo, jugar y analizar siguen funcionando — lo único que se apaga es guardar en la nube.
+   Por eso usa tinta terciaria y no el tono de peligro. */
+.offline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-0) var(--sp-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
 /* Burbuja de pérdida de puntos sobre la piedra jugada, coloreada por tono de calidad. Shudan no
    colorea markers por sí solo; en Modo Analizar solo hay UNA label sobre piedra a la vez (la de
    `tree.current`), así que la clase de tono en el wrapper la pinta sin ambigüedad. Los números del
@@ -1257,9 +1317,10 @@ fieldset.field {
     /* Contra un fondo oscuro, la piedra negra necesita que el contorno la despegue del lienzo. */
     --stone-outline: #9a9287;
 
-    /* Sombra real, no un halo claro. */
+    /* Sombras reales, no halos claros. */
     --shadow-1: rgba(0, 0, 0, 0.55);
     --shadow-scroll: rgba(0, 0, 0, 0.45);
+    --shadow-overlay: 0 var(--sp-1) var(--sp-4) rgba(0, 0, 0, 0.6);
 
     /* Hover y press ACLARAN: en oscuro, "más cerca del dedo" es más luz, no menos. Opacos a
        propósito, igual que en claro: un overlay translúcido reemplazaría el fondo del botón en vez
