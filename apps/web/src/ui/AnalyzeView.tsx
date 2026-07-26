@@ -820,8 +820,9 @@ function ReadyAnalyzeView({
           </div>
         </div>
 
-        {/* Zona de CONTENIDO: la pestaña activa. La región scrollea si su contenido no entra; las
-            secciones de adentro no traen scroll propio (ver `.rail-body` en app.css). */}
+        {/* Zona de CONTENIDO: la pestaña activa. La región scrollea si su contenido no entra. Única
+            sección con scroll propio: el grafo del árbol, que es un lienzo de dos ejes y gestiona su
+            caja (ver `.tree-graph-container` en app.css); el resto crece y deja scrollear a la región. */}
         <div class="rail-body">
           {activeTab === 'repaso' && (
             <>

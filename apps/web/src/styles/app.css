@@ -35,11 +35,16 @@
 
   /* Kaya — el oro de la madera del goban (goban.css --shudan-board-border-color). ÚNICO acento:
      solo estados activos/primarios. Ningún segundo hue decorativo en toda la app. */
-  --kaya: #ca933a;
+  --kaya: #ca933a; /* RELLENO y borde — el oro de la madera, legible como superficie */
   --kaya-hover: #b47f2b;
   --kaya-press: #9d6d1f;
-  --kaya-on: #ffffff; /* texto sobre kaya */
+  --kaya-on: #ffffff; /* texto sobre relleno kaya (6.18:1) */
   --kaya-soft: rgba(202, 147, 58, 0.14); /* fondo de acento tenue */
+  /* TEXTO en acento. Mismo hue, más profundo: el `--kaya` de relleno como tinta daba 3.42:1 sobre
+     `--kaya-soft` y 4.13:1 sobre `--surface` — el reloj del jugador activo, el dato más urgente de
+     la pantalla, era el texto MENOS legible del rail. Este pasa AA en las cuatro combinaciones
+     reales: surface 6.00 · canvas 5.64 · kaya-soft/surface 5.30 · kaya-soft/inset 4.71. */
+  --kaya-ink: #845907;
   --focus-ring: rgba(202, 147, 58, 0.55);
 
   /* Semántico — calidad de jugada / estado. Comunican, no decoran. */
@@ -358,7 +363,7 @@ textarea:focus-visible {
 .analyze-tools button.active {
   background: var(--kaya-soft);
   border-color: var(--kaya);
-  color: var(--kaya);
+  color: var(--kaya-ink);
   font-weight: var(--weight-semibold);
 }
 
@@ -606,7 +611,7 @@ fieldset.field {
 }
 
 .play-clock-active .play-clock-value {
-  color: var(--kaya);
+  color: var(--kaya-ink);
 }
 
 /* Ficha de metadatos del rail: pares etiqueta/valor apilados, densos. */
@@ -727,12 +732,15 @@ fieldset.field {
 .tree-node-current {
   background: var(--kaya-soft);
   border-color: var(--kaya);
-  color: var(--kaya);
+  color: var(--kaya-ink);
   font-weight: var(--weight-semibold);
 }
 
-/* Árbol de jugadas como grafo SVG (Modo Analizar). Scroll en AMBOS ejes: un árbol de 100+ jugadas
-   es más ancho que el rail — es el único scroll horizontal legítimo de la app. */
+/* Árbol de jugadas como grafo SVG (Modo Analizar). ÚNICA sección que trae su propio scroll dentro
+   de `.rail-body`, y a propósito: un grafo es un lienzo, no una columna de texto — se recorre en
+   AMBOS ejes (un árbol de 20 jugadas ya mide 660px de ancho contra los 262px del rail). Como
+   `overflow: auto` le da tamaño mínimo automático 0, cuando es más alto que la región se encoge y
+   scrollea adentro en vez de estirarla: una sola caja de scroll, nunca dos barras apiladas. */
 .tree-graph-container {
   overflow: auto;
   overscroll-behavior: contain;
@@ -1202,7 +1210,8 @@ fieldset.field {
     flex: 0 0 auto;
   }
 
-  /* Única región que scrollea en toda la pantalla. */
+  /* Región de scroll de la pantalla (la PÁGINA nunca scrollea). Única excepción interna: el grafo
+     del árbol, que gestiona su propia caja en ambos ejes — ver `.tree-graph-container`. */
   .rail-body {
     flex: 1 1 auto;
     min-height: 0; /* permite que overflow-y funcione dentro de un flex item */

@@ -37,7 +37,7 @@ Definidos en `:root` de `app.css`.
 | Superficies | `--canvas` · `--surface` · `--surface-raised` · `--inset` |
 | Tinta (4 niveles, gris cálido) | `--ink-1` · `--ink-2` · `--ink-3` · `--ink-4` |
 | Bordes | `--border-1` · `--border-2` · `--border-strong` |
-| Kaya (acento único) | `--kaya` · `--kaya-hover` · `--kaya-press` · `--kaya-on` · `--kaya-soft` · `--focus-ring` |
+| Kaya (acento único) | `--kaya` (relleno) · `--kaya-hover` · `--kaya-press` · `--kaya-on` · **`--kaya-ink`** (texto) · `--kaya-soft` · `--focus-ring` |
 | Semántico | `--tone-success` · `--tone-warning` · `--tone-danger` · `--tone-danger-soft` · `--analyzed` |
 | Controles | `--control-bg` · `--control-border` · `--control-hover` · `--control-press` |
 | Espaciado / radios | `--sp-0..6` · `--radius-sm/md/lg` |
@@ -45,9 +45,16 @@ Definidos en `:root` de `app.css`.
 | Movimiento / chrome | `--motion-fast` · `--topbar-h` |
 | Proporciones del template | `--board-max` (46rem) · `--rail-w` (18rem) · `--rail-w-min` |
 
-**`--ink-3` se eligió por contraste, no a ojo:** lo consumen eyebrows, hints y pestañas inactivas —todo
-texto que se lee—, así que pasa AA (≥4.5:1) sobre las tres superficies claras (surface 5.31 · canvas
-4.99 · inset 4.62). El valor anterior daba 3.18 sobre `inset`.
+**Los colores de TEXTO se eligen por contraste medido, no a ojo.** Dos correcciones que salieron de
+medir en vez de mirar:
+
+- `--ink-3` (eyebrows, hints, pestañas inactivas) pasa AA sobre las tres superficies claras:
+  surface 5.31 · canvas 4.99 · inset 4.62. El valor anterior daba **3.18** sobre `inset`.
+- **El acento se parte en dos:** `--kaya` es RELLENO/borde (el oro del goban lo justifica como
+  superficie; blanco sobre él da 6.18), y `--kaya-ink` es TEXTO. Usar el kaya de relleno como tinta
+  daba 3.42 sobre `--kaya-soft` y 4.13 sobre `--surface` — el reloj del jugador activo, el dato más
+  urgente de la pantalla de Jugar, era el texto **menos** legible del rail. `--kaya-ink` pasa AA en
+  las cuatro combinaciones reales (6.00 · 5.64 · 5.30 · 4.71). Sigue habiendo un solo hue de acento.
 
 **Las proporciones dicen algo:** tablero hasta 46rem contra un rail de 18rem (~2.5:1) declara *"el rail
 sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo propio: la suma ya lo acota.
@@ -92,7 +99,9 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
   como panel aunque le quites las líneas. Sin padding propio: cada región trae el suyo, así los
   separadores cruzan el rail de lado a lado **sin un solo margen negativo**.
   - `.rail-header` (lectura: el dato + la acción primaria) · `.rail-tabs` · `.rail-body` (contenido,
-    **única región que scrollea**) · `.rail-footer` (herramientas, densa).
+    **la región de scroll**) · `.rail-footer` (herramientas, densa). Única sección con caja de scroll
+    propia: el grafo del árbol, que es un lienzo de dos ejes (verificado: 660px de ancho con 20
+    jugadas contra 262px de rail). Nunca hay dos barras apiladas.
 - **AnnotationEditor** — bandeja HUNDIDA (`--inset`) dentro del rail. La paleta es una rejilla de 5
   celdas iguales; "jugar piedra" ocupa su propia fila (no es una marca).
 - **Árbol de jugadas** — `GameTreeGraph` (SVG, Analizar) y `GameTreePanel` (lista, Jugar). El nodo del
@@ -131,8 +140,11 @@ voseo conviviendo con el resto en tuteo entre pantallas adyacentes.
 
 Swap · Squint (el tablero domina) · Signature (kaya primario, glifos ●○, pestañas tipo kifu) · Token ·
 Atomic (page → template estudio → organismos → moléculas → átomos → tokens, cadena limpia, sin niveles
-salteados) · **Contraste AA en todo texto que se lee** · **Cero literal suelto y cero clase muerta**
-(auditado con script en ambas direcciones: markup→CSS y CSS→markup).
+salteados) · **Contraste AA verificado par por par** (`--ink-3` sobre las 3 superficies; `--kaya-on`
+sobre relleno kaya; `--kaya-ink` sobre surface, canvas y `--kaya-soft` en sus dos fondos) · **Cero
+literal suelto y cero clase muerta** (auditado con script en ambas direcciones: markup→CSS y
+CSS→markup) · **Render verificado en Chrome** de las cuatro pestañas de Analizar, ambas pantallas de
+tablero y las de sistema, a 500/820/1440/1600px de ancho.
 
 ## Deuda conocida
 
