@@ -471,3 +471,29 @@ Encontrado en el review final (advisor), CONFIRMADO empíricamente y cerrado con
 **Verificado en las dos direcciones** (un test que pasa con y sin el fix no prueba nada): con el fix revertido a mano, el test nuevo falla por **timeout de 5 s** — `await startPromise` cuelga, que es exactamente el síntoma descrito. Restaurado, verde. Suite: 786 tests (120 + 622 + 44).
 
 Efecto colateral documentado en el propio test #8 ("Finding 1"): ese escenario ya no llega al reintento, así que sus asserts siguen valiendo pero dejaron de ejercitar el camino "el reintento se asienta y su escritura es un no-op". Ese guard de escritura queda como defensa en profundidad.
+
+## RESULTADO DEL IPHONE 12 — la premisa del plan era FALSA (2026-07-26)
+
+Volcado de `/diagnostico` en el iPhone 12 de Edgar, en producción. **El dispositivo tiene iOS 18.7.8, no iOS 26**, y la prueba fue en **Chrome iOS 150** (CriOS). `navigator.gpu: no` en los DOS scopes, `adapter/device: unsupported`, sondeo de 0 ms.
+
+**La causa está confirmada y no es el hardware.** En iOS todos los navegadores usan WebKit, y de ahí el plan concluyó que "Chrome y Safari en el iPhone son una sola señal, no dos". **Eso era falso en el detalle que importaba:** Chrome, Edge y Firefox en iOS corren sobre **WKWebView**, y las feature flags de Safari no lo alcanzan. Un ingeniero de Apple en los foros oficiales (developer.apple.com/forums/thread/770862): *"these feature flags only impact Safari and not WebKit generally. For WKWebView, the feature will work when its enabled by default"* + *"Can you please try on the iOS 26 beta? WebGPU is enabled by default there."* WebGPU llegó a Safari iOS por defecto en **18.2** (según versión, tras la flag de Ajustes → Safari → Avanzado → Funciones experimentales) y a WKWebView recién en **iOS 26**.
+
+**Corolario metodológico:** probar Chrome en un iPhone NO descarta Safari. Son dos señales distintas para WebGPU, en el mismo dispositivo y el mismo día.
+
+### Lo que el volcado MATA de la Fase 3 (asunciones del plan que ya no hay que trabajar)
+
+- **La cuota no es un problema:** 41,2 GB libres. Los 223,8 MB de las dos redes entran de sobra; el aviso de cuota corta nunca va a dispararse en este aparato.
+- **`numThreads` no necesita heurística de dispositivo:** iOS reporta `hardwareConcurrency: 4` (el A14 tiene 6 núcleos, pero el navegador ya lo acota). `Math.min(8, 4)` ya es 4 — la preocupación del plan sobre "hasta 8 en un A14" no existe.
+- **COOP/COEP funcionan en iOS:** `crossOriginIsolated: sí` y `SharedArrayBuffer: sí` en AMBOS scopes. Es la mejor evidencia hasta ahora de que la Rama B (WASM + red chica) es viable si alguna vez hace falta: el WASM tendría hilos de verdad.
+- El service worker funciona perfecto (`activated`, controla la página, sin versión esperando) → la Fase 1 aterrizó bien en el iPhone.
+
+### Lo que sigue ABIERTO
+
+- **¿Safari en iOS 18.7.8 expone `navigator.gpu` por defecto, o hace falta la feature flag?** Las fuentes se contradicen justo en eso, y no se resuelve buscando más: se resuelve con el dispositivo. Pedido a Edugar en una sola vuelta: abrir `/diagnostico` en **Safari** y, si da `no`, activar Ajustes → Safari → Avanzado → Funciones experimentales → WebGPU y repetir.
+- **`persistente: no` con `modo de display: browser`.** En iOS, `persist()` normalmente exige que el sitio esté agregado a la pantalla de inicio. Si el motor llega a correr ahí, 115,8 MB de pesos pueden ser desalojados entre sesiones → conviene instalar la PWA antes de la prueba real (y eso además ejercita el camino de actualización que se construyó en la Fase 1).
+- **El issue de ORT JSEP (#26827) es sobre Safari 26.** Si Safari 18.7.8 tuviera WebGPU, la prueba correría sobre un build que el issue no cubre — buena noticia para un primer intento, pero un éxito ahí NO es evidencia de que el camino de iOS 26 esté limpio.
+- **La Fase 3 sigue SIN decidir**, y ahora tiene una tercera posibilidad que el plan no enumeraba: que funcione en Safari y esté roto sólo en Chrome iOS → no hace falta ningún fallback, sólo guiar bien. La conversión de b10 es el trabajo más incierto de todo el plan; gastarlo antes de esa lectura sería el error caro.
+
+### Entregado ya, porque NO era especulativo (commit siguiente)
+
+El cartel del gate decía "abre esta página en Chrome o Edge", que en un iPhone es **el consejo contrario al correcto**. `diagnostics/webGpuAdvice.ts` (puro, 7 tests) lo parte por plataforma Y por navegador: en iOS manda a Safari y aclara que no es limitación del hardware, nombrando la versión real; si YA estás en Safari por debajo de iOS 26, manda a la feature flag; en iOS 26+ no culpa al navegador (ahí cualquiera sirve, así que el fallo sería información nueva); fuera de Apple, el texto de siempre. Se lee el UA en el punto de PRESENTACIÓN (`NoWebGpu` en `main.tsx`), nunca dentro de `detectWebGpu()`: el gate sigue siendo un gate. Verificado en Chrome con el UA real del iPhone 12 emulado: el consejo que saldría es el correcto, con "18.7.8" y "WKWebView" en el texto. `CLAUDE.md` actualizado en el mismo commit (su línea "Sin WebGPU → mensaje 'usa Chrome/Edge'" acababa de dejar de ser cierta).

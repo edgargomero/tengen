@@ -17,6 +17,8 @@ import { Component, render } from 'preact'
 import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { BUILD_ID } from './buildInfo'
+import { summarizeUserAgent } from './diagnostics/userAgent'
+import { webGpuAdvice } from './diagnostics/webGpuAdvice'
 import { PwaToast } from './pwa/PwaToast'
 import { useServiceWorker } from './pwa/useServiceWorker'
 import { Router, Link as RouterLink, route } from 'preact-router'
@@ -48,17 +50,28 @@ const Link = RouterLink as (props: JSX.AnchorHTMLAttributes<HTMLAnchorElement>) 
 /** Ruta de la pantalla de diagnóstico. Se resuelve por `pathname`, fuera del router — ver `Root`. */
 const DIAGNOSTICO_PATH = '/diagnostico'
 
-/** El cartel del gate. Ahora dice el MOTIVO y ofrece la salida: sin el enlace al diagnóstico, alguien a
- * quien la app no le arranca queda en una pantalla sin ninguna acción posible, que es el estado en el que
- * un iPhone nos dejó sin datos para depurar. */
+/** El cartel del gate. Dice el MOTIVO, da un consejo que depende del dispositivo, y ofrece la salida:
+ * sin el enlace al diagnóstico, alguien a quien la app no le arranca queda en una pantalla sin ninguna
+ * acción posible, que es el estado en el que un iPhone nos dejó sin datos para depurar.
+ *
+ * El consejo NO puede ser genérico. "Abre esta página en Chrome o Edge" es, en un iPhone, el consejo
+ * exactamente contrario al correcto: ahí Chrome corre sobre WKWebView, que no expone WebGPU hasta iOS 26,
+ * mientras Safari sí puede. Confirmado con el volcado de un iPhone 12 real — ver `webGpuAdvice.ts`. */
 function NoWebGpu({ reason }: { reason: string }) {
+  // Lectura del UA en el punto de PRESENTACIÓN, no dentro de `detectWebGpu()`: el gate sigue siendo un
+  // gate (una pregunta, una respuesta) y no toma decisiones por navegador.
+  const advice = webGpuAdvice(
+    summarizeUserAgent({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }),
+  )
   return (
     <main class="system-screen system-screen--centered">
       <h1>tengen</h1>
       <p>
-        tengen necesita <strong>WebGPU</strong>. Abre esta página en <strong>Chrome o Edge</strong>{' '}
-        recientes (WebGPU habilitado).
+        tengen necesita <strong>WebGPU</strong>.
       </p>
+      {advice.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
       <p class="system-note">{reason}</p>
       {/* `<a href>` y no `<Link>`: el router vive dentro del gate, así que desde acá no existe. */}
       <a class="link-button" href={DIAGNOSTICO_PATH}>
