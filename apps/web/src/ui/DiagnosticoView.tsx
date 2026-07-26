@@ -17,6 +17,7 @@ import { collectDiagnostics } from '../diagnostics/collect'
 import type { Diagnostics } from '../diagnostics/collect'
 import { diagnose, formatDiagnostics, warnings } from '../diagnostics/format'
 import { errorText } from '../diagnostics/gpuProbe'
+import { webGpuAdvice } from '../diagnostics/webGpuAdvice'
 
 type ViewState =
   | { phase: 'collecting' }
@@ -96,6 +97,11 @@ function DiagnosticoReport({
   const notes = warnings(data)
   const dump = formatDiagnostics(data)
   const copyMessage = COPY_MESSAGE[copy]
+  // Qué HACER, no sólo qué pasa. El consejo también vive en el cartel del gate (`NoWebGpu`), pero a esta
+  // pantalla se llega por su URL directa —es lo que uno pega en un chat— y ahí el gate nunca se ve. Sin
+  // esto, el diagnóstico dice "este dispositivo no puede" y deja al lector sin siguiente paso: pasó de
+  // verdad, dos veces, con el mismo iPhone entrando por Chrome.
+  const advice = verdict.ok ? [] : webGpuAdvice(data.userAgent)
 
   return (
     <>
@@ -105,6 +111,14 @@ function DiagnosticoReport({
         <br />
         {verdict.detail}
       </p>
+
+      {advice.length > 0 && (
+        <div class="notice notice--accent">
+          {advice.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      )}
 
       {notes.length > 0 && (
         <ul class="diagnostico-warnings">

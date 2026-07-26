@@ -505,3 +505,11 @@ Los 3 commits locales (`58a0d14` dos pasadas · `c23a4b4` fix del preempt · `a1
 Verificado en el bundle real servido por producción (`index-CgzUg8b-.js`): el consejo nuevo está (`WKWebView` presente) y las etiquetas de las dos pasadas también (`{sweep:"Repasando",refine:"Afinando errores"}`).
 
 **Dos falsas alarmas descartadas en la verificación, anotadas para no repetirlas:** (1) un `grep -c "Afinando errores"` sobre un `curl` en pipe dio 0, pero el mismo string aparece al descargar el archivo completo — no confiar en dos `curl` separados dentro de un mismo comando para comparar contenido. (2) los greps contra `apps/web/dist/` daban 0 porque el shell de Bash **conserva el `cd`** del deploy (`apps/worker`) entre llamadas: usar rutas absolutas o re-`cd` explícito.
+
+### El diagnóstico decía qué pasa, pero no qué hacer (2026-07-26)
+
+Segundo volcado del iPhone 12: build `a1fd3b3` (el deploy llegó bien) pero **otra vez desde Chrome iOS**. La causa observada, no supuesta: a `/diagnostico` se llega por su URL directa —es lo que uno pega en un chat— y el consejo corregido vivía SÓLO en el cartel del gate (`NoWebGpu`), que aparece al abrir la app en `/`. Entrando derecho al diagnóstico, ese consejo nunca se ve: la pantalla dice "este dispositivo no puede correr el motor" y deja al lector sin siguiente paso. Pasó dos veces con el mismo teléfono.
+
+Fix: `DiagnosticoView` pinta `webGpuAdvice(data.userAgent)` bajo el veredicto cuando el veredicto es negativo. Reusa el `UserAgentSummary` que el recolector ya trae — cero recolección nueva. Verificado en el navegador con el UA exacto del iPhone 12 de Edgar: el consejo que se pinta es "En iPhone y iPad, abre esta página en Safari" + la explicación de WKWebView con la versión real.
+
+**Lección de diseño para pantallas de diagnóstico:** el consejo tiene que vivir donde se lee el problema, no en la pantalla de la que uno viene. Una pantalla a la que se llega por URL directa no hereda el contexto de ninguna otra.
