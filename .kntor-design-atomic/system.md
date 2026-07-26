@@ -41,6 +41,15 @@ Definidos en `:root` de `app.css`.
 | Semántico | `--tone-success/warning/danger` (texto) · `--tone-*-solid` + `--tone-on-solid` (relleno sobre el goban) · `--tone-danger-soft` · `--analyzed` |
 | Fuera del tema | `--stone-black` · `--stone-white` (una piedra negra es negra en cualquier tema) |
 | Profundidad | `--shadow-1` (lift del segmento activo) · `--shadow-scroll` (afordancia del rail) |
+
+**Los tokens de baja opacidad se DERIVAN, no se copian.** `--border-*`, `--kaya-soft`, `--focus-ring`,
+`--tone-danger-soft` y `--control-press` usan `color-mix(… , transparent)` sobre el token del que
+dependen, en vez de repetir sus canales en un `rgba()`. No es cosmética: un `rgba(202,147,58,.14)`
+es una copia muda de `--kaya` que ninguna auditoría detecta —ni la de `var()`, porque es un literal,
+ni la de contraste, porque no es texto— y que se desincroniza en silencio la próxima vez que alguien
+ajuste el acento. Como beneficio extra, los bordes derivados de `--ink-1` **se dan vuelta solos** con
+el tema y el bloque oscuro no necesita redefinirlos. Las únicas rgba que quedan son las sombras, que
+no derivan de nada: una sombra no es tinta.
 | Controles | `--control-bg` · `--control-border` · `--control-hover` · `--control-press` |
 | Espaciado / radios | `--sp-0..6` · `--radius-sm/md/lg` |
 | **Tipografía** | `--text-xs/sm/md/base/lg` · `--weight-medium/semibold/bold` · `--leading-tight/normal` · `--tracking-tight/eyebrow` |
@@ -161,9 +170,9 @@ pestañas de Analizar, la pantalla de Jugar, las tarjetas y las de sistema · **
 cero clase muerta** (auditado con script en ambas direcciones: markup→CSS y CSS→markup) · **Render
 verificado en Chrome** a 500/820/1440/1600px de ancho, en claro y en oscuro.
 
-> El auditor de contraste vive en el historial de esta sesión, no en el repo. Si se retoma el
-> sistema, vale la pena volver a correrlo: los tres fallos más graves (botón primario, success,
-> warning) sobrevivieron a una ronda de cálculo sobre la paleta y solo cayeron midiendo lo pintado.
+> El auditor vive en `apps/web/scripts/contrast-audit.js` (documentado en CLAUDE.md). Correrlo de
+> nuevo ante cualquier cambio de paleta: los tres fallos más graves (botón primario, success,
+> warning) sobrevivieron a una ronda de cálculo sobre los tokens y solo cayeron midiendo lo pintado.
 
 ## Tema oscuro
 

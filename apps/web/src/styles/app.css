@@ -30,10 +30,12 @@
   --ink-3: #6f695e; /* terciario / metadata / eyebrow */
   --ink-4: #b0a99d; /* muted / placeholder / disabled */
 
-  /* Bordes — progresión de baja opacidad, cálidos; susurran. Nunca cargan la estructura solos. */
-  --border-1: rgba(40, 33, 20, 0.12); /* separación estándar */
-  --border-2: rgba(40, 33, 20, 0.07); /* separación suave */
-  --border-strong: rgba(40, 33, 20, 0.22); /* énfasis */
+  /* Bordes — progresión de baja opacidad; susurran, nunca cargan la estructura solos. DERIVADOS de
+     la tinta primaria: por eso no hace falta redefinirlos en el tema oscuro (al invertirse `--ink-1`
+     pasan solos de "tinta sobre claro" a "luz sobre oscuro"), y por eso no pueden desincronizarse. */
+  --border-1: color-mix(in srgb, var(--ink-1) 12%, transparent); /* separación estándar */
+  --border-2: color-mix(in srgb, var(--ink-1) 7%, transparent); /* separación suave */
+  --border-strong: color-mix(in srgb, var(--ink-1) 24%, transparent); /* énfasis */
 
   /* Kaya — el oro de la madera del goban (goban.css --shudan-board-border-color). ÚNICO acento:
      solo estados activos/primarios. Ningún segundo hue decorativo en toda la app. */
@@ -45,13 +47,13 @@
   --kaya-hover: #d6a250;
   --kaya-press: #b8842e;
   --kaya-on: #201d18; /* texto sobre relleno kaya: 6.19 · 7.31 (hover) · 5.10 (press) */
-  --kaya-soft: rgba(202, 147, 58, 0.14); /* fondo de acento tenue */
+  --kaya-soft: color-mix(in srgb, var(--kaya) 14%, transparent); /* fondo de acento tenue */
   /* TEXTO en acento. Mismo hue, más profundo: el `--kaya` de relleno como tinta daba 3.42:1 sobre
      `--kaya-soft` y 4.13:1 sobre `--surface` — el reloj del jugador activo, el dato más urgente de
      la pantalla, era el texto MENOS legible del rail. Este pasa AA en las cuatro combinaciones
      reales: surface 6.00 · canvas 5.64 · kaya-soft/surface 5.30 · kaya-soft/inset 4.71. */
   --kaya-ink: #845907;
-  --focus-ring: rgba(202, 147, 58, 0.55);
+  --focus-ring: color-mix(in srgb, var(--kaya) 55%, transparent);
 
   /* Semántico — calidad de jugada / estado. Comunican, no decoran. Mismo criterio que la tinta:
      medidos, no elegidos a ojo. Los anteriores fallaban AA (success 4.30 sobre inset; warning 4.33
@@ -61,7 +63,7 @@
   --tone-success: #2a7040;
   --tone-warning: #94551a;
   --tone-danger: #b23b3b;
-  --tone-danger-soft: rgba(178, 59, 59, 0.09);
+  --tone-danger-soft: color-mix(in srgb, var(--tone-danger) 9%, transparent);
   /* Variantes SOLID: rellenos que llevan texto blanco encima (la burbuja de pérdida de puntos).
      NO cambian con el tema — viven sobre el goban, que es madera clara en modo claro y oscuro por
      igual. Blanco sobre ellas: 6.02 · 5.88 · 5.86. */
@@ -89,7 +91,7 @@
   --control-bg: var(--surface);
   --control-border: var(--border-1);
   --control-hover: var(--inset);
-  --control-press: rgba(40, 33, 20, 0.09); /* el clic se siente: un grado más hundido que hover */
+  --control-press: color-mix(in srgb, var(--ink-1) 9%, transparent); /* el clic se siente */
 
   /* Espaciado — base 4px (+ un micro paso de 2px para hairlines de pistas segmentadas). */
   --sp-0: 0.125rem; /* 2px — micro */
@@ -148,6 +150,13 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* `hidden` por sí solo es apenas un default de la hoja del navegador: cualquier regla que fije
+   `display` le gana en especificidad. Vale hacerlo explícito ahora que el CSS ya alcanza a los
+   `input[type=file]` (el del picker), y el input de importar SGF de Jugar depende de estar oculto. */
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -1232,21 +1241,18 @@ fieldset.field {
     --ink-3: #9a9287;
     --ink-4: #6b655c;
 
-    /* Los bordes siguen susurrando, pero ahora en luz sobre oscuro. */
-    --border-1: rgba(245, 238, 225, 0.14);
-    --border-2: rgba(245, 238, 225, 0.08);
-    --border-strong: rgba(245, 238, 225, 0.28);
-
     /* El relleno kaya no cambia: es la madera, y blanco sobre él sigue dando 6.18. La TINTA de
        acento sí, y en dirección opuesta a la del tema claro — más clara, no más profunda. */
     --kaya-ink: #d9a24a;
-    --kaya-soft: rgba(202, 147, 58, 0.18);
-    --focus-ring: rgba(224, 169, 79, 0.7);
+    /* El acento tenue necesita un punto más de cuerpo sobre oscuro, y el anillo de foco se deriva de
+       la TINTA de acento (la clara), no del relleno: sobre un chrome apagado, el oro de relleno
+       apenas se despega del borde. */
+    --kaya-soft: color-mix(in srgb, var(--kaya) 18%, transparent);
+    --focus-ring: color-mix(in srgb, var(--kaya-ink) 70%, transparent);
 
     --tone-success: #5fbe7d;
     --tone-warning: #e8a066; /* mantiene la separación de hue frente al acento */
     --tone-danger: #e8756f;
-    --tone-danger-soft: rgba(232, 117, 111, 0.14);
 
     /* Contra un fondo oscuro, la piedra negra necesita que el contorno la despegue del lienzo. */
     --stone-outline: #9a9287;
