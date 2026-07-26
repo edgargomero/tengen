@@ -48,9 +48,24 @@ registerRoute(({ url }) => url.pathname.startsWith('/models/'), new NetworkOnly(
 // Cualquier navegación (`/`, `/jugar`, `/analizar`, `/partidas`) se resuelve con el index precacheado
 // — el mismo contrato que `not_found_handling: single-page-application` del Worker, pero sin red.
 // `denylist` evita secuestrar rutas que NO son de la SPA.
+//
+// `/diagnostico` está en la denylist Y ES DELIBERADO, contra la regla general de este archivo. El
+// problema: servir el `index.html` precacheado significa cargar el JS del shell VIEJO, y una pantalla de
+// diagnóstico que no existe en ese bundle se manifiesta como "abrí /diagnostico y me mostró la app
+// normal" — indistinguible de una función rota. Es la trampa exacta que este plan de fases intenta
+// evitar, y aparece de nuevo en CADA iteración futura del diagnóstico: la herramienta con la que se
+// depura un dispositivo nunca debe llegar en una versión anterior a la que se está depurando.
+//
+// El costo es que el diagnóstico deja de abrir sin conexión. Es el intercambio correcto: lo que reporta
+// (WebGPU, cuota, modelos en OPFS) se mide en el dispositivo, pero el escenario real es "algo no
+// funciona y quiero saber qué", no "quiero diagnosticar en un avión".
+//
+// Lo que esto NO arregla: la denylist recién rige cuando el service worker nuevo está activo, así que la
+// PRIMERA visita a /diagnostico desde un dispositivo con el shell viejo sigue cayendo en el shell viejo.
+// Para esa vez hay que aceptar el aviso de "versión nueva" antes de navegar.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: [/^\/api\//, /^\/models\//, /^\/cdn-cgi\//],
+    denylist: [/^\/api\//, /^\/models\//, /^\/cdn-cgi\//, /^\/diagnostico$/],
   }),
 )
 
