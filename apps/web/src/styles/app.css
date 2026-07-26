@@ -47,22 +47,24 @@
   --control-border: var(--border-1);
   --control-hover: var(--inset);
 
-  /* Espaciado — base 4px. */
-  --sp-1: 0.25rem;
-  --sp-2: 0.5rem;
-  --sp-3: 0.75rem;
-  --sp-4: 1rem;
-  --sp-5: 1.5rem;
-  --sp-6: 2rem;
+  /* Espaciado — base 4px (+ un micro paso de 2px para gaps de íconos/pestañas). */
+  --sp-0: 0.125rem; /* 2px — micro */
+  --sp-1: 0.25rem; /* 4px */
+  --sp-2: 0.5rem; /* 8px */
+  --sp-3: 0.75rem; /* 12px */
+  --sp-4: 1rem; /* 16px */
+  --sp-5: 1.5rem; /* 24px */
+  --sp-6: 2rem; /* 32px */
 
-  /* Radios — agudos para controles, más suave para tarjetas/paneles. */
-  --radius-sm: 5px;
-  --radius-md: 9px;
-  --radius-lg: 12px;
+  /* Radios — agudos para controles, más suave para tarjetas/paneles. Valores elegidos para consolidar
+     los literales existentes (6/8/10) casi sin cambio visual. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
 
   /* Controles compactos del panel (el tablero es el héroe; la botonera es densa). */
-  --ctl-pad-y: 0.3rem;
-  --ctl-pad-x: 0.6rem;
+  --ctl-pad-y: var(--sp-1);
+  --ctl-pad-x: var(--sp-2);
   --ctl-font: 0.85rem;
 }
 
@@ -89,7 +91,7 @@ button {
   border-radius: var(--radius-sm);
   background: var(--control-bg);
   color: var(--ink-1);
-  padding: 0.4rem 0.8rem;
+  padding: var(--sp-2) var(--sp-3);
 }
 
 button:hover:not(:disabled) {
@@ -111,7 +113,7 @@ button:disabled {
 select,
 input[type='number'] {
   font: inherit;
-  padding: 0.3rem 0.5rem;
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--inset);
@@ -146,7 +148,7 @@ input[type='number']:focus-visible {
 }
 
 .crash-recovery button {
-  margin-top: 1rem;
+  margin-top: var(--sp-4);
 }
 
 /* ── Conmutador de modo Jugar/Analizar (Task 11) ────────────────────────────────────────────── */
@@ -154,13 +156,13 @@ input[type='number']:focus-visible {
 .mode-menu {
   max-width: 28rem;
   margin: 3rem auto;
-  padding: 2rem;
+  padding: var(--sp-6);
   background: var(--surface);
   border: 1px solid var(--border-1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--sp-4);
   text-align: center;
 }
 
@@ -182,8 +184,8 @@ input[type='number']:focus-visible {
 .mode-menu a {
   font: inherit;
   cursor: pointer;
-  border-radius: 6px;
-  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
   text-decoration: none;
 }
 
@@ -205,8 +207,8 @@ input[type='number']:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  padding-top: 1rem;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
   border-top: 1px solid var(--border-2);
   font-size: 0.9rem;
   color: var(--ink-2);
@@ -216,7 +218,7 @@ input[type='number']:focus-visible {
 .session-identity {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--sp-2);
 }
 
 .session-avatar {
@@ -229,9 +231,9 @@ input[type='number']:focus-visible {
   font: inherit;
   cursor: pointer;
   border: 1px solid var(--control-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
-  padding: 0.3rem 0.7rem;
+  padding: var(--sp-1) var(--sp-3);
 }
 
 .session-box button:hover {
@@ -243,20 +245,20 @@ input[type='number']:focus-visible {
 .new-game-form {
   max-width: 28rem;
   margin: 3rem auto;
-  padding: 2rem;
+  padding: var(--sp-6);
   background: var(--surface);
   border: 1px solid var(--border-1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--sp-5);
 }
 
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding-top: 1rem;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
   border-top: 1px solid var(--border-2);
 }
 
@@ -272,7 +274,7 @@ input[type='number']:focus-visible {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--sp-1);
 }
 
 .field select,
@@ -288,15 +290,15 @@ input[type='number']:focus-visible {
 
 fieldset.field {
   border: 1px solid var(--border-1);
-  border-radius: 6px;
-  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
 }
 
 .radio-option {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.4rem;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 
 .form-error {
@@ -310,7 +312,7 @@ fieldset.field {
   border-color: var(--kaya);
   color: var(--kaya-on);
   font-weight: 600;
-  padding: 0.6rem 1.1rem;
+  padding: var(--sp-2) var(--sp-4);
   text-align: center;
 }
 
@@ -364,7 +366,7 @@ fieldset.field {
   font-size: 1.05rem;
   letter-spacing: -0.01em;
   color: var(--ink-1);
-  padding: 0.15rem 0.35rem;
+  padding: var(--sp-0) var(--sp-1);
 }
 
 .topbar-home:hover:not(:disabled) {
@@ -383,15 +385,15 @@ fieldset.field {
 /* Conmutador de modo: la misma molécula SegmentedControl que las pestañas del panel. */
 .topbar-modes {
   display: flex;
-  gap: 0.15rem;
-  padding: 0.2rem;
+  gap: var(--sp-0);
+  padding: var(--sp-1);
   background: var(--inset);
   border: 1px solid var(--border-2);
   border-radius: var(--radius-md);
 }
 
 .topbar-modes button {
-  padding: 0.28rem 0.75rem;
+  padding: var(--sp-1) var(--sp-3);
   font-size: 0.85rem;
   border: none;
   border-radius: var(--radius-sm);
@@ -416,12 +418,12 @@ fieldset.field {
 .play-view {
   display: flex;
   flex-wrap: wrap;
-  gap: 2rem;
+  gap: var(--sp-6);
   align-items: flex-start;
   justify-content: center;
   margin: 2rem auto;
   max-width: 80rem;
-  padding: 0 1rem;
+  padding: 0 var(--sp-4);
 }
 
 .play-board {
@@ -455,7 +457,7 @@ fieldset.field {
 .analyze-panel button {
   padding: var(--ctl-pad-y) var(--ctl-pad-x);
   font-size: var(--ctl-font);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .play-turn {
@@ -465,7 +467,7 @@ fieldset.field {
 .play-clock {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--sp-4);
   font-variant-numeric: tabular-nums;
   font-size: 0.95rem;
 }
@@ -488,7 +490,7 @@ fieldset.field {
   background: var(--kaya-soft);
   border: 1px solid var(--border-1);
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
+  padding: var(--sp-2) var(--sp-3);
 }
 
 /* ── SyncBadge (Fase 5): estado de guardado en la nube, en PlayView y AnalyzeView ──────────── */
@@ -511,37 +513,37 @@ fieldset.field {
   font: inherit;
   cursor: pointer;
   border: 1px solid currentColor;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
-  padding: 0.1rem 0.5rem;
+  padding: var(--sp-0) var(--sp-2);
 }
 
 .play-controls,
 .play-nav,
 .play-io {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--sp-2);
 }
 
 .play-exploring {
   color: var(--ink-2);
   background: var(--kaya-soft);
   border: 1px solid var(--border-1);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-2);
   font-size: 0.85rem;
 }
 
 /* ── Árbol de variaciones (Task 5) ──────────────────────────────────────────────────────────── */
 
 .tree-panel {
-  margin-top: 0.5rem;
-  padding-top: 0.75rem;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-3);
   border-top: 1px solid var(--border-1);
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--sp-1);
   max-height: 16rem;
   overflow-y: auto;
   font-size: 0.85rem;
@@ -555,28 +557,28 @@ fieldset.field {
 .tree-branch {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--sp-1);
 }
 
 .tree-line {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem;
+  gap: var(--sp-1);
 }
 
 .tree-variations {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding-left: 1rem;
+  gap: var(--sp-1);
+  padding-left: var(--sp-4);
   border-left: 1px solid var(--border-1);
-  margin-left: 0.3rem;
+  margin-left: var(--sp-1);
 }
 
 .tree-node {
-  padding: 0.15rem 0.4rem;
+  padding: var(--sp-0) var(--sp-2);
   font-size: 0.8rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .tree-node-current {
@@ -589,8 +591,8 @@ fieldset.field {
    Paralelo a `.tree-*` de arriba, que sigue intacto y en uso por `PlayView.tsx`/`GameTreePanel.tsx`. */
 
 .tree-graph-container {
-  margin-top: 0.5rem;
-  padding-top: 0.75rem;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-3);
   border-top: 1px solid var(--border-1);
   max-height: 16rem;
   overflow: auto; /* AMBOS ejes — un árbol de 100+ jugadas es más ancho que el panel lateral */
@@ -649,12 +651,12 @@ fieldset.field {
 .analyze-view {
   display: flex;
   flex-wrap: wrap;
-  gap: 2rem;
+  gap: var(--sp-6);
   align-items: flex-start;
   justify-content: center;
   margin: 2rem auto;
   max-width: 80rem;
-  padding: 0 1rem;
+  padding: 0 var(--sp-4);
 }
 
 .analyze-board {
@@ -684,13 +686,13 @@ fieldset.field {
 .analyze-picker {
   max-width: 28rem;
   margin: 3rem auto;
-  padding: 2rem;
+  padding: var(--sp-6);
   background: var(--surface);
   border: 1px solid var(--border-1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--sp-4);
 }
 
 .analyze-picker h1 {
@@ -705,7 +707,7 @@ fieldset.field {
 
 .analyze-picker-scratch {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--sp-2);
 }
 
 .analyze-score {
@@ -721,8 +723,8 @@ fieldset.field {
   color: var(--ink-2);
   background: var(--kaya-soft);
   border: 1px solid var(--border-1);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-2);
   font-size: 0.85rem;
 }
 
@@ -756,8 +758,8 @@ fieldset.field {
    la acción primaria. */
 .analyze-tabs {
   display: flex;
-  gap: 0.15rem;
-  padding: 0.2rem;
+  gap: var(--sp-0);
+  padding: var(--sp-1);
   background: var(--inset);
   border: 1px solid var(--border-2);
   border-radius: var(--radius-md);
@@ -765,7 +767,7 @@ fieldset.field {
 
 .analyze-tabs button {
   flex: 1;
-  padding: 0.32rem 0.2rem;
+  padding: var(--sp-1) var(--sp-1);
   font-size: 0.82rem;
   border: none;
   border-radius: var(--radius-sm);
@@ -791,7 +793,7 @@ fieldset.field {
 .play-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: var(--sp-1);
 }
 
 .analyze-actions button,
@@ -812,22 +814,22 @@ fieldset.field {
 .analyze-edit {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.6rem;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
   border: 1px solid var(--border-1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--canvas);
 }
 
 .analyze-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: var(--sp-1);
 }
 
 .analyze-tools button {
   min-width: 2.2rem;
-  padding: 0.3rem 0.5rem;
+  padding: var(--sp-1) var(--sp-2);
   font-size: 1rem;
   line-height: 1;
 }
@@ -846,24 +848,24 @@ fieldset.field {
   min-height: 4rem;
   resize: vertical;
   font: inherit;
-  padding: 0.4rem 0.5rem;
+  padding: var(--sp-2) var(--sp-2);
   border: 1px solid var(--control-border);
   background: var(--inset);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-sizing: border-box;
 }
 
 .analyze-tree-ops {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: var(--sp-1);
 }
 
 /* Comentario del nodo en modo lectura (bajo el panel, siempre visible al navegar). */
 .analyze-comment {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  padding: 0.4rem 0.6rem;
+  padding: var(--sp-2) var(--sp-2);
   background: var(--inset);
   border: 1px solid var(--border-1);
   border-radius: var(--radius-sm);
@@ -910,7 +912,7 @@ fieldset.field {
 .review-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--sp-2);
 }
 
 .review-progress {
@@ -929,7 +931,7 @@ fieldset.field {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--sp-1);
 }
 
 .review-entry {
@@ -942,14 +944,14 @@ fieldset.field {
 .review-summary {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--sp-1);
   font-size: 0.85rem;
 }
 
 .review-summary-player {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: var(--sp-0);
 }
 
 .review-summary-quality {
@@ -992,7 +994,7 @@ fieldset.field {
 .guess-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--sp-2);
 }
 
 .guess-hint {
@@ -1023,13 +1025,13 @@ fieldset.field {
 .partidas-view {
   max-width: 40rem;
   margin: 3rem auto;
-  padding: 2rem;
+  padding: var(--sp-6);
   background: var(--surface);
   border: 1px solid var(--border-1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--sp-4);
 }
 
 .partidas-view h1 {
@@ -1049,7 +1051,7 @@ fieldset.field {
 .partidas-table th,
 .partidas-table td {
   text-align: left;
-  padding: 0.5rem 0.6rem;
+  padding: var(--sp-2) var(--sp-2);
   border-bottom: 1px solid var(--border-2);
   white-space: nowrap;
 }
@@ -1084,7 +1086,7 @@ fieldset.field {
     flex: 1 1 auto;
     min-height: 0;
     margin: 0 auto;
-    padding: 1rem;
+    padding: var(--sp-4);
     align-items: stretch;
     overflow: hidden;
   }
@@ -1117,7 +1119,7 @@ fieldset.field {
     min-height: 0; /* permite que overflow-y funcione dentro de un flex item */
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-right: 0.3rem;
+    padding-right: var(--sp-1);
   }
 }
 
@@ -1126,13 +1128,13 @@ fieldset.field {
 @media (max-width: 480px) {
   .play-view,
   .analyze-view {
-    padding: 0 0.5rem;
+    padding: 0 var(--sp-2);
   }
 
   .mode-menu,
   .new-game-form,
   .analyze-picker,
   .partidas-view {
-    padding: 1rem;
+    padding: var(--sp-4);
   }
 }

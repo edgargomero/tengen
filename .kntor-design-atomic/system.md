@@ -22,11 +22,11 @@ estructura, el color comunica*.
 
 ## Nivel 0 — Tokens (el ADN)
 
-> Estado de aplicación: **color 100% tokenizado** (cero hex de color suelto en `app.css`, salvo el teal
-> funcional del marcador "analizado"). **Espaciado/radios: escala definida pero aplicada parcialmente**
-> — quedan ~91 valores de padding/gap y ~16 de border-radius literales (muchos fuera del grid 4px). Es
-> deuda documentada abajo, no un bug: migrarlos snappea espaciados y cambia visuales, requiere pasada
-> con verificación en navegador.
+> Estado de aplicación: **100% tokenizado** — color, espaciado (escala 4px `--sp-0..6`, off-grid
+> snappeado al paso más cercano) y radios (`--radius-sm/md/lg`). Cero literal de componente en `app.css`;
+> las únicas excepciones son intencionales: `margin: 0`/`Nrem auto` (reset y centrado de tarjetas =
+> layout, no espaciado de componente), `border-radius: 50%` (círculos), el pill de pérdida en `em`
+> (relativo a su fuente), y el teal `#14b8a6` del marcador "analizado" (único color funcional sin token).
 
 Definidos en `:root` de `app.css`.
 
@@ -107,11 +107,6 @@ al mundo) · Atomic (page → template estudio → organismos → moléculas →
 
 ## Deuda conocida
 
-- **Espaciado/radios parcialmente tokenizados:** las escalas `--sp-1..6` y `--radius-sm/md/lg` están
-  definidas pero solo aplicadas en las reglas reescritas; quedan ~91 padding/gap y ~16 border-radius
-  literales (varios fuera del grid 4px, p.ej. 0.3/0.4/0.6rem). Pasada pendiente: snappear al grid +
-  aplicar la escala, verificando en navegador (cambia visuales). `--radius-lg`/`--sp-1`/`--sp-5`/`--sp-6`
-  quedan definidos pero aún sin uso (los usará esa pasada; las tarjetas/modales deberían usar `--radius-lg`).
 - Marcador "analizado" del árbol = teal `#14b8a6` hardcodeado (único color funcional sin token). A tokenizar
   como `--analyzed` si se quiere purismo total.
 - Alineación del TopBar (ancho 80rem) vs board+panel (centrado, más angosto) — leve desfase, aceptable.
