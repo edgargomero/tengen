@@ -14,7 +14,10 @@ estructura, el color comunica*.
 
 - **Profundidad:** UNA estrategia — **tinte de superficie**. La jerarquía se percibe sin bordes
   (`canvas → surface → surface-raised`, con `inset` para lo que recibe contenido); los bordes susurran
-  y nunca cargan solos la estructura. Única sombra permitida: el lift de 1px del segmento activo.
+  y nunca cargan solos la estructura. Las sombras son la excepción, y hay exactamente **dos**, ambas
+  con una razón que el tinte no puede cubrir: el lift de 1px del segmento activo (`--shadow-1`) y la
+  elevación del único elemento que FLOTA sobre el contenido, el aviso de la PWA (`--shadow-overlay`)
+  — un elemento despegado del plano no tiene detrás un fondo fijo contra el cual contrastar.
 - **Espaciado:** base **4px** (`--sp-1..6`), con un micro paso de 2px (`--sp-0`) para hairlines.
 - **Densidad como decisión:** el rail tiene tres zonas — lectura (respira), contenido, herramientas
   (densa). El mismo 12px es correcto en una y perezoso en otra.
@@ -40,7 +43,7 @@ Definidos en `:root` de `app.css`.
 | Kaya (acento único) | `--kaya` (relleno) · `--kaya-hover` · `--kaya-press` · `--kaya-on` (tinta sobre el relleno) · **`--kaya-ink`** (texto en acento) · `--kaya-soft` · `--focus-ring` |
 | Semántico | `--tone-success/warning/danger` (texto) · `--tone-*-solid` + `--tone-on-solid` (relleno sobre el goban) · `--tone-danger-soft` · `--analyzed` |
 | Fuera del tema | `--stone-black` · `--stone-white` (una piedra negra es negra en cualquier tema) |
-| Profundidad | `--shadow-1` (lift del segmento activo) · `--shadow-scroll` (afordancia del rail) |
+| Profundidad | `--shadow-1` (lift del segmento activo) · `--shadow-scroll` (afordancia del rail) · `--shadow-overlay` (lo único que flota) |
 
 **Los tokens de baja opacidad se DERIVAN, no se copian.** `--border-*`, `--kaya-soft`, `--focus-ring`,
 `--tone-danger-soft` y `--control-press` usan `color-mix(… , transparent)` sobre el token del que
@@ -130,6 +133,16 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
   celdas iguales; "jugar piedra" ocupa su propia fila (no es una marca).
 - **Árbol de jugadas** — `GameTreeGraph` (SVG, Analizar) y `GameTreePanel` (lista, Jugar). El nodo del
   cursor usa el estado *seleccionado* (kaya tenue), nunca el relleno kaya pleno.
+- **PwaToast** (`.pwa-toast`, `pwa/PwaToast.tsx`): el ÚNICO elemento que flota sobre el contenido, y
+  por eso el único con `--shadow-overlay`. Vive fuera del template de estudio (lo monta `Root` en
+  `main.tsx`, junto al registro del service worker) porque no pertenece a ninguna pantalla: informa
+  de la app, no de la partida. Dos mensajes, con tratamientos distintos a propósito — el de versión
+  nueva trae `.primary` + `.ghost` y **no se autodescarta** (es una acción que el usuario toma cuando
+  quiere); el de "listo sin conexión" es informativo y se va solo a los 6 s.
+- **Chip de conexión** (`.offline-chip`, dentro de la TopBar): tinta terciaria y borde-susurro, NO el
+  tono de peligro. Sin red se sigue jugando y analizando —el motor y los pesos están en el
+  dispositivo—; lo único que se apaga es guardar en la nube. Pintarlo de rojo mentiría sobre la
+  gravedad.
 
 ## Nivel 4 — Template "estudio de tablero"
 
@@ -200,10 +213,29 @@ Un detalle que solo aparece en oscuro: el nodo de piedra negra del grafo del ár
 fondo oscuro, así que `--stone-outline` es lo único de ese trío que sí cambia — es lo que la despega
 del lienzo.
 
+## La app instalada (PWA)
+
+El sistema tiene que sostenerse también fuera de la pestaña, porque tengen se instala y arranca sin
+conexión (service worker en `apps/web/src/sw.ts`). Tres puntos donde eso toca al diseño:
+
+- **Los iconos son piezas del sistema, no un export.** El `favicon.svg` es un círculo dorado a
+  sangre, y como *maskable* funcionaría mal: Android recorta con una máscara arbitraria y le comería
+  el borde al propio círculo. Por eso el maskable es una variante distinta —oro a sangre en todo el
+  cuadrado, piedra al ~58% dentro de la zona segura— y no una reescalada del favicon.
+- **El color del chrome del sistema sale de los tokens.** Dos `<meta name="theme-color">` con
+  `prefers-color-scheme` llevan el `--canvas` de cada tema a la barra del navegador y a la ventana de
+  la app instalada. Sin eso, la app queda enmarcada en un color que no es de la paleta.
+- **La superficie informativa de la app vive fuera del template.** `PwaToast` y el chip de conexión
+  hablan del *programa* (hay versión nueva, no hay red), no de la partida; por eso no entran en el
+  rail, que es la superficie del contenido.
+
 ## Decisiones que parecen deuda y no lo son
 
 - **Sin toggle manual de tema.** La preferencia del sistema alcanza y no introduce estado que
   guardar, sincronizar ni testear.
+- **El aviso de versión nueva no se autodescarta y nunca recarga solo.** Es la contracara de una
+  decisión de producto: activar un shell nuevo mientras alguien piensa una jugada con el reloj
+  corriendo, o a mitad de un review de 40 posiciones, cambiaría una partida por una mejora de CSS.
 - **El glifo ● en "WINRATE ●" no se colorea.** En oscuro no existe un "punto negro" legible sobre
   fondo oscuro; lo que comunica es *relleno vs. hueco* (●/○), que sobrevive a los dos temas. La
   perspectiva va además en el `title`, y el `SCORE` de al lado ya nombra el color ("B+3.2").
