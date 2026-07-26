@@ -16,6 +16,7 @@
 import { Component, render } from 'preact'
 import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
+import { BUILD_ID } from './buildInfo'
 import { PwaToast } from './pwa/PwaToast'
 import { useServiceWorker } from './pwa/useServiceWorker'
 import { Router, Link as RouterLink, route } from 'preact-router'
@@ -31,17 +32,26 @@ import { signInWithGoogle, signOut } from './cloud/authClient'
 import { takePendingOpen } from './cloud/pendingOpen'
 import { useSession } from './cloud/useSession'
 import { AnalyzeView } from './ui/AnalyzeView'
+import { AppVersionFooter } from './ui/AppVersionFooter'
+import { DiagnosticoView } from './ui/DiagnosticoView'
 import { NewGameForm } from './ui/NewGameForm'
 import { PartidasView } from './ui/PartidasView'
 import { PlayView } from './ui/PlayView'
 import { detectWebGpu } from './webgpu'
+import type { WebGpuDetection } from './webgpu'
 
 // El tipo de `Link` en preact-router@4.1.2 usa `HTMLAttributes` (sin `href`) en vez de
 // `AnchorHTMLAttributes` — desactualizado frente a los tipos más granulares de preact@10.24
 // instalados aquí. Re-tipado local en vez de tocar node_modules.
 const Link = RouterLink as (props: JSX.AnchorHTMLAttributes<HTMLAnchorElement>) => JSX.Element
 
-function NoWebGpu() {
+/** Ruta de la pantalla de diagnóstico. Se resuelve por `pathname`, fuera del router — ver `Root`. */
+const DIAGNOSTICO_PATH = '/diagnostico'
+
+/** El cartel del gate. Ahora dice el MOTIVO y ofrece la salida: sin el enlace al diagnóstico, alguien a
+ * quien la app no le arranca queda en una pantalla sin ninguna acción posible, que es el estado en el que
+ * un iPhone nos dejó sin datos para depurar. */
+function NoWebGpu({ reason }: { reason: string }) {
   return (
     <main class="system-screen system-screen--centered">
       <h1>tengen</h1>
@@ -49,6 +59,11 @@ function NoWebGpu() {
         tengen necesita <strong>WebGPU</strong>. Abre esta página en <strong>Chrome o Edge</strong>{' '}
         recientes (WebGPU habilitado).
       </p>
+      <p class="system-note">{reason}</p>
+      {/* `<a href>` y no `<Link>`: el router vive dentro del gate, así que desde acá no existe. */}
+      <a class="link-button" href={DIAGNOSTICO_PATH}>
+        Ver diagnóstico
+      </a>
     </main>
   )
 }
@@ -245,20 +260,30 @@ function ModeApp() {
 
 function ModeMenu(_props: RoutableProps) {
   const { user, pending } = useSession()
+  // Se suscribe al MISMO singleton que `Root` (ver `pwa/swController.ts`): dos llamadas al hook no
+  // registran el service worker dos veces.
+  const sw = useServiceWorker()
   return (
     <main class="card-screen mode-menu">
       <img src="/favicon.svg" alt="" class="mode-menu-icon" />
       <h1>tengen</h1>
       <p>¿Qué quieres hacer?</p>
-      <Link class="primary" href="/jugar">
+      {/* `.link-button` explícito, no heredado de un `.mode-menu a`: ver el átomo en app.css. */}
+      <Link class="link-button primary" href="/jugar">
         Jugar
       </Link>
-      <Link href="/analizar">Analizar</Link>
-      {user !== null && <Link href="/partidas">Mis partidas</Link>}
+      <Link class="link-button" href="/analizar">
+        Analizar
+      </Link>
+      {user !== null && (
+        <Link class="link-button" href="/partidas">
+          Mis partidas
+        </Link>
+      )}
       {/* Login opcional (Fase 5): jugar/analizar sin cuenta sigue igual que siempre; loguearse
           solo habilita guardar/listar/reabrir en la nube. `pending` evita el parpadeo del botón
           de login mientras el get-session inicial está en vuelo. */}
-      <div class="session-box">
+      <div class="menu-footer menu-footer--session">
         {pending ? null : user !== null ? (
           <>
             <span class="session-identity">
@@ -271,23 +296,33 @@ function ModeMenu(_props: RoutableProps) {
           <button onClick={signInWithGoogle}>Iniciar sesión con Google</button>
         )}
       </div>
+      {/* Qué versión corre este dispositivo + chequeo manual. El menú es el lugar: es la única
+          pantalla sin tablero ni reloj, así que nada de esto compite con la partida. */}
+      <AppVersionFooter
+        buildId={BUILD_ID}
+        checkState={sw.checkState}
+        updateReady={sw.updateReady}
+        onCheck={sw.checkForUpdate}
+      />
     </main>
   )
 }
 
 function App() {
-  const [webgpu, setWebgpu] = useState<boolean | null>(null)
+  // `null` sigue significando "todavía detectando" (no colapsar el tri-estado en `detection.ok`: si no,
+  // habría un parpadeo del cartel de WebGPU en cada carga, antes de saber la respuesta).
+  const [detection, setDetection] = useState<WebGpuDetection | null>(null)
   useEffect(() => {
-    void detectWebGpu().then(setWebgpu)
+    void detectWebGpu().then(setDetection)
   }, [])
-  if (webgpu === null) {
+  if (detection === null) {
     return (
       <main class="system-screen system-screen--centered">
         <p class="system-note">Detectando WebGPU…</p>
       </main>
     )
   }
-  return webgpu ? <ModeApp /> : <NoWebGpu />
+  return detection.ok ? <ModeApp /> : <NoWebGpu reason={detection.reason} />
 }
 
 /** Raíz de la app + avisos de la PWA. El service worker se registra acá, FUERA del gate de WebGPU:
@@ -297,9 +332,15 @@ function App() {
 function Root() {
   const sw = useServiceWorker()
   const [offlineToast, setOfflineToast] = useState(true)
+  // El diagnóstico se decide ACÁ, antes del gate de WebGPU y antes incluso de la pantalla "Detectando
+  // WebGPU…": en un dispositivo donde `requestAdapter()` no resuelve nunca, `App` se queda en ese estado
+  // para siempre — y ese es exactamente el aparato que hay que diagnosticar. Se compara el `pathname` en
+  // vez de usar el router porque el router vive DENTRO del gate. Como se llega con `<a href>` (navegación
+  // completa del documento), el valor no cambia mientras este componente está montado.
+  const diagnostico = window.location.pathname === DIAGNOSTICO_PATH
   return (
     <>
-      <App />
+      {diagnostico ? <DiagnosticoView /> : <App />}
       <PwaToast
         updateReady={sw.updateReady}
         offlineReady={sw.offlineReady && offlineToast}

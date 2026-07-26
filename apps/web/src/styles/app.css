@@ -245,6 +245,50 @@ button:disabled {
   background: var(--control-press);
 }
 
+/* Enlace que ES un botón — mismo átomo, misma altura, mismos estados. Antes vivía como la regla de
+   descendencia `.mode-menu a`, y dejar eso así rompió algo en cuanto el menú tuvo un enlace que NO quería
+   el tratamiento con superficie: el enlace al diagnóstico pedía `.ghost` y le llegaba el borde del menú
+   igual, porque una regla de descendencia se aplica por dónde está el elemento y no por lo que el
+   elemento dice ser. Ahora es un átomo con nombre y se declara en el markup, como `.ghost`.
+   Lo necesitan tres pantallas: el menú, el cartel de "hace falta WebGPU" y el diagnóstico — las dos
+   últimas navegan con `<a href>` de verdad, no con el router, porque tienen que funcionar cuando el resto
+   de la app no arrancó. */
+.link-button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+}
+
+/* El tratamiento con superficie aplica salvo que el enlace declare otra variante: así `.primary` y
+   `.ghost` significan lo mismo en un `<a>` que en un `<button>`, que es lo que lo hace UN átomo y no dos
+   parecidos. Los `:not()` no son cosméticos: sin ellos estas propiedades le ganarían en especificidad
+   tanto al relleno kaya como al fantasma. */
+.link-button:not(.primary):not(.ghost) {
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  color: inherit;
+}
+
+.link-button:not(.primary):not(.ghost):hover {
+  background: var(--control-hover);
+}
+
+.link-button:not(.primary):not(.ghost):active {
+  background: var(--control-press);
+}
+
+/* Los botones ya traen su anillo de foco; los enlaces no lo tenían, y un átomo sin focus-visible es
+   inalcanzable desde el teclado sin verlo. */
+.link-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 /* Control de entrada — "inset": recibe contenido, un pelo más hundido que su entorno. */
 select,
 input[type='number'],
@@ -1122,45 +1166,44 @@ fieldset.field {
   color: var(--ink-2);
 }
 
-/* Los enlaces del menú son botones semánticamente: mismo átomo, misma altura, mismos estados. */
-.mode-menu a {
-  font: inherit;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2) var(--sp-3);
-  text-decoration: none;
-  transition:
-    background-color var(--motion-fast) ease-out,
-    border-color var(--motion-fast) ease-out;
-}
+/* Los enlaces del menú son botones semánticamente: llevan `.link-button` en el markup (el átomo está
+   definido arriba, junto a `button`/`.primary`/`.ghost`). Acá no hay nada que agregar. */
 
-/* `:not(.primary)`, no `.mode-menu a` a secas, para que estas propiedades no le ganen en
-   especificidad a `.primary` (border/background/color) en el link "Jugar". */
-.mode-menu a:not(.primary) {
-  border: 1px solid var(--control-border);
-  background: var(--surface);
-  color: inherit;
-}
-
-.mode-menu a:not(.primary):hover {
-  background: var(--control-hover);
-}
-
-.mode-menu a:not(.primary):active {
-  background: var(--control-press);
-}
-
-/* Pie de sesión: login / identidad. */
-.session-box {
+/* Pie del menú — la zona que habla del PROGRAMA (quién sos, qué versión corre), separada del contenido
+   por una línea. Dos usos con el mismo tratamiento: identidad/login y versión/actualizar. Una sola
+   molécula y no dos copias con nombres distintos, que es la deuda que la pasada de crítica eliminó en
+   el template de estudio. `flex-wrap` porque los dos contenidos son texto de largo ajeno (un email, un
+   SHA con fecha) al lado de un botón, y en un teléfono eso no entra en una línea. */
+.menu-footer {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: var(--sp-3);
   padding-top: var(--sp-4);
   border-top: 1px solid var(--border-2);
   font-size: var(--text-md);
   color: var(--ink-2);
-  min-height: 2rem; /* reserva el alto mientras get-session está en vuelo (sin salto de layout) */
+}
+
+/* Reserva el alto mientras get-session está en vuelo (sin salto de layout). Sólo el de sesión: el de
+   versión ya tiene su contenido desde el primer render. */
+.menu-footer--session {
+  min-height: 2rem;
+}
+
+/* El pie de versión lleva dos renglones: dato + acción arriba, resultado del chequeo abajo. */
+.menu-footer--stacked {
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.menu-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
 }
 
 .session-identity {
@@ -1268,6 +1311,33 @@ fieldset.field {
 .system-screen--centered {
   text-align: center;
   align-items: center;
+}
+
+/* Pantalla de diagnóstico. Más ancha que el resto de las de sistema porque su contenido es un volcado de
+   líneas `clave: valor`, que se lee peor partido en dos. */
+.diagnostico {
+  max-width: 40rem;
+}
+
+.diagnostico-warnings {
+  margin: 0;
+  padding-left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* El volcado copiable. `user-select: all` es funcional, no cosmético: es el fallback cuando
+   `navigator.clipboard` no está disponible, y seleccionar sesenta líneas a mano en un teléfono no es una
+   opción — con esto, un solo toque las toma todas. Tamaño xs porque son datos, no prosa. */
+.diagnostico-dump {
+  font-size: var(--text-xs);
+  user-select: all;
+}
+
+/* No estira: es una salida, no una acción que comparta ancho. */
+.diagnostico-back {
+  align-self: flex-start;
 }
 
 .system-note {

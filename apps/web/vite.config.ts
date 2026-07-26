@@ -17,6 +17,7 @@
 // y que excede el límite de 25 MiB por archivo de Cloudflare Workers Static Assets. La condición
 // 'onnxruntime-web-use-extern-wasm' (export condition oficial del propio paquete) resuelve en cambio a
 // `ort.min.mjs`, que no trae ese new URL() embebido — wasmPaths sigue funcionando exactamente igual.
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -24,6 +25,31 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const rootDir = import.meta.dirname ?? '.'
+
+/**
+ * Identificador del build que la app muestra en el pie del menú y en `/diagnostico` (ver
+ * `src/buildInfo.ts`). SHA corto + fecha, porque ninguno de los dos alcanza solo: el SHA no distingue
+ * dos builds del mismo commit (y un deploy de prueba es exactamente eso), y la fecha no dice qué
+ * código es. `+local` marca los builds hechos con cambios sin commitear — un dato que importa cuando
+ * hay que reproducir lo que un dispositivo está corriendo.
+ *
+ * Se evalúa UNA vez, al cargar la config: en `vite build` es el momento del build, y en `vite dev`
+ * queda fijo mientras dure el server (aceptable: en dev la versión se lee del disco, no de un caché).
+ */
+function buildId(): string {
+  const git = (args: string[]): string | null => {
+    try {
+      return execFileSync('git', args, { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    } catch {
+      // Sin git en el PATH o fuera de un checkout (un tarball, un contenedor de build pelado).
+      return null
+    }
+  }
+  const sha = git(['rev-parse', '--short', 'HEAD']) ?? 'sin-git'
+  const dirty = git(['status', '--porcelain']) ? '+local' : ''
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+  return `${sha}${dirty} · ${stamp} UTC`
+}
 const modelsDir = path.resolve(rootDir, '../../packages/engine/models')
 
 // onnxruntime-web puede vivir hoisteado en la raíz del monorepo; se resuelve con Node.
@@ -44,6 +70,7 @@ const ORT_DIST_PROD_FILES = ['ort-wasm-simd-threaded.jsep.mjs', 'ort-wasm-simd-t
 export default defineConfig({
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm'] },
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
+  define: { __BUILD_ID__: JSON.stringify(buildId()) },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

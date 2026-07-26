@@ -93,6 +93,13 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
   - `.primary` — la ÚNICA acción con relleno `--kaya`. Una por pantalla (ni una ficha de árbol se la roba).
   - `.ghost` — sin borde, `--ink-2`; para lo que se apaga. Es una clase real en el markup, no una regla
     de descendencia escondida en una molécula.
+- **`.link-button`** — un `<a href>` que ES un botón: mismo alto, mismos estados, y `.primary`/`.ghost`
+  significan ahí lo mismo que en un `<button>`. Nació de un fallo concreto: era la regla de descendencia
+  `.mode-menu a`, y en cuanto el menú tuvo un enlace que pedía `.ghost` (el que va al diagnóstico), le
+  llegó el borde del menú igual — **una regla de descendencia se aplica por dónde está el elemento, no por
+  lo que el elemento dice ser.** Lo usan las tres pantallas que navegan con enlace real en vez de router
+  (menú, cartel de "hace falta WebGPU", diagnóstico). Trae el `:focus-visible` que los enlaces del menú
+  nunca tuvieron.
 - **Control de entrada** (`select`, `input[type=number]`, `textarea`): fondo `--inset`, focus-ring.
 - **`.eyebrow`** — etiqueta que nombra un dato sin competir con él: xs + caja alta + tracking + `--ink-3`.
   Es el eje que faltaba: la jerarquía no la carga el tamaño solo.
@@ -114,6 +121,11 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
 - **`.meta-row` / `.rail-meta`** — pares etiqueta/valor densos (Oponente, Tú, Capturas).
 - **`.rail-field`** — eyebrow + control (equivalente denso de `.field`).
 - **`.progress-track` / `.progress-fill`** — barra de descarga, en kaya.
+- **`.menu-footer`** — el pie del menú: la zona que habla del PROGRAMA (quién sos, qué versión corre),
+  separada del contenido por una línea. **Una molécula con dos usos** —identidad/login y
+  versión/actualizar—, no dos clases parecidas: antes era `.session-box`, y al aparecer el segundo pie la
+  alternativa era duplicar su tratamiento con otro nombre. Variantes: `--session` (reserva alto mientras
+  el get-session vuela) y `--stacked` (segundo renglón para el resultado del chequeo).
 - **BrandNav** (`.topbar-brand`) — marca (home) + `·` + ubicación.
 
 ## Nivel 3 — Organismos
@@ -228,6 +240,26 @@ conexión (service worker en `apps/web/src/sw.ts`). Tres puntos donde eso toca a
 - **La superficie informativa de la app vive fuera del template.** `PwaToast` y el chip de conexión
   hablan del *programa* (hay versión nueva, no hay red), no de la partida; por eso no entran en el
   rail, que es la superficie del contenido.
+
+## La pantalla que tiene que funcionar cuando nada funciona
+
+`/diagnostico` (`.diagnostico`, `ui/DiagnosticoView.tsx`) reporta qué ve el dispositivo y por qué el motor
+arranca o no. Tres decisiones de diseño que salen de ese requisito y no de la estética:
+
+- **Se monta ANTES del gate de WebGPU**, fuera del router (`Root` mira el `pathname`). El gate está por
+  encima del `<Router>`: sin adapter, la app entera se reduce a un mensaje, así que una ruta normal sería
+  inalcanzable justo en el aparato que hay que diagnosticar. Se llega con `<a href>` — navegación completa
+  del documento, no `<Link>`.
+- **El volcado se muestra SIEMPRE**, aunque haya botón "Copiar todo". El botón depende de
+  `navigator.clipboard`, que en un contexto degradado puede no existir; esconder el texto detrás de un
+  toggle sería apostar a que el toggle funcione en el aparato roto. `.diagnostico-dump` lleva
+  `user-select: all` para que un solo toque seleccione las sesenta líneas: es funcional, no cosmético.
+- **Más ancha que las otras pantallas de sistema** (40rem contra 32rem): su contenido son líneas
+  `clave: valor`, que partidas en dos se leen peor.
+
+El cartel de "hace falta WebGPU" dejó de ser un callejón sin salida: ahora dice el MOTIVO concreto y
+ofrece el enlace al diagnóstico. Una pantalla sin ninguna acción posible es cómo un iPhone nos dejó sin
+datos para depurar.
 
 ## Decisiones que parecen deuda y no lo son
 
