@@ -497,3 +497,11 @@ Volcado de `/diagnostico` en el iPhone 12 de Edgar, en producción. **El disposi
 ### Entregado ya, porque NO era especulativo (commit siguiente)
 
 El cartel del gate decía "abre esta página en Chrome o Edge", que en un iPhone es **el consejo contrario al correcto**. `diagnostics/webGpuAdvice.ts` (puro, 7 tests) lo parte por plataforma Y por navegador: en iOS manda a Safari y aclara que no es limitación del hardware, nombrando la versión real; si YA estás en Safari por debajo de iOS 26, manda a la feature flag; en iOS 26+ no culpa al navegador (ahí cualquiera sirve, así que el fallo sería información nueva); fuera de Apple, el texto de siempre. Se lee el UA en el punto de PRESENTACIÓN (`NoWebGpu` en `main.tsx`), nunca dentro de `detectWebGpu()`: el gate sigue siendo un gate. Verificado en Chrome con el UA real del iPhone 12 emulado: el consejo que saldría es el correcto, con "18.7.8" y "WKWebView" en el texto. `CLAUDE.md` actualizado en el mismo commit (su línea "Sin WebGPU → mensaje 'usa Chrome/Edge'" acababa de dejar de ser cierta).
+
+### DEPLOY de Fase 4 + cartel device-aware — HECHO Y VERIFICADO (2026-07-26, Version `a98d9cbd-f60a-4618-bd6d-955453a25d2e`)
+
+Los 3 commits locales (`58a0d14` dos pasadas · `c23a4b4` fix del preempt · `a1fd3b3` cartel device-aware) fueron juntos, con OK explícito de Edgar vía AskUserQuestion — el build sale de `main`, así que no eran separables sin ensuciar el historial. BUILD_ID desplegado: `a1fd3b3 · 2026-07-26 06:06 UTC`.
+
+Verificado en el bundle real servido por producción (`index-CgzUg8b-.js`): el consejo nuevo está (`WKWebView` presente) y las etiquetas de las dos pasadas también (`{sweep:"Repasando",refine:"Afinando errores"}`).
+
+**Dos falsas alarmas descartadas en la verificación, anotadas para no repetirlas:** (1) un `grep -c "Afinando errores"` sobre un `curl` en pipe dio 0, pero el mismo string aparece al descargar el archivo completo — no confiar en dos `curl` separados dentro de un mismo comando para comparar contenido. (2) los greps contra `apps/web/dist/` daban 0 porque el shell de Bash **conserva el `cd`** del deploy (`apps/worker`) entre llamadas: usar rutas absolutas o re-`cd` explícito.
