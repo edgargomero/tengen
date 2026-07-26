@@ -77,13 +77,15 @@ export function AnnotationEditor({
       )}
       {editing && (
         <div class="analyze-edit">
-          <p class="analyze-editing">Modo edición: le toca a {turn === 'black' ? 'Negro' : 'Blanco'}</p>
+          <p class="notice notice--accent">
+            Modo edición: le toca a {turn === 'black' ? '● Negro' : '○ Blanco'}
+          </p>
           <div class="analyze-tools">
             {TOOLS.map((t) => (
               <button
                 key={t.tool}
                 type="button"
-                class={editTool === t.tool ? 'active' : ''}
+                class={`${t.tool === 'stone' ? 'tool-stone' : ''}${editTool === t.tool ? ' active' : ''}`.trim()}
                 onClick={() => onSelectTool(t.tool)}
                 title={t.title}
               >
@@ -105,13 +107,13 @@ export function AnnotationEditor({
             <button type="button" onClick={onPromote} disabled={atRoot}>
               Promover a principal
             </button>
-            <button type="button" onClick={onPass}>
+            <button type="button" class="op-move" onClick={onPass}>
               Pasar
             </button>
           </div>
         </div>
       )}
-      {!editing && node.comment && <p class="analyze-comment">{node.comment}</p>}
+      {!editing && node.comment && <p class="notice notice--quote">{node.comment}</p>}
     </>
   )
 }

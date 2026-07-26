@@ -1,38 +1,43 @@
-/* Estilos propios de la app (Fase 2, Task 4). Sin sistema de diseño: solo lo mínimo para que el
-   formulario de nueva partida y la pantalla de juego sean legibles y usables. El CSS de Shudan
-   (goban.css) se importa aparte, desde main.tsx, junto a este archivo. */
+/* Sistema de diseño de tengen. Organizado por nivel atómico: TOKENS → ÁTOMOS → MOLÉCULAS →
+   ORGANISMOS → TEMPLATES → PANTALLAS. El CSS de Shudan (goban.css) se importa aparte, desde
+   main.tsx, junto a este archivo.
 
-/* ═══════════════════════════════════════════════════════════════════════════════════════════════
-   SISTEMA DE DISEÑO (atomic) — Nivel 0: TOKENS. El ADN. Todo lo demás consume estos; cero hex suelto.
    Dirección "el salón alrededor del goban", variante SOBRIA: el calor/color vive en el TABLERO
-   (madera kaya + piedras); el chrome lo rodea en gris-tinta cálido casi-neutro, y el oro-kaya (--kaya)
-   aparece SOLO en estados activos/primarios. Gris construye estructura; el color comunica.
+   (madera kaya + piedras); el chrome lo rodea en gris-tinta cálido casi-neutro, y el oro-kaya
+   (--kaya) aparece SOLO en estados activos/primarios. Gris construye estructura; el color comunica.
    ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ Nivel 0: TOKENS. El ADN. Todo lo demás consume estos; cero literal suelto. ═══════════════ */
 :root {
   color-scheme: light;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Superficies — elevación por tinte cálido, casi-neutro. Cada salto es un susurro de claridad. */
+  /* Superficies — elevación por tinte cálido, casi-neutro. Cada salto es un susurro de claridad.
+     La jerarquía se percibe SIN bordes: canvas → surface → raised es la estructura real. */
   --canvas: #f6f5f2; /* fondo de página / lienzo */
   --surface: #fdfcfa; /* panel, tarjeta — un pelo sobre el lienzo */
   --surface-raised: #ffffff; /* pestaña activa, dropdowns — un nivel más */
-  --inset: #efece7; /* inputs / textarea — "inset", reciben contenido */
+  --inset: #efece7; /* inputs / textarea / bandejas — "inset", reciben contenido */
 
   /* Tinta — 4 niveles de texto, gris CÁLIDO (no azulado). */
   --ink-1: #201d18; /* primario */
   --ink-2: #5a544b; /* secundario / soporte */
-  --ink-3: #8a8378; /* terciario / metadata */
+  /* Terciario: elegido por CONTRASTE, no a ojo. Lo consumen eyebrows, hints y pestañas inactivas
+     —todo texto que se lee— así que debe pasar AA (≥4.5:1) sobre las TRES superficies claras:
+     surface 5.31 · canvas 4.99 · inset 4.62. El #8a8378 anterior daba 3.18 sobre inset. */
+  --ink-3: #6f695e; /* terciario / metadata / eyebrow */
   --ink-4: #b0a99d; /* muted / placeholder / disabled */
 
-  /* Bordes — progresión de baja opacidad, cálidos; susurran. */
+  /* Bordes — progresión de baja opacidad, cálidos; susurran. Nunca cargan la estructura solos. */
   --border-1: rgba(40, 33, 20, 0.12); /* separación estándar */
   --border-2: rgba(40, 33, 20, 0.07); /* separación suave */
   --border-strong: rgba(40, 33, 20, 0.22); /* énfasis */
 
   /* Kaya — el oro de la madera del goban (goban.css --shudan-board-border-color). ÚNICO acento:
-     solo estados activos/primarios. */
+     solo estados activos/primarios. Ningún segundo hue decorativo en toda la app. */
   --kaya: #ca933a;
   --kaya-hover: #b47f2b;
+  --kaya-press: #9d6d1f;
   --kaya-on: #ffffff; /* texto sobre kaya */
   --kaya-soft: rgba(202, 147, 58, 0.14); /* fondo de acento tenue */
   --focus-ring: rgba(202, 147, 58, 0.55);
@@ -41,13 +46,18 @@
   --tone-success: #2f7d47;
   --tone-warning: #9a6a12;
   --tone-danger: #b23b3b;
+  --tone-danger-soft: rgba(178, 59, 59, 0.09);
+  /* Marcador "posición ya analizada": único canal funcional que necesita distinguirse del kaya
+     sin competir con él (aparece SOBRE nodos del árbol, donde el kaya ya significa "cursor"). */
+  --analyzed: #14b8a6;
 
   /* Controles — tokens dedicados (no reusar superficies de layout). */
   --control-bg: var(--surface);
   --control-border: var(--border-1);
   --control-hover: var(--inset);
+  --control-press: rgba(40, 33, 20, 0.09); /* el clic se siente: un grado más hundido que hover */
 
-  /* Espaciado — base 4px (+ un micro paso de 2px para gaps de íconos/pestañas). */
+  /* Espaciado — base 4px (+ un micro paso de 2px para hairlines de pistas segmentadas). */
   --sp-0: 0.125rem; /* 2px — micro */
   --sp-1: 0.25rem; /* 4px */
   --sp-2: 0.5rem; /* 8px */
@@ -56,16 +66,48 @@
   --sp-5: 1.5rem; /* 24px */
   --sp-6: 2rem; /* 32px */
 
-  /* Radios — agudos para controles, más suave para tarjetas/paneles. Valores elegidos para consolidar
-     los literales existentes (6/8/10) casi sin cambio visual. */
+  /* Radios — agudos para controles, más suave para tarjetas/paneles. */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
 
-  /* Controles compactos del panel (el tablero es el héroe; la botonera es densa). */
+  /* Tipografía — escala de 5 pasos en px enteros (nitidez de render). La jerarquía NO la carga el
+     tamaño solo: peso, tracking y nivel de tinta son los otros tres ejes (ver átomos .eyebrow/.stat). */
+  --text-xs: 0.75rem; /* 12px — eyebrow, metadata, hints */
+  --text-sm: 0.8125rem; /* 13px — controles densos del rail */
+  --text-md: 0.875rem; /* 14px — cuerpo del rail */
+  --text-base: 1rem; /* 16px — cuerpo de página, tarjetas */
+  --text-lg: 1.125rem; /* 18px — el dato que el usuario realmente mira */
+
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  --tracking-tight: -0.01em;
+  --tracking-eyebrow: 0.06em;
+
+  /* Movimiento — una sola duración. La UI RESPONDE al dedo; no se anima. */
+  --motion-fast: 90ms;
+
+  /* Chrome — alto de la TopBar. Fijo a propósito: el cálculo no-scroll del tablero
+     (useBoundedBoardSize) depende de que esta banda no cambie de alto con su contenido. */
+  --topbar-h: 3rem;
+
+  /* Proporciones del template "estudio de tablero", declaradas juntas porque lo que dicen es su
+     RELACIÓN: el tablero puede ocupar hasta 46rem y el rail nunca pasa de 18rem — ~2.5:1. Eso
+     declara "el rail sirve al tablero", no "son pares". El par centrado no necesita un ancho
+     máximo propio: la suma de estos dos ya lo acota. */
+  --board-max: 46rem; /* techo del héroe */
+  --rail-w: 18rem; /* columna de trabajo */
+  --rail-w-min: 14rem;
+
+  /* Controles compactos del rail (el tablero es el héroe; la botonera es densa). */
   --ctl-pad-y: var(--sp-1);
   --ctl-pad-x: var(--sp-2);
-  --ctl-font: 0.85rem;
+  --ctl-font: var(--text-sm);
 }
 
 *,
@@ -78,12 +120,15 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--ink-1);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
 }
 
-/* ═══ Nivel 1: ÁTOMOS (consumen solo tokens; tienen sus propios estados) ═══════════════════════ */
+/* ═══ Nivel 1: ÁTOMOS (consumen solo tokens; traen sus propios estados) ════════════════════════ */
 
-/* Botón — átomo base: quieto y recesivo (superficie + borde-susurro). La jerarquía la dan las
-   variantes `.primary` (kaya, la acción que lidera) y `.ghost` (sin borde, la que se apaga). */
+/* Botón — quieto y recesivo (superficie + borde-susurro). La jerarquía la dan las variantes
+   `.primary` (kaya, la acción que lidera) y `.ghost` (sin borde, la que se apaga). Los tres estados
+   —hover, press, focus— son obligatorios: sin ellos la interfaz es una foto de software. */
 button {
   font: inherit;
   cursor: pointer;
@@ -92,10 +137,18 @@ button {
   background: var(--control-bg);
   color: var(--ink-1);
   padding: var(--sp-2) var(--sp-3);
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    color var(--motion-fast) ease-out;
 }
 
 button:hover:not(:disabled) {
   background: var(--control-hover);
+}
+
+button:active:not(:disabled) {
+  background: var(--control-press);
 }
 
 button:focus-visible {
@@ -109,9 +162,46 @@ button:disabled {
   opacity: 0.6;
 }
 
+/* Variante primaria: la acción que lidera. El ÚNICO botón con el oro-kaya de relleno. */
+.primary {
+  background: var(--kaya);
+  border-color: var(--kaya);
+  color: var(--kaya-on);
+  font-weight: var(--weight-semibold);
+  padding: var(--sp-2) var(--sp-4);
+  text-align: center;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--kaya-hover);
+  border-color: var(--kaya-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--kaya-press);
+  border-color: var(--kaya-press);
+}
+
+/* Variante fantasma: acciones que se apagan (secundarias/terciarias). Sin borde, texto de soporte. */
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--control-hover);
+  color: var(--ink-1);
+}
+
+.ghost:active:not(:disabled) {
+  background: var(--control-press);
+}
+
 /* Control de entrada — "inset": recibe contenido, un pelo más hundido que su entorno. */
 select,
-input[type='number'] {
+input[type='number'],
+textarea {
   font: inherit;
   padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--control-border);
@@ -121,170 +211,214 @@ input[type='number'] {
 }
 
 select:focus-visible,
-input[type='number']:focus-visible {
+input[type='number']:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
-/* ── Gate de WebGPU ─────────────────────────────────────────────────────────────────────────── */
-
-.no-webgpu,
-.detecting {
-  font-size: 14px;
-  line-height: 1.5;
-  margin: 2rem auto;
-  max-width: 32rem;
-  text-align: center;
+/* Eyebrow — la etiqueta que nombra un dato sin competir con él. El eje "tracking + caja alta +
+   tinta terciaria" es lo que separa etiqueta de valor cuando ambos son texto chico. */
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: var(--leading-tight);
 }
 
-/* ── Error boundary (fix wave post-Fase 2, FIX 1 parte 2) ──────────────────────────────────────── */
-
-.crash-recovery {
-  font-size: 14px;
-  line-height: 1.5;
-  margin: 2rem auto;
-  max-width: 32rem;
-  text-align: center;
-}
-
-.crash-recovery button {
-  margin-top: var(--sp-4);
-}
-
-/* ── Conmutador de modo Jugar/Analizar (Task 11) ────────────────────────────────────────────── */
-
-.mode-menu {
-  max-width: 28rem;
-  margin: 3rem auto;
-  padding: var(--sp-6);
-  background: var(--surface);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-lg);
+/* Cifra — el dato que el usuario mira. Tabular para que no baile al actualizarse en vivo. */
+.stat {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  text-align: center;
+  gap: var(--sp-0);
+  min-width: 0;
 }
 
-.mode-menu-icon {
-  width: 64px;
-  height: 64px;
-  align-self: center;
+.stat-value {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-1);
 }
 
-.mode-menu h1 {
+/* Aviso — UN átomo para todo mensaje de estado en caja. Variantes por intención, nunca por vista.
+   Reemplaza a las copias `.play-exploring` / `.analyze-editing` / `.play-result` / `.play-error`. */
+.notice {
   margin: 0;
-}
-
-.mode-menu p {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-.mode-menu a {
-  font: inherit;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
   padding: var(--sp-2) var(--sp-3);
-  text-decoration: none;
-}
-
-/* :not(.primary), no .mode-menu a sola, para que estas propiedades no le ganen en especificidad
-   a la regla .primary (border/background/color) en el link "Jugar". */
-.mode-menu a:not(.primary) {
-  border: 1px solid var(--control-border);
-  background: var(--surface);
-  color: inherit;
-}
-
-.mode-menu a:not(.primary):hover {
-  background: var(--control-hover);
-}
-
-/* ── Sesión (Fase 5): pie del menú con login/identidad ─────────────────────────────────────── */
-
-.session-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-3);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--border-2);
-  font-size: 0.9rem;
-  color: var(--ink-2);
-  min-height: 2rem; /* reserva el alto mientras get-session está en vuelo (sin salto de layout) */
-}
-
-.session-identity {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.session-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.session-box button {
-  font: inherit;
-  cursor: pointer;
-  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: 1px solid var(--border-2);
+  background: var(--inset);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* Estado "encendido" del modo actual (exploración, edición, resultado): kaya tenue, quieto. */
+.notice--accent {
+  background: var(--kaya-soft);
+  border-color: transparent;
+  color: var(--ink-1);
+}
+
+.notice--danger {
+  background: var(--tone-danger-soft);
+  border-color: transparent;
+  color: var(--tone-danger);
+}
+
+/* Cita del comentario autorado del nodo: texto del usuario, se respeta tal cual lo escribió. */
+.notice--quote {
+  color: var(--ink-1);
+  font-size: var(--text-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Pista — texto de apoyo que explica o dice "todavía no hay nada". UN átomo para los seis casos
+   que antes tenían una clase cada uno (motor preparando, sin analizar, sin jugadas, sin saltos,
+   sin winrate, cómo adivinar). */
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+/* Clases de tono compartidas (`summarizePointsLost` / `guessVerdict` / histograma de calidad). */
+.tone-success {
+  color: var(--tone-success);
+}
+
+.tone-warning {
+  color: var(--tone-warning);
+}
+
+.tone-danger {
+  color: var(--tone-danger);
+}
+
+/* ═══ Nivel 2: MOLÉCULAS (grupos de átomos con un solo propósito) ══════════════════════════════ */
+
+/* SegmentedControl — cambio de VISTA. El ítem activo se eleva un nivel de superficie, en neutro:
+   no está "encendido", está adelante. El kaya se reserva para acción primaria y para settings. */
+.segmented {
+  display: flex;
+  gap: var(--sp-0);
+  padding: var(--sp-1);
+  background: var(--inset);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
+}
+
+.segmented button {
   padding: var(--sp-1) var(--sp-3);
+  font-size: var(--text-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
 }
 
-.session-box button:hover {
-  background: var(--control-hover);
-}
-
-/* ── Formulario de nueva partida ────────────────────────────────────────────────────────────── */
-
-.new-game-form {
-  max-width: 28rem;
-  margin: 3rem auto;
-  padding: var(--sp-6);
+.segmented button:hover:not(.active) {
   background: var(--surface);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-}
-
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--border-2);
-}
-
-.new-game-form h1 {
-  margin: 0;
-}
-
-.new-game-subtitle {
-  margin: 0;
   color: var(--ink-2);
 }
 
+.segmented button.active {
+  background: var(--surface-raised);
+  color: var(--ink-1);
+  font-weight: var(--weight-semibold);
+  box-shadow: 0 1px 2px var(--border-1);
+}
+
+/* Variante de pestañas: reparten el ancho del rail en partes iguales. */
+.segmented--fill button {
+  flex: 1;
+  padding-inline: var(--sp-1);
+  font-size: var(--text-sm);
+}
+
+/* ChoiceRow — elegir un AJUSTE (velocidad, herramienta). Aquí sí manda el kaya tenue: el ítem
+   elegido está "encendido", no adelante. Distinción deliberada frente a `.segmented`. */
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.choice-row button {
+  flex: 1 1 auto;
+}
+
+.choice-row button.active,
+.analyze-tools button.active {
+  background: var(--kaya-soft);
+  border-color: var(--kaya);
+  color: var(--kaya);
+  font-weight: var(--weight-semibold);
+}
+
+/* Cluster de navegación — ⏮ ◀ ▶ ⏭ y los saltos entre errores: botones que comparten el ancho. */
+.nav-cluster {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.nav-cluster button {
+  flex: 1 1 auto;
+}
+
+/* Fila de acciones — secundarias/terciarias, en tratamiento fantasma: se apagan para no competir
+   ni con el tablero ni con la acción primaria. */
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.action-row button {
+  flex: 1 1 auto;
+}
+
+/* Ficha de dato etiquetado (Oponente / Tú / Capturas): etiqueta terciaria, valor secundario en la
+   misma línea. Reemplaza la pila de <p> idénticos que no jerarquizaba nada. */
+.meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+}
+
+.meta-row > span:last-child {
+  color: var(--ink-1);
+  font-weight: var(--weight-medium);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Campo de formulario — una etiqueta, un control, una pista. */
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
 }
 
+/* Solo los controles que RECIBEN un valor ocupan el ancho del campo. Un radio NO: estirarlo
+   empujaba su etiqueta al extremo opuesto de la fila, con el punto y el texto sin relación visible. */
 .field select,
-.field input {
+.field input[type='number'],
+.field input[type='text'],
+.field input[type='file'] {
   width: 100%;
-  box-sizing: border-box;
 }
 
 .field-hint {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
@@ -301,70 +435,27 @@ fieldset.field {
   margin-bottom: var(--sp-2);
 }
 
-.form-error {
-  color: var(--tone-danger);
-  margin: 0;
-}
-
-/* Variante primaria: la acción que lidera. El ÚNICO botón con el oro-kaya de relleno. */
-.primary {
-  background: var(--kaya);
-  border-color: var(--kaya);
-  color: var(--kaya-on);
-  font-weight: 600;
-  padding: var(--sp-2) var(--sp-4);
-  text-align: center;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--kaya-hover);
-  border-color: var(--kaya-hover);
-}
-
-/* Variante fantasma: acciones que se apagan (secundarias/terciarias). Sin borde, texto de soporte. */
-.ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--ink-2);
-}
-
-.ghost:hover:not(:disabled) {
-  background: var(--control-hover);
-}
-
-/* ═══ Organismo TopBar (nav de app) + shell del template "estudio de tablero" ══════════════════
-   Ancla las pantallas de tablero: arriba-izquierda marca (home) + dónde estás; a la derecha el
-   conmutador de modo. En desktop la barra es fija y el board+panel llena el resto del viewport. */
-.study-shell {
+.field-group {
   display: flex;
   flex-direction: column;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: var(--sp-3);
-  width: 100%;
-  max-width: 80rem; /* alinea la barra con el board+panel de abajo (mismo ancho centrado) */
-  margin: 0 auto;
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--border-1);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-2);
 }
 
+/* BrandNav — marca (home) + separador + dónde estás. */
 .topbar-brand {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
 }
 
-/* Marca = home: botón-fantasma con la palabra "tengen" en tinta primaria. */
 .topbar-home {
   background: transparent;
   border-color: transparent;
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-tight);
   color: var(--ink-1);
   padding: var(--sp-0) var(--sp-1);
 }
@@ -373,185 +464,233 @@ fieldset.field {
   background: var(--control-hover);
 }
 
+.topbar-home:active:not(:disabled) {
+  background: var(--control-press);
+}
+
 .topbar-sep {
   color: var(--ink-4);
 }
 
 .topbar-location {
   color: var(--ink-2);
-  font-size: 0.9rem;
+  font-size: var(--text-md);
 }
 
-/* Conmutador de modo: la misma molécula SegmentedControl que las pestañas del panel. */
-.topbar-modes {
-  display: flex;
-  gap: var(--sp-0);
-  padding: var(--sp-1);
+/* Barra de progreso de descarga (gate de modelo): pista inset + relleno kaya. El único acento de
+   la app también manda acá — la pantalla más larga de tengen no puede introducir un segundo hue. */
+.progress-track {
+  height: var(--sp-2);
+  border-radius: var(--radius-sm);
   background: var(--inset);
   border: 1px solid var(--border-2);
-  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-.topbar-modes button {
-  padding: var(--sp-1) var(--sp-3);
-  font-size: 0.85rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-3);
+.progress-fill {
+  height: 100%;
+  background: var(--kaya);
+  transition: width var(--motion-fast) linear;
 }
 
-.topbar-modes button:hover:not(.active) {
+/* Sin Content-Length: barra indeterminada — misma pista, relleno tenue y completo. */
+.progress-fill--indeterminate {
+  width: 100%;
+  background: var(--kaya-soft);
+}
+
+/* ═══ Nivel 3: ORGANISMOS (secciones distintas, se sostienen solas) ════════════════════════════ */
+
+/* TopBar — chrome de la VENTANA, no del contenido: la banda cruza el viewport entero y su línea
+   inferior separa app de lienzo. Por eso no comparte el ancho centrado del board+panel (intentar
+   alinearlos dejaba dos bordes compitiendo, uno más ancho que el otro). */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  height: var(--topbar-h);
+  padding: 0 var(--sp-5);
   background: var(--surface);
-  color: var(--ink-2);
+  border-bottom: 1px solid var(--border-1);
 }
 
-.topbar-modes button.active {
-  background: var(--surface-raised);
-  color: var(--ink-1);
-  font-weight: 600;
-  box-shadow: 0 1px 2px var(--border-1);
-}
-
-/* ── Pantalla de juego ──────────────────────────────────────────────────────────────────────── */
-
-.play-view {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-6);
-  align-items: flex-start;
-  justify-content: center;
-  margin: 2rem auto;
-  max-width: 80rem;
-  padding: 0 var(--sp-4);
-}
-
-.play-board {
-  flex: 3 1 28rem;
-  min-width: 0;
-  max-width: 46rem;
-  /* El Goban interno es `display:inline-grid` de ancho intrínseco (content-box): sin este centrado,
-     en desktop (donde este wrapper suele quedar más ancho que el tablero real, ver maxVertexSize)
-     quedaría pegado a la izquierda con un hueco visible antes del panel. */
-  display: flex;
-  justify-content: center;
-}
-
-.play-panel {
-  flex: 1 1 15rem;
-  min-width: 14rem;
-  max-width: 18rem;
+/* Rail de estudio — la columna de trabajo junto al goban. Es una superficie, no un borde: se
+   percibe como panel aunque le quites todas las líneas. Sin padding propio: cada región
+   (header/tabs/body/footer) trae el suyo, así los separadores cruzan el rail de lado a lado sin
+   un solo margen negativo. */
+.study-rail {
+  flex: 1 1 var(--rail-w-min);
+  min-width: var(--rail-w-min);
+  max-width: var(--rail-w);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  font-size: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
 }
 
-.play-panel p {
+.study-rail p {
   margin: 0;
 }
 
-/* Controles del panel lateral compactos a propósito (tablero grande ⇒ botonera densa). Los
-   `.analyze-tools`/`.analyze-tree-ops` definen su propio tamaño más abajo y ganan por orden. */
-.play-panel button,
-.analyze-panel button {
+/* Zona de LECTURA: respira. Es donde vive el dato que el usuario mira antes de decidir. */
+.rail-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border-2);
+}
+
+.rail-tabs {
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+}
+
+/* Zona de CONTENIDO: la sección activa. Única región que scrollea (ver el @media de desktop). */
+.rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-3) var(--sp-3);
+}
+
+/* Zona de HERRAMIENTAS: densa a propósito — es un banco de trabajo, no un folleto. */
+.rail-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-top: 1px solid var(--border-2);
+}
+
+/* Los controles del rail son compactos (el tablero es el héroe). */
+.study-rail button {
   padding: var(--ctl-pad-y) var(--ctl-pad-x);
   font-size: var(--ctl-font);
   border-radius: var(--radius-sm);
 }
 
-.play-turn {
-  font-weight: 600;
+/* Bloque de cifras del rail (Winrate / Score en Analizar): el foco de la zona de lectura. */
+.rail-stats {
+  display: flex;
+  gap: var(--sp-4);
 }
 
+.rail-stats .stat {
+  flex: 1;
+}
+
+/* Reloj de la partida: dos columnas etiquetadas; al jugador al que le corre el tiempo se le
+   enciende el número (no la etiqueta) — el ojo va al dato, no al rótulo. */
 .play-clock {
   display: flex;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.95rem;
+  gap: var(--sp-3);
 }
 
 .play-clock p {
-  margin: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0);
+  min-width: 0;
 }
 
-.play-clock-active {
-  font-weight: 600;
+.play-clock-value {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+  color: var(--ink-2);
+}
+
+.play-clock-active .play-clock-value {
   color: var(--kaya);
 }
 
-.play-error {
-  color: var(--tone-danger);
-}
-
-.play-result {
-  font-weight: 600;
-  background: var(--kaya-soft);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2) var(--sp-3);
-}
-
-/* ── SyncBadge (Fase 5): estado de guardado en la nube, en PlayView y AnalyzeView ──────────── */
-
-.sync-badge {
-  font-size: 0.85rem;
-  margin: 0;
-}
-
-.sync-saving,
-.sync-saved {
-  color: var(--ink-2);
-}
-
-.sync-error {
-  color: var(--tone-danger);
-}
-
-.sync-error button {
-  font: inherit;
-  cursor: pointer;
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  padding: var(--sp-0) var(--sp-2);
-}
-
-.play-controls,
-.play-nav,
-.play-io {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.play-exploring {
-  color: var(--ink-2);
-  background: var(--kaya-soft);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2) var(--sp-2);
-  font-size: 0.85rem;
-}
-
-/* ── Árbol de variaciones (Task 5) ──────────────────────────────────────────────────────────── */
-
-.tree-panel {
-  margin-top: var(--sp-2);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--border-1);
+/* Ficha de metadatos del rail: pares etiqueta/valor apilados, densos. */
+.rail-meta {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  max-height: 16rem;
-  overflow-y: auto;
-  font-size: 0.85rem;
 }
 
-.tree-empty {
-  color: var(--ink-3);
-  margin: 0;
+/* Ajuste etiquetado del rail (eyebrow + control). El equivalente denso de `.field`. */
+.rail-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* Estado del turno: la única línea de la pantalla de juego que se lee de reojo. */
+.play-turn {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  color: var(--ink-1);
+}
+
+/* Editor de repaso: bandeja de herramientas HUNDIDA dentro del rail (antes era una caja del color
+   exacto del fondo, sostenida solo por su borde). */
+.analyze-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--radius-md);
+  background: var(--inset);
+}
+
+/* Paleta de marcas: rejilla de 5 celdas iguales — los cinco glifos (△ □ ○ ✕ A) son hermanos y se
+   ven como tales. "Jugar piedra" no es una marca: es el modo por defecto del editor, así que ocupa
+   su propia fila completa (en una fila compartida quedaba huérfano un glifo por su ancho de texto). */
+.analyze-tools {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--sp-1);
+}
+
+.analyze-tools button {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.analyze-tools .tool-stone {
+  grid-column: 1 / -1;
+  font-size: var(--ctl-font);
+}
+
+.analyze-comment-edit {
+  width: 100%;
+  min-height: 4rem;
+  resize: vertical;
+  padding: var(--sp-2);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+/* Ops del editor: las dos que tocan el ÁRBOL comparten fila; "Pasar" no es una op de árbol sino una
+   jugada, así que va en su propia fila (mezcladas, la tercera quedaba huérfana y de otra categoría). */
+.analyze-tree-ops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-1);
+}
+
+.analyze-tree-ops .op-move {
+  grid-column: 1 / -1;
+}
+
+/* Árbol de jugadas — lista indentada (Modo Jugar). No es un contenedor de scroll: scrollea
+   `.rail-body`, su región. */
+.tree-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--text-sm);
 }
 
 .tree-branch {
@@ -571,31 +710,32 @@ fieldset.field {
   flex-direction: column;
   gap: var(--sp-1);
   padding-left: var(--sp-4);
-  border-left: 1px solid var(--border-1);
+  border-left: 1px solid var(--border-2);
   margin-left: var(--sp-1);
 }
 
-.tree-node {
+/* Ficha de nodo: se dimensiona por su texto, nunca al ancho del rail (el nodo raíz es hijo directo
+   de la columna y se estiraba, leyéndose como un botón de acción). */
+.study-rail .tree-node {
   padding: var(--sp-0) var(--sp-2);
-  font-size: 0.8rem;
-  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  align-self: flex-start;
 }
 
+/* El nodo del cursor usa el estado SELECCIONADO (kaya tenue), no el relleno kaya pleno: ese está
+   reservado a la única acción primaria de la pantalla y una ficha de árbol no compite con ella. */
 .tree-node-current {
-  background: var(--kaya);
+  background: var(--kaya-soft);
   border-color: var(--kaya);
-  color: var(--kaya-on);
+  color: var(--kaya);
+  font-weight: var(--weight-semibold);
 }
 
-/* ── Árbol de jugadas como grafo SVG (spec 2026-07-12, solo Modo Analizar) ─────────────────────
-   Paralelo a `.tree-*` de arriba, que sigue intacto y en uso por `PlayView.tsx`/`GameTreePanel.tsx`. */
-
+/* Árbol de jugadas como grafo SVG (Modo Analizar). Scroll en AMBOS ejes: un árbol de 100+ jugadas
+   es más ancho que el rail — es el único scroll horizontal legítimo de la app. */
 .tree-graph-container {
-  margin-top: var(--sp-2);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--border-1);
-  max-height: 16rem;
-  overflow: auto; /* AMBOS ejes — un árbol de 100+ jugadas es más ancho que el panel lateral */
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .tree-graph-disabled {
@@ -614,6 +754,11 @@ fieldset.field {
 .tree-graph-node {
   cursor: pointer;
   stroke-width: 1.5;
+  transition: stroke-width var(--motion-fast) ease-out;
+}
+
+.tree-graph-node:hover {
+  stroke-width: 3;
 }
 
 .tree-graph-node-black {
@@ -632,7 +777,7 @@ fieldset.field {
 }
 
 .tree-graph-node-annotated {
-  stroke: #14b8a6;
+  stroke: var(--analyzed);
   stroke-width: 2.5;
 }
 
@@ -646,234 +791,7 @@ fieldset.field {
   outline-offset: 1px;
 }
 
-/* ── Pantalla de análisis (Fase 3a, Task 9) ─────────────────────────────────────────────────── */
-
-.analyze-view {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-6);
-  align-items: flex-start;
-  justify-content: center;
-  margin: 2rem auto;
-  max-width: 80rem;
-  padding: 0 var(--sp-4);
-}
-
-.analyze-board {
-  flex: 3 1 28rem;
-  min-width: 0;
-  max-width: 46rem;
-  /* Mismo motivo que `.play-board` (ese archivo lo documenta): centra el Goban interno cuando el
-     wrapper queda más ancho que el tablero real. */
-  display: flex;
-  justify-content: center;
-}
-
-.analyze-panel {
-  flex: 1 1 15rem;
-  min-width: 14rem;
-  max-width: 18rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  font-size: 0.9rem;
-}
-
-.analyze-panel p {
-  margin: 0;
-}
-
-.analyze-picker {
-  max-width: 28rem;
-  margin: 3rem auto;
-  padding: var(--sp-6);
-  background: var(--surface);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-.analyze-picker h1 {
-  margin: 0;
-}
-
-.analyze-picker-or {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: 0.9rem;
-}
-
-.analyze-picker-scratch {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.analyze-score {
-  font-weight: 600;
-}
-
-.analyze-score-hint {
-  color: var(--ink-3);
-  font-size: 0.85rem;
-}
-
-.analyze-editing {
-  color: var(--ink-2);
-  background: var(--kaya-soft);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2) var(--sp-2);
-  font-size: 0.85rem;
-}
-
-/* opacity:1 explícito: sin esto, `button:disabled { opacity: 0.5 }` (arriba) pisa el nivel
-   "activo" y lo deja ATENUADO en vez de resaltado — el bug de UX real que este pill corrige. */
-.analyze-speed button.active {
-  opacity: 1;
-  background: var(--kaya-soft);
-  border-color: var(--kaya);
-  color: var(--kaya);
-  font-weight: 600;
-}
-
-/* ── Panel de Analizar en pestañas (spec no-scroll desktop 2026-07-25) ──────────────────────────
-   Estructura: header (score + acción primaria + comentario) · tira de pestañas · cuerpo de la pestaña
-   activa · footer (nav + velocidad + acciones). En desktop header/pestañas/footer quedan fijos y solo
-   el cuerpo scrollea si hace falta (ver el @media de abajo). */
-.analyze-panel-header,
-.analyze-tab-body,
-.analyze-panel-footer,
-.play-panel-header,
-.play-tree-body,
-.play-panel-footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-/* Molécula SegmentedControl: la tira de pestañas. La activa se ELEVA un nivel de superficie
-   (susurro), en neutro — es un cambio de vista, no un estado "encendido"; el kaya se reserva para
-   la acción primaria. */
-.analyze-tabs {
-  display: flex;
-  gap: var(--sp-0);
-  padding: var(--sp-1);
-  background: var(--inset);
-  border: 1px solid var(--border-2);
-  border-radius: var(--radius-md);
-}
-
-.analyze-tabs button {
-  flex: 1;
-  padding: var(--sp-1) var(--sp-1);
-  font-size: 0.82rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-3);
-}
-
-.analyze-tabs button:hover:not(.active) {
-  background: var(--surface);
-  color: var(--ink-2);
-}
-
-.analyze-tabs button.active {
-  background: var(--surface-raised);
-  color: var(--ink-1);
-  font-weight: 600;
-  box-shadow: 0 1px 2px var(--border-1);
-}
-
-/* Acciones secundarias del footer (Exportar/Otra/Volver…): en fila, compartiendo ancho, y en
-   tratamiento FANTASMA — se apagan para no competir con el tablero ni con la acción primaria. */
-.analyze-actions,
-.play-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-}
-
-.analyze-actions button,
-.play-actions button {
-  flex: 1 1 auto;
-  background: transparent;
-  border-color: transparent;
-  color: var(--ink-2);
-}
-
-.analyze-actions button:hover:not(:disabled),
-.play-actions button:hover:not(:disabled) {
-  background: var(--control-hover);
-}
-
-/* ── Editor de repaso (Fase 1): paleta de marcas + comentario + ops de árbol ─────────────────── */
-
-.analyze-edit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-md);
-  background: var(--canvas);
-}
-
-.analyze-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-}
-
-.analyze-tools button {
-  min-width: 2.2rem;
-  padding: var(--sp-1) var(--sp-2);
-  font-size: 1rem;
-  line-height: 1;
-}
-
-/* Herramienta activa resaltada (mismo criterio que el pill de velocidad: opacity:1 explícito). */
-.analyze-tools button.active {
-  opacity: 1;
-  background: var(--kaya-soft);
-  border-color: var(--kaya);
-  color: var(--kaya);
-  font-weight: 600;
-}
-
-.analyze-comment-edit {
-  width: 100%;
-  min-height: 4rem;
-  resize: vertical;
-  font: inherit;
-  padding: var(--sp-2) var(--sp-2);
-  border: 1px solid var(--control-border);
-  background: var(--inset);
-  border-radius: var(--radius-sm);
-  box-sizing: border-box;
-}
-
-.analyze-tree-ops {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-}
-
-/* Comentario del nodo en modo lectura (bajo el panel, siempre visible al navegar). */
-.analyze-comment {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  padding: var(--sp-2) var(--sp-2);
-  background: var(--inset);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-}
-
-/* ── Paneles del review de fondo (Fase 3a, Task 10) ─────────────────────────────────────────── */
-
+/* Gráfico de winrate del review. */
 .review-graph {
   display: flex;
   flex-direction: column;
@@ -897,6 +815,11 @@ fieldset.field {
 .review-graph-point {
   fill: var(--kaya);
   cursor: pointer;
+  transition: r var(--motion-fast) ease-out;
+}
+
+.review-graph-point:hover {
+  r: 3;
 }
 
 .review-graph-point-current {
@@ -904,25 +827,11 @@ fieldset.field {
   cursor: pointer;
 }
 
-.review-graph-empty {
-  color: var(--ink-3);
-  font-size: 0.85rem;
-}
-
+/* Panel del review de fondo: progreso + saltos grandes de la partida. */
 .review-panel {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-}
-
-.review-progress {
-  font-size: 0.85rem;
-  color: var(--ink-2);
-}
-
-.review-empty {
-  color: var(--ink-3);
-  font-size: 0.85rem;
 }
 
 .review-turning-points {
@@ -934,18 +843,26 @@ fieldset.field {
   gap: var(--sp-1);
 }
 
-.review-entry {
+/* Fila de turning point: quieta (sin borde ni relleno), el tono la clasifica. Es una LISTA para
+   recorrer, no una pila de tarjetas que compita con el gráfico de arriba. */
+.study-rail .review-entry {
   width: 100%;
   text-align: left;
+  background: transparent;
+  border-color: transparent;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Resumen agregado del review (#6): calidad por jugador + precisión por fase ──────────────────── */
+.study-rail .review-entry:hover:not(:disabled) {
+  background: var(--control-hover);
+}
 
+/* Resumen agregado del review: calidad por jugador + precisión por fase. */
 .review-summary {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
-  font-size: 0.85rem;
+  gap: var(--sp-2);
+  font-size: var(--text-sm);
 }
 
 .review-summary-player {
@@ -958,84 +875,216 @@ fieldset.field {
   color: var(--ink-2);
 }
 
-/* Badge inline de una categoría de calidad: el color sale de la clase `.tone-*` compañera. */
 .review-quality-badge {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 
 .review-summary-phases {
   color: var(--ink-3);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Burbuja de pérdida de puntos (#9) coloreada por tono: un pill con fondo del tono y texto blanco,
-   legible sobre piedras negras Y blancas. Shudan no colorea markers por sí solo; en Modo Analizar solo
-   hay UNA label sobre piedra a la vez (la burbuja de `tree.current`), así que la clase de tono en
-   `.analyze-board` la pinta sin ambigüedad. Los números del PV van en vértices vacíos (`.shudan-sign_0`),
-   que estas reglas — restringidas a `.shudan-sign_1`/`.shudan-sign_-1` — no tocan. */
-.analyze-board--loss-success {
-  --loss-tone-bg: var(--tone-success);
-}
-.analyze-board--loss-warning {
-  --loss-tone-bg: var(--tone-warning);
-}
-.analyze-board--loss-danger {
-  --loss-tone-bg: var(--tone-danger);
-}
-.analyze-board[class*='analyze-board--loss-'] .shudan-marker_label.shudan-sign_1 .shudan-marker,
-.analyze-board[class*='analyze-board--loss-'] .shudan-marker_label.shudan-sign_-1 .shudan-marker {
-  background: var(--loss-tone-bg);
-  color: var(--kaya-on);
-  border-radius: 0.4em;
-  padding: 0 0.15em;
-}
-
+/* Panel de adivinanza. */
 .guess-panel {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
 }
 
-.guess-hint {
-  font-size: 0.85rem;
-  color: var(--ink-2);
-}
-
 .guess-result {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
-/* ── Clases de tono compartidas (Task 10): `summarizePointsLost`/`guessVerdict` ─────────────────── */
-
-.tone-success {
-  color: var(--tone-success);
+/* SyncBadge: estado del guardado en la nube. Metadata — nunca compite con el tablero. */
+.sync-badge {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  margin: 0;
 }
 
-.tone-warning {
-  color: var(--tone-warning);
-}
-
-.tone-danger {
+.sync-error {
   color: var(--tone-danger);
 }
 
-/* ── "Mis partidas" (Fase 5 Task 6) ──────────────────────────────────────────────────────────── */
+/* Burbuja de pérdida de puntos sobre la piedra jugada, coloreada por tono de calidad. Shudan no
+   colorea markers por sí solo; en Modo Analizar solo hay UNA label sobre piedra a la vez (la de
+   `tree.current`), así que la clase de tono en el wrapper la pinta sin ambigüedad. Los números del
+   PV van en vértices vacíos (`.shudan-sign_0`), que estas reglas no tocan. */
+.study-board--loss-success {
+  --loss-tone-bg: var(--tone-success);
+}
+.study-board--loss-warning {
+  --loss-tone-bg: var(--tone-warning);
+}
+.study-board--loss-danger {
+  --loss-tone-bg: var(--tone-danger);
+}
+.study-board[class*='study-board--loss-'] .shudan-marker_label.shudan-sign_1 .shudan-marker,
+.study-board[class*='study-board--loss-'] .shudan-marker_label.shudan-sign_-1 .shudan-marker {
+  background: var(--loss-tone-bg);
+  color: var(--kaya-on);
+  border-radius: 0.4em; /* relativo a su propia fuente: la burbuja escala con el vertexSize */
+  padding: 0 0.15em;
+}
 
-.partidas-view {
-  max-width: 40rem;
-  margin: 3rem auto;
+/* ═══ Nivel 4: TEMPLATE "estudio de tablero" ═══════════════════════════════════════════════════
+   Un solo esqueleto para Jugar y Analizar (antes eran dos copias idénticas con nombres distintos):
+
+   ┌ TopBar (chrome de la ventana) ──────────────────────────────┐
+   ├ .study-main ────────────────────────────────────────────────┤
+   │   .study-board (héroe, llena la altura)  │  .study-rail      │
+   └─────────────────────────────────────────────────────────────┘
+
+   En desktop el shell toma el viewport y la PÁGINA nunca scrollea; en mobile se apila. */
+.study-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ocupa todo el ancho del shell y CENTRA el par tablero+rail con `justify-content`. Nunca lleva
+   `margin-inline: auto`: un margen automático en el eje transversal cancela el `stretch` del flex
+   item, y entonces su ancho pasa a depender del contenido — con el tablero dimensionado a partir de
+   esa misma caja, eso es una dependencia circular (se veía como desborde horizontal en mobile). */
+.study-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-5);
+  align-items: flex-start;
+  justify-content: center;
+  margin-block: var(--sp-5);
+  padding: 0 var(--sp-4);
+}
+
+.study-board {
+  flex: 3 1 28rem;
+  min-width: 0;
+  max-width: var(--board-max);
+  /* El Goban interno es `display:inline-grid` de ancho intrínseco (content-box): sin este centrado,
+     en desktop (donde este wrapper suele quedar más ancho que el tablero real, ver maxVertexSize)
+     quedaría pegado a la izquierda con un hueco visible antes del rail. */
+  display: flex;
+  justify-content: center;
+}
+
+/* ═══ Nivel 5: PANTALLAS DE TARJETA (menú, formularios, listados) ══════════════════════════════ */
+
+/* Tarjeta centrada: el patrón de toda pantalla que NO es el estudio de tablero. */
+.card-screen {
+  margin: var(--sp-6) auto;
   padding: var(--sp-6);
   background: var(--surface);
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-2);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
 }
 
-.partidas-view h1 {
+.card-screen h1 {
   margin: 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.card-screen p {
+  margin: 0;
+}
+
+.mode-menu {
+  max-width: 28rem;
+  text-align: center;
+}
+
+.mode-menu-icon {
+  width: 64px;
+  height: 64px;
+  align-self: center;
+}
+
+.mode-menu p {
+  color: var(--ink-2);
+}
+
+/* Los enlaces del menú son botones semánticamente: mismo átomo, misma altura, mismos estados. */
+.mode-menu a {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+}
+
+/* `:not(.primary)`, no `.mode-menu a` a secas, para que estas propiedades no le ganen en
+   especificidad a `.primary` (border/background/color) en el link "Jugar". */
+.mode-menu a:not(.primary) {
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  color: inherit;
+}
+
+.mode-menu a:not(.primary):hover {
+  background: var(--control-hover);
+}
+
+.mode-menu a:not(.primary):active {
+  background: var(--control-press);
+}
+
+/* Pie de sesión: login / identidad. */
+.session-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-2);
+  font-size: var(--text-md);
+  color: var(--ink-2);
+  min-height: 2rem; /* reserva el alto mientras get-session está en vuelo (sin salto de layout) */
+}
+
+.session-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.session-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.new-game-form {
+  max-width: 28rem;
+  gap: var(--sp-5);
+}
+
+.new-game-subtitle {
+  color: var(--ink-2);
+}
+
+.analyze-picker {
+  max-width: 28rem;
+}
+
+.analyze-picker-or {
+  color: var(--ink-3);
+  font-size: var(--text-md);
+}
+
+.analyze-picker-scratch {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.partidas-view {
+  max-width: 40rem;
 }
 
 .partidas-table-wrap {
@@ -1046,18 +1095,28 @@ fieldset.field {
 .partidas-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.partidas-table th {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
 .partidas-table th,
 .partidas-table td {
   text-align: left;
-  padding: var(--sp-2) var(--sp-2);
+  padding: var(--sp-2);
   border-bottom: 1px solid var(--border-2);
   white-space: nowrap;
 }
 
 .partidas-table tbody tr {
   cursor: pointer;
+  transition: background-color var(--motion-fast) ease-out;
 }
 
 .partidas-table tbody tr:hover {
@@ -1069,72 +1128,110 @@ fieldset.field {
   cursor: default;
 }
 
-/* ── Desktop: la pantalla entra COMPLETA en el viewport, SIN scroll de página (objetivo de Edgar) ──
-   El tablero ocupa la altura disponible (grande, acotado por `useBoundedBoardSize`) y el panel lateral
-   hace su PROPIO scroll interno cuando su contenido no entra — la PÁGINA nunca scrollea. Patrón de las
-   apps de Go serias (Lizzie/KaTrain/OGS). Solo ≥768px; mobile sigue apilando + scroll de página. */
+/* Pantallas de sistema (gate de WebGPU, error boundary, descarga del modelo): centradas, sobrias,
+   mismo lenguaje que las tarjetas. La de descarga es la que más tiempo mira un usuario nuevo. */
+.system-screen {
+  margin: var(--sp-6) auto;
+  padding: 0 var(--sp-4);
+  max-width: 32rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  font-size: var(--text-md);
+}
+
+.system-screen h1 {
+  margin: 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.system-screen p {
+  margin: 0;
+}
+
+.system-screen--centered {
+  text-align: center;
+  align-items: center;
+}
+
+.system-note {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══ Desktop: la pantalla entra COMPLETA en el viewport, SIN scroll de página ══════════════════
+   El tablero ocupa la altura disponible (grande, acotado por `useBoundedBoardSize`) y el rail hace
+   su PROPIO scroll interno cuando su contenido no entra — la PÁGINA nunca scrollea. Patrón de las
+   apps de Go serias (Lizzie/KaTrain/OGS). Solo ≥768px; mobile sigue apilando + scroll de página.
+   El breakpoint está espejado en `useBoundedBoardSize.ts`: si cambia acá, cambia allá. */
 @media (min-width: 768px) {
-  /* El shell toma el viewport; la barra es fija y el board+panel llena el resto (sin scroll de página). */
   .study-shell {
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
   }
 
-  .play-view,
-  .analyze-view {
+  /* `nowrap` declara lo que es verdad en desktop: siempre una sola línea, tablero | rail. Con el
+     shell de alto definido, esa línea se estira a la altura disponible y el alto de `.study-board`
+     queda fijado por el LAYOUT — que es lo que `useBoundedBoardSize` mide para dimensionar el goban. */
+  .study-main {
     flex: 1 1 auto;
     min-height: 0;
-    margin: 0 auto;
+    margin-block: 0;
     padding: var(--sp-4);
+    flex-wrap: nowrap;
     align-items: stretch;
     overflow: hidden;
   }
 
   /* Centra el tablero verticalmente en la columna de altura completa. */
-  .play-board,
-  .analyze-board {
+  .study-board {
     align-items: center;
   }
 
-  /* Ambos paneles: header/pestañas/footer FIJOS; solo el cuerpo (pestaña activa en Analizar, árbol en
-     Jugar) scrollea si no entra. La PÁGINA nunca scrollea en desktop. */
-  .play-panel,
-  .analyze-panel {
+  .study-rail {
     max-height: 100%;
     overflow: hidden;
   }
 
-  .analyze-panel-header,
-  .analyze-tabs,
-  .analyze-panel-footer,
-  .play-panel-header,
-  .play-panel-footer {
+  .rail-header,
+  .rail-tabs,
+  .rail-footer {
     flex: 0 0 auto;
   }
 
-  .analyze-tab-body,
-  .play-tree-body {
+  /* Única región que scrollea en toda la pantalla. */
+  .rail-body {
     flex: 1 1 auto;
     min-height: 0; /* permite que overflow-y funcione dentro de un flex item */
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-right: var(--sp-1);
   }
 }
 
-/* ── Mobile (plan responsive 2026-07-16) ────────────────────────────────────────────────────── */
+/* ═══ Mobile ══════════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 480px) {
-  .play-view,
-  .analyze-view {
+  .topbar {
+    padding: 0 var(--sp-4);
+  }
+
+  .study-main {
     padding: 0 var(--sp-2);
   }
 
-  .mode-menu,
-  .new-game-form,
-  .analyze-picker,
-  .partidas-view {
+  .card-screen {
     padding: var(--sp-4);
+  }
+}
+
+/* Respeta la preferencia del sistema: los estados siguen siendo visibles, sin transición. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
   }
 }

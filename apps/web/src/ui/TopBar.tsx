@@ -1,9 +1,11 @@
-// Organismo TopBar (nav de app, spec no-scroll/nav 2026-07-25). Ancla las pantallas de tablero:
-// arriba-izquierda la MARCA (vuelve al menú) + DÓNDE estás; a la derecha A DÓNDE podés ir (cambiar
-// entre Jugar/Analizar). Convención de nav arriba-izquierda — antes el único "Volver" vivía enterrado
-// en el footer del panel, sin anclaje. Composición atómica: marca (átomo botón-fantasma) + ubicación
-// (átomo texto) + conmutador de modo (molécula SegmentedControl, mismo patrón que las pestañas del
-// panel). Consume solo tokens.
+// Organismo TopBar (nav de app). Ancla las pantallas de tablero: arriba-izquierda la MARCA (vuelve
+// al menú) + DÓNDE estás; a la derecha A DÓNDE puedes ir (cambiar entre Jugar/Analizar). Convención
+// de nav arriba-izquierda — antes el único "Volver" vivía enterrado en el footer del panel, sin
+// anclaje. Composición atómica: marca (átomo botón-fantasma) + ubicación (átomo texto) + conmutador
+// de modo (molécula `.segmented`, la misma que las pestañas del rail). Consume solo tokens.
+//
+// Es chrome de la VENTANA, no del contenido: la banda cruza el viewport entero y su alto es fijo
+// (`--topbar-h`) porque el cálculo no-scroll del tablero depende de que no cambie con su contenido.
 import { route } from 'preact-router'
 
 interface TopBarProps {
@@ -39,7 +41,7 @@ export function TopBar({ mode, onLeave, onHome }: TopBarProps) {
         </span>
         <span class="topbar-location">{mode === 'jugar' ? 'Jugar' : 'Analizar'}</span>
       </div>
-      <nav class="topbar-modes" aria-label="Cambiar modo">
+      <nav class="segmented" aria-label="Cambiar modo">
         {MODES.map((m) => (
           <button
             key={m.id}

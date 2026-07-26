@@ -138,7 +138,7 @@ export function GameTreePanel({ tree, onNavigate, disabled = false, annotationFo
           ))}
         </div>
       ) : (
-        <p class="tree-empty">Sin jugadas todavía.</p>
+        <p class="hint">Sin jugadas todavía.</p>
       )}
     </div>
   )

@@ -24,10 +24,8 @@ export function GameReviewPanel({
 }: GameReviewPanelProps) {
   return (
     <div class="review-panel">
-      <p class="review-progress">
-        {progress === null ? 'Analizando partida…' : `Review: ${progress.captionLabel}`}
-      </p>
-      <div class="play-nav">
+      <p class="hint">{progress === null ? 'Analizando partida…' : `Review: ${progress.captionLabel}`}</p>
+      <div class="nav-cluster">
         <button type="button" onClick={() => prevMistake && onSelectEntry(prevMistake)} disabled={!prevMistake}>
           ◀ Error anterior
         </button>
@@ -36,7 +34,7 @@ export function GameReviewPanel({
         </button>
       </div>
       {turningPoints.length === 0 ? (
-        <p class="review-empty">Sin saltos grandes detectados todavía.</p>
+        <p class="hint">Sin saltos grandes detectados todavía.</p>
       ) : (
         <ul class="review-turning-points">
           {turningPoints.map((entry) => {

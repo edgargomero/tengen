@@ -108,10 +108,7 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
   }
 
   return (
-    <form class="new-game-form" onSubmit={handleSubmit}>
-      <button type="button" onClick={onBack}>
-        Volver
-      </button>
+    <form class="card-screen new-game-form" onSubmit={handleSubmit}>
       <h1>tengen</h1>
       <p class="new-game-subtitle">Nueva partida contra la IA.</p>
 
@@ -303,10 +300,15 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
         )}
       </div>
 
-      {errorMsg && <p class="form-error">{errorMsg}</p>}
+      {errorMsg && <p class="notice notice--danger">{errorMsg}</p>}
 
+      {/* La acción que lidera va al final y sola en su peso; "Volver" se apaga debajo — antes
+          encabezaba el formulario a ancho completo, compitiendo con el título. */}
       <button type="submit" class="primary">
         Empezar partida
+      </button>
+      <button type="button" class="ghost" onClick={onBack}>
+        Volver
       </button>
     </form>
   )

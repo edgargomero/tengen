@@ -70,34 +70,34 @@ export function PartidasView({ onBack }: PartidasViewProps) {
 
   if (sessionPending) {
     return (
-      <main class="partidas-view">
-        <p>Cargando…</p>
+      <main class="card-screen partidas-view">
+        <p class="hint">Cargando…</p>
       </main>
     )
   }
 
   if (user === null) {
     return (
-      <main class="partidas-view">
+      <main class="card-screen partidas-view">
         <h1>Mis partidas</h1>
-        <p>Iniciá sesión con Google para ver tus partidas guardadas en la nube.</p>
+        <p>Inicia sesión con Google para ver tus partidas guardadas en la nube.</p>
         <button class="primary" onClick={signInWithGoogle}>
           Iniciar sesión con Google
         </button>
-        <button onClick={onBack}>Volver</button>
+        <button class="ghost" onClick={onBack}>Volver</button>
       </main>
     )
   }
 
   return (
-    <main class="partidas-view">
+    <main class="card-screen partidas-view">
       <h1>Mis partidas</h1>
       {error !== null && (
-        <p class="play-error">
+        <p class="notice notice--danger">
           {error} <button onClick={load}>Reintentar</button>
         </p>
       )}
-      {games === null && error === null && <p>Cargando…</p>}
+      {games === null && error === null && <p class="hint">Cargando…</p>}
       {games !== null && games.length === 0 && <p>Todavía no guardaste ninguna partida.</p>}
       {games !== null && games.length > 0 && (
         <div class="partidas-table-wrap">
@@ -127,7 +127,7 @@ export function PartidasView({ onBack }: PartidasViewProps) {
           </table>
         </div>
       )}
-      <button onClick={onBack}>Volver</button>
+      <button class="ghost" onClick={onBack}>Volver</button>
     </main>
   )
 }

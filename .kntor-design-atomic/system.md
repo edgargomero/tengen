@@ -1,8 +1,8 @@
 # Sistema de diseño — tengen
 
 > Atomic Design de la interfaz de tengen (Go/Baduk sobre Cloudflare). Vive en `apps/web/src/styles/app.css`
-> (tokens + átomos + moléculas/organismos por clase) y componentes en `apps/web/src/ui/`.
-> Establecido 2026-07-25.
+> (organizado por nivel atómico) y componentes en `apps/web/src/ui/`.
+> Establecido 2026-07-25 · revisado a fondo 2026-07-26 (pasada de crítica).
 
 ## Dirección y feel
 
@@ -12,101 +12,132 @@ partida de Go, concentrado; el **tablero es el único héroe**. El calor y el co
 y el oro-kaya (`--kaya`) aparece **solo en estados activos/primarios**. Regla de craft: *gris construye
 estructura, el color comunica*.
 
-- **Profundidad:** UNA estrategia — **tinte de superficie + borde-susurro** (rgba de baja opacidad). Sin
-  sombras dramáticas. La única sombra permitida es el lift de 1px de la pestaña/segmento activo
-  (`0 1px 2px var(--border-1)`).
-- **Espaciado:** base **4px** (`--sp-1..6`).
-- **Radios:** agudos para controles (`--radius-sm 5px`), más suave para tarjetas/paneles (`--radius-md 9px`),
-  modales (`--radius-lg 12px`).
-- **Un solo acento:** `--kaya` (el oro de la madera del goban). Nunca un segundo hue decorativo.
+- **Profundidad:** UNA estrategia — **tinte de superficie**. La jerarquía se percibe sin bordes
+  (`canvas → surface → surface-raised`, con `inset` para lo que recibe contenido); los bordes susurran
+  y nunca cargan solos la estructura. Única sombra permitida: el lift de 1px del segmento activo.
+- **Espaciado:** base **4px** (`--sp-1..6`), con un micro paso de 2px (`--sp-0`) para hairlines.
+- **Densidad como decisión:** el rail tiene tres zonas — lectura (respira), contenido, herramientas
+  (densa). El mismo 12px es correcto en una y perezoso en otra.
+- **Un solo acento:** `--kaya`. Nunca un segundo hue decorativo, **en ninguna pantalla** (la de
+  descarga del modelo tenía una barra azul; ya no).
+- **Movimiento:** una sola duración (`--motion-fast`, 90ms). La UI *responde*; no se anima.
 
 ## Nivel 0 — Tokens (el ADN)
 
-> Estado de aplicación: **100% tokenizado** — color, espaciado (escala 4px `--sp-0..6`, off-grid
-> snappeado al paso más cercano) y radios (`--radius-sm/md/lg`). Cero literal de componente en `app.css`;
-> las únicas excepciones son intencionales: `margin: 0`/`Nrem auto` (reset y centrado de tarjetas =
-> layout, no espaciado de componente), `border-radius: 50%` (círculos), el pill de pérdida en `em`
-> (relativo a su fuente), y el teal `#14b8a6` del marcador "analizado" (único color funcional sin token).
+> Estado de aplicación: **100% tokenizado en color, espaciado, radios Y TIPOGRAFÍA**. Cero hex,
+> `font-size`, `font-weight` o paso de espaciado suelto fuera de `:root`. Excepciones intencionales
+> y documentadas en el propio archivo: `outline-offset: 1px` (hairline de foco), medidas de imagen
+> (64px del ícono, 24px del avatar), anchos máximos de tarjeta (`28/32/40rem` — decisión por pantalla,
+> no espaciado de componente), y el pill de pérdida en `em` (escala con el `vertexSize`).
 
 Definidos en `:root` de `app.css`.
 
 | Grupo | Tokens |
 | --- | --- |
-| Superficies (elevación por tinte cálido) | `--canvas #f6f5f2` · `--surface #fdfcfa` · `--surface-raised #ffffff` · `--inset #efece7` |
-| Tinta (4 niveles, gris cálido) | `--ink-1 #201d18` (primario) · `--ink-2` (secundario) · `--ink-3` (terciario) · `--ink-4` (muted/disabled) |
-| Bordes (baja opacidad, susurran) | `--border-1` (estándar) · `--border-2` (suave) · `--border-strong` (énfasis) |
-| Kaya (acento único) | `--kaya #ca933a` · `--kaya-hover` · `--kaya-on #fff` · `--kaya-soft` (fondo tenue) · `--focus-ring` |
-| Semántico (calidad/estado) | `--tone-success` · `--tone-warning` · `--tone-danger` |
-| Controles | `--control-bg` · `--control-border` · `--control-hover` |
-| Espaciado / radios | `--sp-1..6` (base 4px) · `--radius-sm/md/lg` |
+| Superficies | `--canvas` · `--surface` · `--surface-raised` · `--inset` |
+| Tinta (4 niveles, gris cálido) | `--ink-1` · `--ink-2` · `--ink-3` · `--ink-4` |
+| Bordes | `--border-1` · `--border-2` · `--border-strong` |
+| Kaya (acento único) | `--kaya` · `--kaya-hover` · `--kaya-press` · `--kaya-on` · `--kaya-soft` · `--focus-ring` |
+| Semántico | `--tone-success` · `--tone-warning` · `--tone-danger` · `--tone-danger-soft` · `--analyzed` |
+| Controles | `--control-bg` · `--control-border` · `--control-hover` · `--control-press` |
+| Espaciado / radios | `--sp-0..6` · `--radius-sm/md/lg` |
+| **Tipografía** | `--text-xs/sm/md/base/lg` · `--weight-medium/semibold/bold` · `--leading-tight/normal` · `--tracking-tight/eyebrow` |
+| Movimiento / chrome | `--motion-fast` · `--topbar-h` |
+| Proporciones del template | `--board-max` (46rem) · `--rail-w` (18rem) · `--rail-w-min` |
 
-Aliases retrocompat: `--tengen-accent` → `var(--kaya)`.
+**`--ink-3` se eligió por contraste, no a ojo:** lo consumen eyebrows, hints y pestañas inactivas —todo
+texto que se lee—, así que pasa AA (≥4.5:1) sobre las tres superficies claras (surface 5.31 · canvas
+4.99 · inset 4.62). El valor anterior daba 3.18 sobre `inset`.
 
-## Nivel 1 — Átomos (consumen tokens; tienen sus estados)
+**Las proporciones dicen algo:** tablero hasta 46rem contra un rail de 18rem (~2.5:1) declara *"el rail
+sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo propio: la suma ya lo acota.
 
-- **Botón** (`button`): superficie + borde-susurro, quieto y recesivo por defecto. Estados: hover
-  (`--control-hover`), focus-visible (`--focus-ring`), disabled (`--ink-4` + opacity .6).
-  - `.primary` — la ÚNICA acción con relleno `--kaya` (texto `--kaya-on`). Una por pantalla.
-  - `.ghost` — sin borde, texto `--ink-2`; para acciones que se apagan.
-- **Control de entrada** (`select`, `input[type=number]`, `.analyze-comment-edit`): fondo `--inset`
-  ("recibe contenido"), borde `--control-border`, focus-ring.
-- **Pestaña / segmento** (átomo dentro de la molécula SegmentedControl): sin borde, `--ink-3`; activo =
-  `--surface-raised` + `--ink-1` + lift 1px.
-- **Pill de tono** (`.review-quality-badge`, `.tone-*`): color = `--tone-*`. Comunica calidad de jugada.
-- **Glifo de piedra** (● / ○ en texto): motivo recurrente ("Tú: ● Negro").
+## Nivel 1 — Átomos
 
-## Nivel 2 — Moléculas (grupos de átomos, un propósito)
+- **Botón** (`button`): superficie + borde-susurro, quieto y recesivo. Estados **obligatorios**: hover,
+  **press** (`--control-press`), focus-visible, disabled. Sin los tres, la interfaz es una foto de software.
+  - `.primary` — la ÚNICA acción con relleno `--kaya`. Una por pantalla (ni una ficha de árbol se la roba).
+  - `.ghost` — sin borde, `--ink-2`; para lo que se apaga. Es una clase real en el markup, no una regla
+    de descendencia escondida en una molécula.
+- **Control de entrada** (`select`, `input[type=number]`, `textarea`): fondo `--inset`, focus-ring.
+- **`.eyebrow`** — etiqueta que nombra un dato sin competir con él: xs + caja alta + tracking + `--ink-3`.
+  Es el eje que faltaba: la jerarquía no la carga el tamaño solo.
+- **`.stat` / `.stat-value`** — la cifra que el usuario mira: lg, semibold, tabular.
+- **`.notice`** (+ `--accent` / `--danger` / `--quote`) — UN átomo para todo mensaje en caja. Reemplaza
+  a `.play-error` / `.play-exploring` / `.analyze-editing` / `.play-result` / `.form-error` / `.analyze-comment`.
+- **`.hint`** — texto de apoyo y estados vacíos. Reemplaza a seis clases casi idénticas.
+- **Pill de tono** (`.tone-*`): calidad de jugada.
+- **Glifo de piedra** (● / ○): motivo recurrente ("Tú: ● Negro", "● 0 · ○ 0", "WINRATE ●").
 
-- **SegmentedControl** (`.analyze-tabs`, `.topbar-modes`): pista `--inset` + borde `--border-2`; ítem
-  activo se ELEVA a `--surface-raised` (neutro — es cambio de vista, no "encendido").
-- **Estado seleccionado** (`.analyze-speed button.active`, `.analyze-tools button.active`): `--kaya-soft`
-  + texto/borde `--kaya` (quieto, claramente "on"; el gold pleno se reserva a `.primary`).
-- **Cluster de navegación** (`.play-nav`): fila de botones-icono ⏮◀▶⏭.
-- **Paleta de marcas** (`.analyze-tools`): ● △ □ ○ ✕ A (tool activo = estado seleccionado kaya-soft).
-- **Fila de acciones** (`.analyze-actions`, `.play-actions`): botones fantasma, comparten ancho — se apagan.
-- **BrandNav** (`.topbar-brand`): marca `tengen` (home) + `·` + ubicación.
+## Nivel 2 — Moléculas
 
-## Nivel 3 — Organismos (secciones distintas, se sostienen solas)
+- **`.segmented`** — cambio de VISTA (pestañas del rail, modo Jugar/Analizar). El activo se ELEVA a
+  `--surface-raised` en neutro: está *adelante*, no *encendido*. `--fill` reparte el ancho.
+- **`.choice-row`** — elegir un AJUSTE (velocidad, herramienta). Acá sí manda el kaya tenue: el elegido
+  está *encendido*. Distinción deliberada frente a `.segmented`.
+- **`.nav-cluster`** — ⏮ ◀ ▶ ⏭ y los saltos entre errores.
+- **`.action-row`** — acciones que comparten ancho (el tratamiento fantasma lo pone cada botón).
+- **`.meta-row` / `.rail-meta`** — pares etiqueta/valor densos (Oponente, Tú, Capturas).
+- **`.rail-field`** — eyebrow + control (equivalente denso de `.field`).
+- **`.progress-track` / `.progress-fill`** — barra de descarga, en kaya.
+- **BrandNav** (`.topbar-brand`) — marca (home) + `·` + ubicación.
 
-- **TopBar** (`.topbar`, `ui/TopBar.tsx`): nav de app arriba. Izquierda BrandNav (dónde estás), derecha
-  SegmentedControl de modo (a dónde vas). Fijo en desktop. Compone: botón-fantasma + texto + SegmentedControl.
-- **Panel con pestañas de Analizar** (`.analyze-panel`, `ReadyAnalyzeView`): header fijo (LíneaEstado +
-  `.primary` + comentario) · SegmentedControl (Repaso/Editor/Adivinar/Árbol) · cuerpo de la pestaña activa
-  (= modo de interacción del tablero) · footer fijo (cluster-nav + selector-velocidad + fila-acciones).
-- **Panel de partida de Jugar** (`.play-panel`, `ReadyPlayView`): header fijo (estado) · cuerpo (árbol,
-  scrollea) · footer fijo (controles + nav + io + acciones). Sin pestañas (una sola sección de contenido).
-- **AnnotationEditor** (`ui/AnnotationEditor.tsx`): paleta + textarea + ops de árbol. Presentación pura;
-  `showToggle` (default true) — false cuando el modo lo controla la pestaña.
-- **Árbol de jugadas** (`GameTreeGraph` SVG en Analizar, `GameTreePanel` lista en Jugar): nodos en tinta,
-  actual con halo `--kaya`, analizado con marcador teal (`#14b8a6`, único color funcional fuera de tokens).
+## Nivel 3 — Organismos
 
-## Nivel 4 — Template: "Estudio de tablero" (`.study-shell`)
+- **TopBar** (`.topbar`, `ui/TopBar.tsx`): **chrome de la VENTANA, no del contenido** — la banda cruza
+  el viewport entero. Antes compartía el ancho centrado del contenido y quedaban dos bordes compitiendo,
+  uno más ancho que el otro (la "deuda de alineación" que este cambio elimina, no documenta). Alto fijo
+  (`--topbar-h`) porque el cálculo no-scroll del tablero depende de que no cambie con su contenido.
+- **`.study-rail`** — la columna de trabajo. Es una **superficie** (`--surface`), no un borde: se percibe
+  como panel aunque le quites las líneas. Sin padding propio: cada región trae el suyo, así los
+  separadores cruzan el rail de lado a lado **sin un solo margen negativo**.
+  - `.rail-header` (lectura: el dato + la acción primaria) · `.rail-tabs` · `.rail-body` (contenido,
+    **única región que scrollea**) · `.rail-footer` (herramientas, densa).
+- **AnnotationEditor** — bandeja HUNDIDA (`--inset`) dentro del rail. La paleta es una rejilla de 5
+  celdas iguales; "jugar piedra" ocupa su propia fila (no es una marca).
+- **Árbol de jugadas** — `GameTreeGraph` (SVG, Analizar) y `GameTreePanel` (lista, Jugar). El nodo del
+  cursor usa el estado *seleccionado* (kaya tenue), nunca el relleno kaya pleno.
 
-Columna a `100vh` en desktop, `overflow: hidden` (la PÁGINA nunca scrollea). Estructura:
+## Nivel 4 — Template "estudio de tablero"
 
 ```
-┌ TopBar (fijo) ───────────────────────────────┐
-├ .play-view / .analyze-view (flex:1) ──────────┤
-│  tablero (héroe, llena la altura) │ panel     │
-│                                   │ (header/  │
-│                                   │  cuerpo/  │
-│                                   │  footer)  │
-└───────────────────────────────────────────────┘
+┌ TopBar (chrome de la ventana, full-bleed) ──────────────────┐
+├ .study-main ────────────────────────────────────────────────┤
+│   .study-board (héroe, llena la altura)  │  .study-rail      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-- El tablero se dimensiona por ALTURA (`useBoundedBoardSize`: `innerHeight - 96`, descuenta la barra),
-  con techo `VERTEX_SIZE` (9→70, 13→50, 19→38). Reparto: board `flex: 3`, panel `flex: 1` (max 18rem).
-- Solo el cuerpo del panel scrollea internamente si su contenido no entra; header/pestañas/footer fijos.
-- Mobile (`< 768px`): se apila y la página scrollea (correcto ahí); el bloqueo a viewport es solo `≥768px`.
+UN esqueleto para Jugar y Analizar (antes eran dos copias idénticas con nombres distintos:
+`.play-view`/`.analyze-view`, `.play-panel`/`.analyze-panel`…). En desktop el shell toma el viewport y
+la PÁGINA nunca scrollea; en mobile se apila y la página scrollea.
+
+**Regla estructural que hay que respetar:** `.study-main` **nunca** lleva `margin-inline: auto`. Un
+margen automático en el eje transversal cancela el `stretch` del flex item; su ancho pasa a depender del
+contenido, y como el tablero se dimensiona a partir de esa misma caja, eso es una **dependencia
+circular** (se manifestaba como tablero minúsculo en desktop y desborde horizontal en mobile). El par se
+centra con `justify-content: center`.
+
+Por eso `useBoundedBoardSize` puede **medir** la caja real en desktop en vez de adivinar
+`innerHeight - 96`: con el shell de alto definido y `nowrap`, el alto de `.study-board` lo fija el
+layout. En mobile sí se deriva de la ventana (ahí el wrapper crece con su contenido y medirlo sería
+circular). El breakpoint 768px está espejado en el CSS y en el hook — si cambia en uno, cambia en el otro.
+
+## Contenido
+
+Registro unificado en **tuteo** ("Elige", "Haz clic", "¿Qué quieres hacer?"). Había tres cadenas en
+voseo conviviendo con el resto en tuteo entre pantallas adyacentes.
 
 ## Checks pasados (el mandato)
 
-Swap (kaya vs azul → distinto) · Squint (tablero domina, nada estridente) · Signature (kaya primario,
-panel del mundo del tablero, glifos ●○, kaya-soft, pestañas tipo kifu) · Token (`--kaya`/`--ink` suenan
-al mundo) · Atomic (page → template estudio → organismos → moléculas → átomos → tokens, cadena limpia).
+Swap · Squint (el tablero domina) · Signature (kaya primario, glifos ●○, pestañas tipo kifu) · Token ·
+Atomic (page → template estudio → organismos → moléculas → átomos → tokens, cadena limpia, sin niveles
+salteados) · **Contraste AA en todo texto que se lee** · **Cero literal suelto y cero clase muerta**
+(auditado con script en ambas direcciones: markup→CSS y CSS→markup).
 
 ## Deuda conocida
 
-- Marcador "analizado" del árbol = teal `#14b8a6` hardcodeado (único color funcional sin token). A tokenizar
-  como `--analyzed` si se quiere purismo total.
-- Alineación del TopBar (ancho 80rem) vs board+panel (centrado, más angosto) — leve desfase, aceptable.
+- Sin modo oscuro (`color-scheme: light`): decisión, no omisión — el goban de Shudan es una superficie
+  clara y un chrome oscuro alrededor pelearía con él. Si algún día se hace, los tokens ya son el
+  único punto de cambio.
+- `.rail-body` scrollea sin afordancia visual explícita (se ve la fila cortada, que es el patrón
+  estándar). Un fade condicional al overflow sería la mejora.

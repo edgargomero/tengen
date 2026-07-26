@@ -25,7 +25,7 @@ export function WinrateGraphPanel({ points, totalMoves, currentNodeId, onSelectP
   if (points.length === 0) {
     return (
       <div class="review-graph">
-        <p class="review-graph-empty">Sin datos de winrate todavía.</p>
+        <p class="hint">Sin datos de winrate todavía.</p>
       </div>
     )
   }

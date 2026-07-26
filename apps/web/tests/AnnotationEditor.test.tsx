@@ -109,7 +109,9 @@ describe('AnnotationEditor', () => {
 
   it('muestra de quién es el turno en modo edición', () => {
     renderEditor({ turn: 'white', editing: true })
-    expect(screen.getByText(/le toca a Blanco/)).toBeInTheDocument()
+    // El glifo de piedra (●/○) precede al color: es el motivo recurrente del sistema de diseño
+    // ("Tú: ● Negro"), así que la aserción cubre la intención (de quién es el turno), no el símbolo.
+    expect(screen.getByText(/le toca a .*Blanco/)).toBeInTheDocument()
   })
 
   it('en modo lectura muestra el comentario del nodo y oculta la paleta/textarea', () => {

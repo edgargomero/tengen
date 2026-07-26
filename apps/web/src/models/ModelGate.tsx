@@ -68,8 +68,11 @@ export function ModelGate({ net, children }: ModelGateProps) {
 
   if (status === 'error') {
     return (
-      <div style="font: 14px/1.5 system-ui; margin: 2rem; max-width: 48rem;">
-        <p style="color: #b00020;">Error al cargar el modelo {net}: {errorMsg}</p>
+      <div class="system-screen">
+        <h1>tengen</h1>
+        <p class="notice notice--danger">
+          No se pudo cargar la red neuronal {net}: {errorMsg}
+        </p>
         <button onClick={() => setRetry((n) => n + 1)}>Reintentar</button>
       </div>
     )
@@ -83,26 +86,28 @@ export function ModelGate({ net, children }: ModelGateProps) {
     total !== null ? `${formatMb(received)} / ${formatMb(total)} MB` : `${formatMb(received)} MB`
 
   return (
-    <div style="font: 14px/1.5 system-ui; margin: 2rem; max-width: 48rem;">
-      <p>Descargando modelo {net}…</p>
+    <div class="system-screen">
+      <h1>tengen</h1>
+      <p>Descargando la red neuronal {net}…</p>
       <div
+        class="progress-track"
         role="progressbar"
         aria-label={`Descargando modelo ${net}`}
         aria-valuemin={percent === null ? undefined : 0}
         aria-valuemax={percent === null ? undefined : 100}
         aria-valuenow={percent === null ? undefined : percent}
-        style="width: 100%; height: 1.25rem; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; background: #f0f0f0;"
       >
         <div
-          style={
-            percent === null
-              ? 'width: 100%; height: 100%; background: #b3d4f5; opacity: 0.6;'
-              : `width: ${percent}%; height: 100%; background: #4a90d9; transition: width 0.15s;`
-          }
+          class={percent === null ? 'progress-fill progress-fill--indeterminate' : 'progress-fill'}
+          style={percent === null ? undefined : `width: ${percent}%`}
         />
       </div>
-      <p style="margin-top: 0.5rem; font-variant-numeric: tabular-nums;">
-        {percent === null ? `descargando… ${sizeLabel}` : `${percent}% — ${sizeLabel}`}
+      <p class="system-note">
+        {percent === null ? sizeLabel : `${percent}% — ${sizeLabel}`}
+      </p>
+      <p class="system-note">
+        Se descarga una sola vez: queda guardada en este navegador y el motor corre entero en tu
+        equipo, sin servidor.
       </p>
     </div>
   )

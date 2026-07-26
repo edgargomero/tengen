@@ -41,7 +41,7 @@ const Link = RouterLink as (props: JSX.AnchorHTMLAttributes<HTMLAnchorElement>) 
 
 function NoWebGpu() {
   return (
-    <main class="no-webgpu">
+    <main class="system-screen system-screen--centered">
       <h1>tengen</h1>
       <p>
         tengen necesita <strong>WebGPU</strong>. Abre esta página en <strong>Chrome o Edge</strong>{' '}
@@ -214,9 +214,9 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoun
     const { error } = this.state
     if (error !== null) {
       return (
-        <main class="crash-recovery">
+        <main class="system-screen system-screen--centered">
           <h1>tengen</h1>
-          <p>Algo salió mal: {errorMessage(error)}</p>
+          <p class="notice notice--danger">Algo salió mal: {errorMessage(error)}</p>
           <button onClick={this.handleReset}>Nueva partida</button>
         </main>
       )
@@ -244,10 +244,10 @@ function ModeApp() {
 function ModeMenu(_props: RoutableProps) {
   const { user, pending } = useSession()
   return (
-    <main class="mode-menu">
+    <main class="card-screen mode-menu">
       <img src="/favicon.svg" alt="" class="mode-menu-icon" />
       <h1>tengen</h1>
-      <p>¿Qué querés hacer?</p>
+      <p>¿Qué quieres hacer?</p>
       <Link class="primary" href="/jugar">
         Jugar
       </Link>
@@ -280,8 +280,8 @@ function App() {
   }, [])
   if (webgpu === null) {
     return (
-      <main class="detecting">
-        <p>detectando WebGPU…</p>
+      <main class="system-screen system-screen--centered">
+        <p class="system-note">Detectando WebGPU…</p>
       </main>
     )
   }

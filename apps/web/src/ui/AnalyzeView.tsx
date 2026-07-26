@@ -298,13 +298,13 @@ function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
   }
 
   return (
-    <div class="analyze-picker">
+    <div class="card-screen analyze-picker">
       <h1>Modo Analizar</h1>
       <p>Elige un archivo SGF para analizar.</p>
       <input type="file" accept=".sgf" onChange={(e) => void handleFile(e)} />
-      {error !== null && <p class="form-error">{error}</p>}
+      {error !== null && <p class="notice notice--danger">{error}</p>}
 
-      <p class="analyze-picker-or">o empezá en blanco:</p>
+      <p class="analyze-picker-or">o empieza en blanco:</p>
       <div class="analyze-picker-scratch">
         {SCRATCH_BOARD_SIZES.map((size) => (
           <button key={size} onClick={() => onStartFromScratch(size)}>
@@ -313,7 +313,7 @@ function SgfPicker({ onLoadFile, onStartFromScratch, onBack }: SgfPickerProps) {
         ))}
       </div>
 
-      <button onClick={onBack}>Volver</button>
+      <button class="ghost" onClick={onBack}>Volver</button>
     </div>
   )
 }
@@ -744,8 +744,8 @@ function ReadyAnalyzeView({
   return (
     <div class="study-shell">
       <TopBar mode="analizar" onLeave={() => cloud.finish()} />
-      <div class="analyze-view">
-      <div class={`analyze-board${bubbleTone ? ` analyze-board--loss-${bubbleTone}` : ''}`} ref={boardRef}>
+      <div class="study-main">
+      <div class={`study-board${bubbleTone ? ` study-board--loss-${bubbleTone}` : ''}`} ref={boardRef}>
         {boardBounds && (
           <BoundedGoban
             signMap={signMap}
@@ -766,47 +766,63 @@ function ReadyAnalyzeView({
           />
         )}
       </div>
-      <aside class="analyze-panel">
-        {/* Header FIJO: estado del análisis + la acción primaria + el comentario en modo lectura. */}
-        <div class="analyze-panel-header">
-          {booting && <p>Preparando motor…</p>}
-          {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
-
-          <p class="analyze-score">
-            Negro — Winrate: {formatAnalysisWinRate(analysis?.winrate)} · Score:{' '}
-            {formatAnalysisScoreLead(analysis?.scoreLead)}
-          </p>
-          {analysis === undefined && <p class="analyze-score-hint">Sin analizar todavía.</p>}
+      <aside class="study-rail">
+        {/* Zona de LECTURA (fija): las dos cifras que gobiernan la revisión, la acción primaria y el
+            comentario autorado. Winrate y score son EL dato de esta pantalla — van como cifras
+            etiquetadas, no como una frase corrida entre metadatos. */}
+        <div class="rail-header">
+          <div class="rail-stats">
+            <div class="stat">
+              <span class="eyebrow" title="Probabilidad de victoria de Negro">
+                Winrate ●
+              </span>
+              <span class="stat-value">{formatAnalysisWinRate(analysis?.winrate)}</span>
+            </div>
+            <div class="stat">
+              <span class="eyebrow" title="Ventaja de puntos estimada">
+                Score
+              </span>
+              <span class="stat-value">{formatAnalysisScoreLead(analysis?.scoreLead)}</span>
+            </div>
+          </div>
+          {booting ? (
+            <p class="hint">Preparando motor…</p>
+          ) : (
+            analysis === undefined && <p class="hint">Sin analizar todavía.</p>
+          )}
 
           <button class="primary" onClick={handleAnalyzeClick} disabled={booting || analyzing}>
             {analyzing ? 'Analizando…' : 'Analizar esta posición'}
           </button>
-          {analyzeError !== null && <p class="play-error">{analyzeError}</p>}
-          {/* El comentario autorado se ve mientras revisás (fuera de la pestaña Editor, que ya lo edita). */}
+          {errorMsg !== null && <p class="notice notice--danger">{errorMsg}</p>}
+          {analyzeError !== null && <p class="notice notice--danger">{analyzeError}</p>}
+          {/* El comentario autorado se ve mientras revisas (fuera de la pestaña Editor, que ya lo edita). */}
           {activeTab !== 'editor' && tree.current.comment && (
-            <p class="analyze-comment">{tree.current.comment}</p>
+            <p class="notice notice--quote">{tree.current.comment}</p>
           )}
         </div>
 
         {/* Pestañas: la activa es la sección visible Y el modo de interacción del tablero. */}
-        <div class="analyze-tabs" role="tablist">
-          {ANALYZE_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === t.id}
-              class={activeTab === t.id ? 'active' : ''}
-              onClick={() => selectTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div class="rail-tabs">
+          <div class="segmented segmented--fill" role="tablist">
+            {ANALYZE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.id}
+                class={activeTab === t.id ? 'active' : ''}
+                onClick={() => selectTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Cuerpo de la pestaña activa. Contenido diseñado para entrar sin scroll de página; solo el
-            árbol de jugadas (voluminoso) trae su propio scroll interno acotado. */}
-        <div class="analyze-tab-body">
+        {/* Zona de CONTENIDO: la pestaña activa. La región scrollea si su contenido no entra; las
+            secciones de adentro no traen scroll propio (ver `.rail-body` en app.css). */}
+        <div class="rail-body">
           {activeTab === 'repaso' && (
             <>
               <WinrateGraphPanel
@@ -845,7 +861,7 @@ function ReadyAnalyzeView({
                 onPromote={handlePromote}
                 onPass={handlePass}
               />
-              {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
+              {illegalMoveHint !== null && <p class="notice notice--danger">{illegalMoveHint}</p>}
             </>
           )}
           {activeTab === 'adivinar' && (
@@ -868,40 +884,52 @@ function ReadyAnalyzeView({
           )}
         </div>
 
-        {/* Footer FIJO: navegación + velocidad + acciones secundarias (siempre a mano, sin scroll). */}
-        <div class="analyze-panel-footer">
-          <div class="play-nav">
-            <button onClick={goFirst} title="Primera jugada">
+        {/* Zona de HERRAMIENTAS (fija): navegar, ajustar velocidad, exportar. Todo en fantasma —
+            la única acción con peso en esta pantalla es "Analizar esta posición", arriba. */}
+        <div class="rail-footer">
+          <div class="nav-cluster">
+            <button class="ghost" onClick={goFirst} title="Primera jugada">
               ⏮
             </button>
-            <button onClick={goPrev} title="Jugada anterior">
+            <button class="ghost" onClick={goPrev} title="Jugada anterior">
               ◀
             </button>
-            <button onClick={goNext} title="Jugada siguiente">
+            <button class="ghost" onClick={goNext} title="Jugada siguiente">
               ▶
             </button>
-            <button onClick={goLast} title="Última jugada">
+            <button class="ghost" onClick={goLast} title="Última jugada">
               ⏭
             </button>
           </div>
 
-          <div class="analyze-speed">
-            <span>Velocidad:</span>
-            {SPEED_LEVELS.map((level) => (
-              <button
-                key={level}
-                class={speed === level ? 'active' : ''}
-                onClick={() => onChangeSpeed(level)}
-                disabled={speed === level}
-              >
-                {speed === level ? `• ${SPEED_LABELS[level]}` : SPEED_LABELS[level]}
-              </button>
-            ))}
+          {/* Velocidad es un AJUSTE, no un cambio de vista: el nivel elegido va en kaya tenue
+              (encendido), no elevado como una pestaña. */}
+          <div class="rail-field">
+            <span class="eyebrow" id="analyze-speed-label">
+              Velocidad
+            </span>
+            <div class="choice-row" role="group" aria-labelledby="analyze-speed-label">
+              {SPEED_LEVELS.map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  aria-pressed={speed === level}
+                  class={speed === level ? 'active' : ''}
+                  onClick={() => onChangeSpeed(level)}
+                >
+                  {SPEED_LABELS[level]}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div class="analyze-actions">
-            <button onClick={handleExportSgf}>Exportar SGF</button>
-            <button onClick={handleLoadAnother}>Elegir otra partida</button>
+          <div class="action-row">
+            <button class="ghost" onClick={handleExportSgf}>
+              Exportar SGF
+            </button>
+            <button class="ghost" onClick={handleLoadAnother}>
+              Elegir otra partida
+            </button>
           </div>
           {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
         </div>

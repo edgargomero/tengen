@@ -747,8 +747,8 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
   return (
     <div class="study-shell">
       <TopBar mode="jugar" onHome={onBack} />
-      <div class="play-view">
-      <div class="play-board" ref={boardRef}>
+      <div class="study-main">
+      <div class="study-board" ref={boardRef}>
         {boardBounds && (
           <BoundedGoban
             signMap={signMap}
@@ -765,27 +765,28 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
           />
         )}
       </div>
-      <aside class="play-panel">
-        {/* Header FIJO: estado de la partida (reloj, oponente, color, turno, capturas, mensajes). */}
-        <div class="play-panel-header">
+      <aside class="study-rail">
+        {/* Zona de LECTURA (fija): reloj, estado del turno, ficha de la partida, avisos. Jerarquía
+            deliberada — el turno es la única línea que se lee de reojo, la ficha es metadata. */}
+        <div class="rail-header">
           {tree.meta.clock && (
             <div class="play-clock">
               <p class={liveTurn() === 'black' ? 'play-clock-active' : ''}>
-                Negro: {formatClockMs(displayedClock('black').ms)}
-                {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
+                <span class="eyebrow">Negro</span>
+                <span class="play-clock-value">
+                  {formatClockMs(displayedClock('black').ms)}
+                  {displayedClock('black').inByoyomi && ` · byoyomi ${displayedClock('black').periodsRemaining}`}
+                </span>
               </p>
               <p class={liveTurn() === 'white' ? 'play-clock-active' : ''}>
-                Blanco: {formatClockMs(displayedClock('white').ms)}
-                {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
+                <span class="eyebrow">Blanco</span>
+                <span class="play-clock-value">
+                  {formatClockMs(displayedClock('white').ms)}
+                  {displayedClock('white').inByoyomi && ` · byoyomi ${displayedClock('white').periodsRemaining}`}
+                </span>
               </p>
             </div>
           )}
-          <p class="play-opponent">Oponente: {opponentLabel(config.opponent)}</p>
-          {/* Indicador pasivo del color del humano: visible desde el montaje (incluso durante
-              "Preparando motor…"), así "ver qué color te tocó" (nigiri) es legible antes del 1er turno. */}
-          <p class="play-you">
-            Tú: {humanColor === 'black' ? '●' : '○'} {colorLabel(humanColor)}
-          </p>
           <p class="play-turn">
             {result !== null
               ? 'Partida terminada'
@@ -799,24 +800,50 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
                       ? `Tu turno (${colorLabel(humanColor)})`
                       : `Turno de la IA (${colorLabel(aiColor)})`}
           </p>
-          <p class="play-captures">
-            Capturas — Negro: {captures.black} · Blanco: {captures.white}
-          </p>
-          {exploring && result === null && <p class="play-exploring">Modo exploración: construyendo variación.</p>}
-          {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
-          {illegalMoveHint !== null && <p class="play-error">{illegalMoveHint}</p>}
-          {result !== null && <p class="play-result">Resultado: {result}</p>}
+          {/* Ficha de la partida. "Tú" es un indicador pasivo visible desde el montaje (incluso
+              durante "Preparando motor…"): así "ver qué color te tocó" (nigiri) es legible antes
+              del primer turno. */}
+          <div class="rail-meta">
+            <p class="meta-row">
+              <span class="eyebrow">Oponente</span>
+              <span>{opponentLabel(config.opponent)}</span>
+            </p>
+            <p class="meta-row">
+              <span class="eyebrow">Tú</span>
+              <span>
+                {humanColor === 'black' ? '●' : '○'} {colorLabel(humanColor)}
+              </span>
+            </p>
+            <p class="meta-row">
+              <span class="eyebrow">Capturas</span>
+              <span>
+                ● {captures.black} · ○ {captures.white}
+              </span>
+            </p>
+          </div>
+          {exploring && result === null && (
+            <p class="notice notice--accent">Modo exploración: construyendo variación.</p>
+          )}
+          {errorMsg !== null && <p class="notice notice--danger">{errorMsg}</p>}
+          {illegalMoveHint !== null && <p class="notice notice--danger">{illegalMoveHint}</p>}
+          {result !== null && (
+            <p class="notice notice--accent">
+              Resultado: <strong>{result}</strong>
+            </p>
+          )}
           {cloud.active && <SyncBadge status={cloud.status} onRetry={cloud.retryNow} />}
         </div>
 
-        {/* Cuerpo: el árbol de jugadas (único elemento voluminoso; scrollea solo si hace falta). */}
-        <div class="play-tree-body">
+        {/* Zona de CONTENIDO: el árbol de jugadas (único elemento voluminoso). La región scrollea;
+            el árbol no trae scroll propio (ver `.rail-body` en app.css). */}
+        <div class="rail-body">
           <GameTreePanel tree={tree} onNavigate={handleTreeNavigate} disabled={busy} />
         </div>
 
-        {/* Footer FIJO: acciones de la partida (jugar, navegar, archivo, sesión), siempre a mano. */}
-        <div class="play-panel-footer">
-          <div class="play-controls">
+        {/* Zona de HERRAMIENTAS (fija). Jerarquía: las acciones de PARTIDA conservan superficie;
+            navegación y archivo se apagan (fantasma) para no competir con ellas ni con el tablero. */}
+        <div class="rail-footer">
+          <div class="action-row">
             <button onClick={handlePass} disabled={busy || (!exploring && turn !== humanColor)}>
               Pasar
             </button>
@@ -825,39 +852,40 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
             </button>
           </div>
 
-          <div class="play-nav">
-            <button onClick={goFirst} disabled={busy} title="Primera jugada">
+          <div class="nav-cluster">
+            <button class="ghost" onClick={goFirst} disabled={busy} title="Primera jugada">
               ⏮
             </button>
-            <button onClick={goPrev} disabled={busy} title="Jugada anterior">
+            <button class="ghost" onClick={goPrev} disabled={busy} title="Jugada anterior">
               ◀
             </button>
-            <button onClick={goNext} disabled={busy} title="Jugada siguiente">
+            <button class="ghost" onClick={goNext} disabled={busy} title="Jugada siguiente">
               ▶
             </button>
-            <button onClick={goLast} disabled={busy} title="Última jugada">
+            <button class="ghost" onClick={goLast} disabled={busy} title="Última jugada">
               ⏭
             </button>
           </div>
 
-          <div class="play-io">
-            <button onClick={handleExportSgf}>Exportar SGF</button>
-            <button onClick={() => fileInputRef.current?.click()} disabled={busy}>
+          <div class="action-row">
+            <button class="ghost" onClick={handleExportSgf}>
+              Exportar SGF
+            </button>
+            <button class="ghost" onClick={() => fileInputRef.current?.click()} disabled={busy}>
               Importar SGF
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".sgf"
-              style="display: none"
-              onChange={(e) => void handleImportFile(e)}
-            />
+            <button class="ghost" onClick={onNewGame}>
+              Nueva partida
+            </button>
           </div>
-          {importError !== null && <p class="play-error">{importError}</p>}
-
-          <div class="play-actions">
-            <button onClick={onNewGame}>Nueva partida</button>
-          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".sgf"
+            hidden
+            onChange={(e) => void handleImportFile(e)}
+          />
+          {importError !== null && <p class="notice notice--danger">{importError}</p>}
         </div>
       </aside>
       </div>

@@ -19,7 +19,7 @@ export function GuessMovePanel({ waiting, busy, result, errorMsg, expectedLabel,
     <div class="guess-panel">
       {waiting ? (
         <>
-          <p class="guess-hint">Haz clic en el tablero con tu jugada.</p>
+          <p class="hint">Haz clic en el tablero con tu jugada.</p>
           <button type="button" onClick={onCancel}>
             Cancelar
           </button>
@@ -29,7 +29,7 @@ export function GuessMovePanel({ waiting, busy, result, errorMsg, expectedLabel,
           {busy ? 'Adivinando…' : '¿Cuál jugaría el motor aquí?'}
         </button>
       )}
-      {errorMsg !== null && <p class="play-error">{errorMsg}</p>}
+      {errorMsg !== null && <p class="notice notice--danger">{errorMsg}</p>}
       {result !== null && expectedLabel !== null && (
         <p class={`guess-result tone-${result.verdict.tone}`}>
           El motor jugaría {expectedLabel} — {result.verdict.label}
