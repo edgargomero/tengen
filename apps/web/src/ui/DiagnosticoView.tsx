@@ -15,6 +15,9 @@
 import { useEffect, useState } from 'preact/hooks'
 import { collectDiagnostics } from '../diagnostics/collect'
 import type { Diagnostics } from '../diagnostics/collect'
+import { loadStoredProbe, probeEngine, PROBE_ROUNDS, PROBE_VISITS_PER_ROUND } from '../diagnostics/engineProbe'
+import type { EngineProbeResult, EngineRound } from '../diagnostics/engineProbe'
+import { formatEngineProbe, judgeEngineProbe } from '../diagnostics/engineVerdict'
 import { diagnose, formatDiagnostics, warnings } from '../diagnostics/format'
 import { errorText } from '../diagnostics/gpuProbe'
 import { webGpuAdvice } from '../diagnostics/webGpuAdvice'
@@ -95,8 +98,11 @@ function DiagnosticoReport({
 }) {
   const verdict = diagnose(data)
   const notes = warnings(data)
-  const dump = formatDiagnostics(data)
   const copyMessage = COPY_MESSAGE[copy]
+  // Las tandas de la prueba del motor entran en el MISMO volcado que se copia. Si viajaran aparte, el
+  // reporte llegaría partido en dos mensajes y con la mitad de la información perdida en el camino.
+  const [engineLines, setEngineLines] = useState<string[]>([])
+  const dump = formatDiagnostics(data, engineLines.length > 0 ? [{ title: 'prueba del motor', lines: engineLines }] : [])
   // Qué HACER, no sólo qué pasa. El consejo también vive en el cartel del gate (`NoWebGpu`), pero a esta
   // pantalla se llega por su URL directa —es lo que uno pega en un chat— y ahí el gate nunca se ve. Sin
   // esto, el diagnóstico dice "este dispositivo no puede" y deja al lector sin siguiente paso: pasó de
@@ -130,6 +136,10 @@ function DiagnosticoReport({
         </ul>
       )}
 
+      {/* Sólo si el motor PUEDE correr acá: medir en un dispositivo donde ni existe WebGPU no diría
+          nada, y el botón invitaría a un fracaso garantizado. */}
+      {verdict.ok && <EngineProbeSection onDump={setEngineLines} />}
+
       <div class="action-row">
         <button type="button" class="primary" onClick={() => onCopy(dump)}>
           Copiar todo
@@ -143,5 +153,100 @@ function DiagnosticoReport({
 
       <p class="notice notice--quote diagnostico-dump">{dump}</p>
     </>
+  )
+}
+
+type ProbeState =
+  | { phase: 'idle' }
+  | { phase: 'running'; rounds: EngineRound[] }
+  | { phase: 'done'; result: EngineProbeResult }
+
+/**
+ * Prueba del motor: tandas idénticas de análisis real, medidas una por una.
+ *
+ * Dos decisiones que valen la pena explicar:
+ *
+ * · **Arranca con un botón, nunca sola.** La prueba levanta el motor de verdad y pone 115,8 MB en la GPU.
+ *   Hacerlo al abrir una pantalla de diagnóstico sería exactamente lo contrario de diagnosticar en un
+ *   dispositivo que se está investigando por memoria.
+ * · **Reporta cada tanda a medida que termina**, no al final. El caso que se investiga es que el proceso
+ *   muera a mitad; si los resultados se publicaran recién al terminar, el escenario interesante sería el
+ *   único que no dejaría rastro.
+ */
+function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
+  const [state, setState] = useState<ProbeState>({ phase: 'idle' })
+  // Corrida anterior que quedó escrita. Se lee UNA vez al montar: si `finished` es false, el proceso
+  // murió a mitad y cuántas tandas alcanzó es exactamente el dato que se estaba buscando.
+  const [previous] = useState(() => loadStoredProbe(window.localStorage))
+
+  async function run(): Promise<void> {
+    setState({ phase: 'running', rounds: [] })
+    const result = await probeEngine({
+      storage: window.localStorage,
+      onRound: (_round, all) => {
+        setState({ phase: 'running', rounds: all })
+        // Publica el parcial en el volcado en cada tanda: si el aparato muere ahora, esto es lo que
+        // sobrevive para copiar.
+        onDump(formatEngineProbe({ modelInOpfs: true, rounds: all }))
+      },
+    })
+    setState({ phase: 'done', result })
+    onDump(formatEngineProbe(result))
+  }
+
+  // Sólo se muestra si quedó a mitad Y no hay una corrida nueva en pantalla: una corrida terminada ya
+  // dijo lo suyo, y una en curso la reemplaza.
+  const interrupted = previous !== null && !previous.finished && state.phase === 'idle' ? previous : null
+
+  const running = state.phase === 'running'
+  const verdict = state.phase === 'done' ? judgeEngineProbe(state.result) : null
+  const rounds = state.phase === 'running' ? state.rounds : state.phase === 'done' ? state.result.rounds : []
+
+  return (
+    <div class="rail-field">
+      <span class="eyebrow">Prueba del motor</span>
+      <p class="hint">
+        Corre {PROBE_ROUNDS} tandas iguales de {PROBE_VISITS_PER_ROUND} visitas y mide cada una. Tandas
+        estables = el dispositivo es lento y nada más; tandas que se alargan = memoria que crece.
+      </p>
+      <div class="action-row">
+        <button type="button" onClick={() => void run()} disabled={running}>
+          {running ? `Midiendo… (${rounds.length}/${PROBE_ROUNDS})` : 'Probar el motor'}
+        </button>
+      </div>
+
+      {interrupted !== null && (
+        <div class="notice notice--danger">
+          <strong>La prueba anterior se cortó sola</strong>
+          <br />
+          {interrupted.rounds.length === 0
+            ? 'Murió al arrancar el motor, antes de completar una sola tanda: el pico de memoria más grande de la app es justo ese, subir el modelo a la GPU.'
+            : `Alcanzó ${interrupted.rounds.length} de ${PROBE_ROUNDS} tandas y el proceso murió. Esa es la evidencia de que algo crece con el uso.`}
+          <br />
+          {formatEngineProbe({ modelInOpfs: true, rounds: interrupted.rounds, ...(interrupted.initMs !== undefined ? { initMs: interrupted.initMs } : {}) }).join(' · ')}
+        </div>
+      )}
+
+      {rounds.length > 0 && (
+        <ul class="diagnostico-rounds">
+          {rounds.map((round) => (
+            <li key={round.round} class="meta-row">
+              <span>Tanda {round.round}</span>
+              <span>
+                {round.ms} ms · {round.visitsPerSecond} v/s
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {verdict !== null && (
+        <p class={verdict.kind === 'ok' ? 'notice notice--accent' : 'notice notice--danger'}>
+          <strong>{verdict.headline}</strong>
+          <br />
+          {verdict.detail}
+        </p>
+      )}
+    </div>
   )
 }

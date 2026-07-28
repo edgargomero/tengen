@@ -1475,3 +1475,14 @@ fieldset.field {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Tandas de la prueba del motor. Es una lista de pares dato/valor densa, así que reusa `.meta-row` por
+   fila; acá sólo se le quita la viñeta y el margen que trae `ul`. */
+.diagnostico-rounds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}

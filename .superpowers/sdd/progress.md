@@ -513,3 +513,40 @@ Segundo volcado del iPhone 12: build `a1fd3b3` (el deploy llegó bien) pero **ot
 Fix: `DiagnosticoView` pinta `webGpuAdvice(data.userAgent)` bajo el veredicto cuando el veredicto es negativo. Reusa el `UserAgentSummary` que el recolector ya trae — cero recolección nueva. Verificado en el navegador con el UA exacto del iPhone 12 de Edgar: el consejo que se pinta es "En iPhone y iPad, abre esta página en Safari" + la explicación de WKWebView con la versión real.
 
 **Lección de diseño para pantallas de diagnóstico:** el consejo tiene que vivir donde se lee el problema, no en la pantalla de la que uno viene. Una pantalla a la que se llega por URL directa no hereda el contexto de ninguna otra.
+
+## SAFARI EN iOS 18.7.8 SÍ TIENE WEBGPU — y el motor crashea jugando (2026-07-28)
+
+Edgar probó en Safari: **funciona**. El iPhone 12 no está descartado; el hardware puede. Pero **crashea jugando y el teléfono se recalienta**.
+
+### Las tres respuestas que acotan el diagnóstico (AskUserQuestion)
+
+- **Fuerza baja (50 visitas/jugada)** — el preset MÁS BAJO. Esto es lo que descarta la explicación fácil: 50 inferencias por jugada no son un presupuesto excesivo, así que el calor y el crash no son "el costo honesto de un motor client-side".
+- **Muere tras VARIAS jugadas** — crecimiento con el uso, no un pico inicial.
+- **"No se carga, debo recargarla manualmente; a veces se recarga sola; otras da error"** — la recarga espontánea es iOS matando el proceso.
+
+Los tres juntos son la firma de una **fuga de memoria**, no de un dispositivo lento.
+
+### Lo que se DESCARTÓ leyendo código (no adivinando)
+
+- **No es una sesión ONNX por jugada.** `LocalEngine.init()` corre una vez (vía `ensureReady`→`reconcile`, idempotente); los 115,8 MB van a la GPU una sola vez por partida. Era el peor caso posible y no es.
+- **No es una fuga de tensores nuestra.** Sin `preferredOutputLocation`, ORT devuelve los outputs en CPU: son TypedArrays de JS que libera el GC. Verificado en los tipos del paquete instalado (`onnxruntime-common`, `tensor.d.ts`: *"If the data is on CPU, remove its internal reference… If the data is on GPU, release the data on GPU"*). Llamar `dispose()` sería higiene, no la causa raíz.
+
+Queda como principal sospechoso el bug conocido de ORT en modo JSEP sobre Safari (**microsoft/onnxruntime#26827**, memoria creciendo hasta matar el proceso; reportado para 1.20–1.23.2, el repo está en **1.27.0**). Pero eso NO se confirma leyendo: hay que medirlo.
+
+### La medición que nunca existió
+
+**Todo número de rendimiento de este proyecto venía del M1 de fase 0.** Cada afirmación sobre el teléfono en esta conversación (incluida una tabla de tiempos por jugada) extrapolaba con un factor 5× **inventado**. Nadie midió una sola inferencia en ese iPhone.
+
+`diagnostics/engineProbe.ts` + `engineVerdict.ts`: botón "Probar el motor" en `/diagnostico` que corre **6 tandas idénticas de 20 visitas** con el motor REAL (mismo Worker, misma sesión, mismo MCTS — el camino que falla, no una aproximación) y mide cada una. Tandas iguales, así la única variable que queda es el estado del dispositivo:
+
+- **estables** → no hay fuga; es lento y punto, y la respuesta es presupuesto o red más chica.
+- **alargándose** (≥1,5× entre la primera y la segunda mitad) → algo crece, y bajar visitas sólo retrasaría el crash.
+- **muere a mitad** → cuántas tandas aguantó ES el dato.
+
+**Y persiste cada tanda en localStorage antes de avisar a la UI.** Sin eso, el escenario que se investiga —el proceso muere y se lleva el DOM— sería el único que no dejaría rastro. Al reabrir la pantalla, una corrida con `finished: false` se muestra como "la prueba anterior se cortó sola" con las tandas que alcanzó. El crash pasa de borrar la evidencia a ser parte de ella.
+
+**Verificado con el motor real en Chrome/M1:** arranque 2.636 ms, 6 tandas, **2,9 visitas/s de promedio, sin desaceleración (1,02×)** → veredicto "velocidad estable". Ese es además el primer número de visitas/s del proyecto medido a través del pipeline completo (MCTS incluido), no sólo de inferencia suelta.
+
+**Gates:** typecheck limpio · 809 tests (120 + 645 + 44) · build OK. 16 tests nuevos sobre el veredicto y la persistencia — la separación "fuga vs lento" decide un desvío caro (convertir b10), así que va fijada con tests y no a criterio de quien mire los números.
+
+**Pendiente:** que Edgar corra la prueba en Safari del iPhone 12 y pegue el resultado. Recién ahí se decide si la Fase 3 es ajuste (Rama A) o red más chica (Rama B).

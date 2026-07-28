@@ -1,0 +1,235 @@
+// Prueba del motor EN el dispositivo: corre tandas de análisis reales y mide cada una.
+//
+// ── Por qué hace falta ────────────────────────────────────────────────────────────────────────
+// Hasta acá, cada número de rendimiento del proyecto viene del M1 de fase 0 (2,79 inf/s batch 1, 4,64
+// batch 8) y todo lo dicho sobre un teléfono es una extrapolación con un factor inventado. Eso alcanzaba
+// mientras el motor sólo corría en escritorio; no alcanza para decidir si un iPhone necesita una red más
+// chica, que es el trabajo más incierto de este plan.
+//
+// ── Qué distingue, y por qué son TANDAS y no una sola medición ────────────────────────────────
+// El síntoma a explicar es "funciona, se calienta y muere tras varias jugadas" con el preset MÁS BAJO
+// (50 visitas). Eso no es un presupuesto excesivo: es crecimiento con el uso. Una sola medición no
+// distingue las dos causas posibles, pero varias tandas iguales sí:
+//
+//   · Tandas de duración ESTABLE → no hay fuga. El dispositivo es lento y punto, y la respuesta es
+//     ajustar presupuesto (o una red más chica), no cazar un bug.
+//   · Tandas que se van ALARGANDO → algo crece: presión de memoria, GC, thrashing. Es la firma del bug
+//     conocido de onnxruntime en modo JSEP sobre Safari (microsoft/onnxruntime#26827, memoria creciendo
+//     hasta matar el proceso), y también la que dejaría una fuga propia.
+//   · Muere a mitad → la respuesta está en cuántas tandas aguantó.
+//
+// Corre el motor DE VERDAD (el mismo Worker, la misma sesión ONNX, el mismo MCTS) en vez de sintetizar
+// inferencias sueltas: lo que hay que medir es el camino que falla, no una aproximación suya.
+import { GameTree } from '../game/gameTree'
+import { EngineManager } from '../engine/engineManager'
+import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
+import { requireManifestEntry } from '../models/netManifest'
+import { createOpfsModelStore } from '../models/modelStore'
+import { errorText } from './gpuProbe'
+import type { BoardSize, NetworkId } from '@tengen/engine'
+
+/** La misma red que usa Analizar. Si el dispositivo ya jugó una partida, está en OPFS. */
+const PROBE_NETWORK: NetworkId = 'b18'
+const PROBE_BOARD_SIZE: BoardSize = 19
+
+/** Visitas por tanda. Deliberadamente bajo: la pregunta no es "cuánto aguanta" sino "cada tanda igual
+ * tarda lo mismo", y con tandas cortas el resultado llega antes de que el aparato se caliente. */
+export const PROBE_VISITS_PER_ROUND = 20
+export const PROBE_ROUNDS = 6
+
+/** Tope por tanda. Muy por encima de los 30 s de producción a propósito: acá el objetivo es MEDIR
+ * cuánto tarda, y cortar a los 30 s escondería justamente el dato que se busca. */
+const PROBE_TIMEOUT_MS = 120_000
+
+export interface EngineRound {
+  /** 1-based, como se muestra. */
+  round: number
+  visits: number
+  ms: number
+  visitsPerSecond: number
+}
+
+export interface EngineProbeResult {
+  /** `false` = el modelo no está descargado en este dispositivo; no hay nada que medir todavía. */
+  modelInOpfs: boolean
+  /** Cuánto tardó en levantar el Worker + la sesión ONNX (los 115,8 MB a la GPU). */
+  initMs?: number
+  rounds: EngineRound[]
+  /** Presente si algo falló; las tandas ya completadas siguen siendo válidas y se devuelven igual. */
+  error?: string
+}
+
+// ── Persistencia de las tandas: convertir el crash en dato ─────────────────────────────────────
+//
+// El fallo que se investiga mata el proceso ("a veces se recarga sola"). Cuando eso pasa, el DOM se va
+// con él y las tandas medidas hasta ese momento —la única evidencia de CUÁNTO aguantó— desaparecen.
+// Guardarlas tras cada tanda invierte eso: el crash deja de borrar la prueba y pasa a ser parte de ella.
+// Si al abrir la pantalla hay una corrida guardada que nunca reportó su final, ESE es el resultado.
+
+const PROBE_STORAGE_KEY = 'tengen:engine-probe:v1'
+
+export interface StoredProbe {
+  /** ISO de cuándo se guardó, para poder decir "esto es de antes" y no confundirlo con la corrida actual. */
+  at: string
+  initMs?: number
+  rounds: EngineRound[]
+  /** `true` si la corrida llegó a su fin (con éxito o con error reportado). `false` = quedó a mitad, que
+   * en este contexto significa casi siempre que el proceso murió. */
+  finished: boolean
+  error?: string
+}
+
+function isEngineRound(value: unknown): value is EngineRound {
+  if (typeof value !== 'object' || value === null) return false
+  const r = value as Record<string, unknown>
+  return (
+    typeof r.round === 'number' &&
+    typeof r.visits === 'number' &&
+    typeof r.ms === 'number' &&
+    typeof r.visitsPerSecond === 'number'
+  )
+}
+
+/** Lee la corrida guardada. Nunca lanza: ante dato ausente, corrupto o de otra versión devuelve `null`
+ * — mismo criterio que `loadGame`/`loadAnalyzeSpeed`. */
+export function loadStoredProbe(storage: Pick<Storage, 'getItem'>): StoredProbe | null {
+  try {
+    const raw = storage.getItem(PROBE_STORAGE_KEY)
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const p = parsed as Record<string, unknown>
+    if (typeof p.at !== 'string' || !Array.isArray(p.rounds) || !p.rounds.every(isEngineRound)) return null
+    const stored: StoredProbe = { at: p.at, rounds: p.rounds, finished: p.finished === true }
+    if (typeof p.initMs === 'number') stored.initMs = p.initMs
+    if (typeof p.error === 'string') stored.error = p.error
+    return stored
+  } catch {
+    return null
+  }
+}
+
+/** Guarda el estado parcial. Best-effort: un storage lleno o bloqueado no debe interrumpir la medición,
+ * que es lo que de verdad importa. */
+export function saveStoredProbe(storage: Pick<Storage, 'setItem'>, probe: StoredProbe): void {
+  try {
+    storage.setItem(PROBE_STORAGE_KEY, JSON.stringify(probe))
+  } catch {
+    // Sin persistencia se pierde sólo la evidencia post-crash, no la corrida en curso.
+  }
+}
+
+/**
+ * Compara la primera mitad de las tandas contra la segunda. Es la señal que separa "lento" de "con
+ * fuga", y se calcula acá (no en la UI) para que el número que se muestra y el que se razona sean el
+ * mismo. `null` si no hay tandas suficientes para comparar.
+ */
+export function slowdownRatio(rounds: EngineRound[]): number | null {
+  if (rounds.length < 4) return null
+  const half = Math.floor(rounds.length / 2)
+  const mean = (rs: EngineRound[]): number => rs.reduce((sum, r) => sum + r.ms, 0) / rs.length
+  const first = mean(rounds.slice(0, half))
+  const last = mean(rounds.slice(rounds.length - half))
+  if (first <= 0) return null
+  return last / first
+}
+
+/**
+ * Corre la prueba. Nunca lanza: un fallo se devuelve en `error` junto con las tandas que sí se
+ * completaron — en una prueba cuyo objetivo es capturar un fallo, perder los datos previos al fallo
+ * sería perder el resultado.
+ *
+ * `onRound` se llama al terminar cada tanda para que la UI muestre el progreso: si el proceso muere a
+ * mitad (el caso que se está investigando), lo ya reportado es lo único que va a sobrevivir.
+ */
+export async function probeEngine(opts?: {
+  rounds?: number
+  visitsPerRound?: number
+  onRound?: (round: EngineRound, all: EngineRound[]) => void
+  /** Dónde persistir el parcial tras cada tanda. Inyectable para poder testear la lógica sin navegador;
+   * la UI pasa `window.localStorage`. Omitirlo = no persistir. */
+  storage?: Pick<Storage, 'setItem'>
+  /** Reloj inyectable para la marca de tiempo del registro guardado (los tests necesitan determinismo,
+   * mismo criterio que el resto del proyecto: nunca `Date.now()` escondido adentro). */
+  nowIso?: () => string
+}): Promise<EngineProbeResult> {
+  const totalRounds = opts?.rounds ?? PROBE_ROUNDS
+  const visits = opts?.visitsPerRound ?? PROBE_VISITS_PER_ROUND
+  const rounds: EngineRound[] = []
+  const nowIso = opts?.nowIso ?? ((): string => new Date().toISOString())
+  const persist = (partial: Omit<StoredProbe, 'at'>): void => {
+    if (opts?.storage) saveStoredProbe(opts.storage, { at: nowIso(), ...partial })
+  }
+
+  // El modelo tiene que estar YA en OPFS: bajar 115,8 MB desde una pantalla de diagnóstico sin avisar
+  // sería hostil, y en el dispositivo que interesa ya está (jugó una partida).
+  const entry = requireManifestEntry(PROBE_NETWORK)
+  const store = createOpfsModelStore()
+  let modelInOpfs = false
+  try {
+    modelInOpfs = await store.isComplete(entry.opfsName, entry.bytes)
+  } catch (err) {
+    return { modelInOpfs: false, rounds, error: `no se pudo consultar OPFS: ${errorText(err)}` }
+  }
+  if (!modelInOpfs) {
+    return {
+      modelInOpfs: false,
+      rounds,
+      error: `el modelo ${PROBE_NETWORK} todavía no está en este dispositivo (${entry.opfsName}). Juega o analiza una partida primero: la descarga se hace ahí, con su barra de progreso.`,
+    }
+  }
+
+  const manager = new EngineManager(createWorkerManagedEngine)
+  // Posición vacía de 19×19: la misma para todas las tandas, así el trabajo pedido es idéntico y la
+  // única variable que queda es el estado del dispositivo. Ese es el punto de la medición.
+  const tree = new GameTree({
+    boardSize: PROBE_BOARD_SIZE,
+    komi: 6.5,
+    rules: 'chinese',
+    handicap: 0,
+    humanColor: 'black',
+  })
+  const position = tree.positionAt(tree.root)
+
+  // Marca la corrida como EMPEZADA y sin terminar antes de tocar el motor: si el proceso muere durante
+  // el arranque (bajar 115,8 MB a la GPU es el pico de memoria más grande de la app), al recargar se sabrá
+  // que murió ahí y no que nunca se intentó.
+  persist({ rounds: [], finished: false })
+
+  try {
+    const initStart = performance.now()
+    await manager.ensureReady(PROBE_NETWORK, PROBE_BOARD_SIZE)
+    const initMs = Math.round(performance.now() - initStart)
+    persist({ initMs, rounds: [], finished: false })
+
+    for (let round = 1; round <= totalRounds; round++) {
+      const start = performance.now()
+      const analysis = await manager.analyzeToScore(position, visits, PROBE_TIMEOUT_MS)
+      const ms = Math.round(performance.now() - start)
+      // `analysis.visits` es lo que el motor REALMENTE alcanzó, que puede quedar por debajo de lo pedido
+      // si se agotó el tope de tiempo interno. Medir sobre lo pedido inflaría el resultado.
+      const done = analysis.visits > 0 ? analysis.visits : visits
+      const entryRound: EngineRound = {
+        round,
+        visits: done,
+        ms,
+        visitsPerSecond: ms > 0 ? Math.round((done / ms) * 1000 * 10) / 10 : 0,
+      }
+      rounds.push(entryRound)
+      // Persistir ANTES de avisar a la UI: si el aparato muere en este instante, lo que queda escrito es
+      // lo que va a poder leerse después.
+      persist({ initMs, rounds: [...rounds], finished: false })
+      opts?.onRound?.(entryRound, [...rounds])
+    }
+    persist({ initMs, rounds: [...rounds], finished: true })
+    return { modelInOpfs, initMs, rounds }
+  } catch (err) {
+    const error = errorText(err)
+    persist({ rounds: [...rounds], finished: true, error })
+    return { modelInOpfs, rounds, error }
+  } finally {
+    // Siempre: sin esto queda un Worker con 115,8 MB en la GPU vivo mientras la pantalla siga abierta —
+    // justo lo que no hay que hacer en el dispositivo que se está investigando por memoria.
+    manager.dispose()
+  }
+}

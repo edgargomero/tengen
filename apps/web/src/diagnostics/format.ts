@@ -175,8 +175,16 @@ function section(title: string, lines: string[]): string {
   return [`[${title}]`, ...lines].join('\n')
 }
 
-/** El volcado completo, en texto plano y en un solo bloque: es lo que se copia y se pega. */
-export function formatDiagnostics(d: Diagnostics): string {
+/** Una sección extra para el volcado, aportada por quien la produce (hoy: las tandas de la prueba del
+ * motor, que no se recolectan solas — hay que pedirlas). */
+export interface ExtraSection {
+  title: string
+  lines: string[]
+}
+
+/** El volcado completo, en texto plano y en un solo bloque: es lo que se copia y se pega. Las secciones
+ * extra van al final, después de los avisos, porque son opcionales y llegan más tarde. */
+export function formatDiagnostics(d: Diagnostics, extras: ExtraSection[] = []): string {
   const verdict = diagnose(d)
   const notes = warnings(d)
   const ua = d.userAgent
@@ -216,6 +224,7 @@ export function formatDiagnostics(d: Diagnostics): string {
   ]
 
   if (notes.length > 0) blocks.push(section('avisos', notes.map((note) => `· ${note}`)))
+  for (const extra of extras) blocks.push(section(extra.title, extra.lines))
 
   return blocks.join('\n\n')
 }
