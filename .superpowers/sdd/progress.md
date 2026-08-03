@@ -1079,3 +1079,90 @@ pesos entre sesiones.
 
 **b10c128 sigue sin hacer falta**, y ahora por la razón buena: el modelo que juega igual que el de
 escritorio completa la prueba en el dispositivo.
+
+## LOS PRESETS DE FUERZA NO SON UN JUGADOR KYU — medido, no supuesto (2026-08-03)
+
+Los tres presets de `opponentStrength.ts` (50/200/500 visitas → "Fuerza baja/media/alta") eran
+**etiquetas sin significado medido**. La pregunta de producto detrás es concreta: *¿puede un kyu
+ganarle a "Fuerza baja"?* Se midió con el experimento más barato que produce evidencia real:
+`packages/engine/scripts/duel.ts` (herramienta local, NO parte del producto), kata a **25 visitas**
+contra **Human SL 1k**, 2 partidas 19×19 alternando color, fp32, komi 6,5 chino.
+
+**El piso que acota todo el espacio de búsqueda:** `MctsSearch.run()` fuerza
+`Math.max(16, ...)` (`analyzeMcts.ts:1749`). Pedir 1, 5 o 10 visitas devuelve 16 igual. El KataGo más
+débil alcanzable sin tocar código vendorizado de web-katrain es **16 visitas**, y las 25 medidas están
+apenas por encima.
+
+### El resultado, enunciado con cuidado
+
+**Marcador 2-0 para kata** — y es lo MENOS informativo que produjo la corrida. El dato que importa:
+
+> En **200 turnos** a 25 visitas, repartidos en dos partidas, kata **nunca devolvió más de 1,7 puntos
+> en un turno**. Cero caídas de ≥10 puntos. En las primeras 60 jugadas —antes de que el relleno
+> forzado contamine— su peor momento fue **−0,7** (partida 1) y **−0,5** (partida 2).
+
+| | partida 1 (kata Negro) | partida 2 (kata Blanco) |
+|---|---|---|
+| decide (wr ≥95 %) | jugada **39** | jugada **52** |
+| peor turno de kata | −1,7 pts (147→149) | −1,3 pts (152→154) |
+| caídas ≥10 pts | **0** | **0** |
+| turnos con retroceso | 19/99 | 19/99 |
+| duración | 32,4 min | 33,3 min |
+
+**La hipótesis del plan quedó CONFIRMADA; el mecanismo que predecía, REFUTADO — y eso la refuerza.**
+El plan sostenía que bajar visitas no produce un jugador kyu, y esperaba verlo así: kata abre como un
+dan y de pronto pierde un grupo por no leer una escalera. **Ese colapso no existe.** No hay un solo
+turno, en 400 jugadas, donde kata pierda material de golpe.
+
+Eso cierra la puerta MÁS FUERTE que si el colapso hubiera aparecido: un jugador fuerte-pero-defectuoso
+se podría empujar hacia kyu amplificando el defecto; kata-25 no tiene defecto que amplificar. **Por eso
+tampoco tiene sentido medir 16 visitas** — la falla que uno iría a buscar no está a 25 y no va a
+aparecer a 16. Si se quiere un oponente de nivel kyu, la palanca no es bajar visitas: es Human SL, o
+temperatura/ruido sobre la selección (sin medir todavía).
+
+**Alternar el color pagó.** De Negro decide en la jugada 39; de Blanco, en la 52. Trece jugadas, que
+es la desventaja de jugar segundo con komi 6,5 chino, medida en vivo. Con las dos partidas de Negro,
+"decide en la 39" se habría leído como propiedad del oponente en vez de artefacto del color.
+
+### Dos límites que acotan qué se puede afirmar
+
+1. **Human SL 1k NO es un 1k calibrado**, y `humansl.ts` lo dice de sí mismo: temperatura fija por
+   rango, sin el decaimiento que usa KataGo (5k 0,85→0,70), y difiere la calibración a "post-v1".
+   Sumado a que no busca, no chequea suicidio y nunca pasa. Así que **"kata-25 le gana a un 1k" NO
+   está sostenido**. Lo que sí está sostenido es la frase en negrita de arriba: es una afirmación
+   sobre kata sola y no depende de la calibración del rival.
+2. **El lead lo calcula el propio kata, con 25 visitas.** Un motor débil puede no VER su propio error.
+   Lo mitiga que la evaluación se confirmó materialmente (+161 y +74 al final, sin corrección brusca a
+   posteriori), pero la trayectoria es autoevaluada y hay que decirlo.
+
+**2 partidas no calibran nada**: 2-0 es compatible con cualquier winrate entre ~20 % y 100 %. Una
+calibración de verdad necesita `worker_threads` y ~20 partidas por punto.
+
+### Hallazgo metodológico: el tope de 200 jugadas es demasiado alto
+
+Los scores finales (**+161,1** y **−73,9**) son basura inflada. Human SL nunca pasa (deliberado: en
+tengen el pase lo decide `endgame.ts`, no la red), así que una vez sin jugadas útiles rellena su
+propio territorio a ~1 punto por jugada. Las últimas jugadas del log son piedras amontonadas en el
+centro. **La señal está antes de la jugada 70.** Próxima corrida: `--max-moves 80` da un resultado más
+limpio y **4× más barato** (esta fueron 66 min en Node/wasm, ≈1 inferencia/s medida).
+
+### Verificaciones y evidencia
+
+- `npm test` **854 pasan** (120+690+44) y `npm run typecheck` limpio: el script no toca el producto.
+- Los 2 SGF pasan por el **`importSgf` real de tengen** (200 jugadas, SZ19, komi 6.5, chinese).
+- **Chequeo de perspectiva del score** (no lo pedía el plan): el primer lead de kata salió **+0,40** y
+  **+0,38** en las dos partidas — mismo signo, o sea `rootScoreLead` es realmente perspectiva Negro.
+  Si hubiera salido con signos opuestos, estaría atado al jugador al turno y media corrida se leería
+  invertida.
+- El guard de legalidad **no se disparó ni una vez** en 400 jugadas.
+- Evidencia cruda committeada en `docs/research/fase-engine/duelos/` (los 2 SGF con el lead por jugada
+  en `C[]`, más el log completo de la corrida).
+
+**Desviación reportada:** `packages/engine/tsconfig.json` pasó a incluir `"scripts"` — el plan asumía
+que ya entraban, y no era cierto. Typecheck limpio, y de paso `validate-humanv0-mixed.ts` gana
+cobertura que no tenía.
+
+**Lo que este trabajo NO hizo, a propósito:** no toca `opponentStrength.ts` ni las etiquetas de
+fuerza, no baja el piso de 16 visitas (sería modificar código vendorizado → runbook de
+`adaptaciones-upstream.md`), y no implementa temperatura ni ruido. Cambiar el producto es una decisión
+posterior, y ahora con datos.

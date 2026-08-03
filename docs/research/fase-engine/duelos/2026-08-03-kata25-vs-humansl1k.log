@@ -1,0 +1,442 @@
+══ Duelo de calibración ═══════════════════════════════════════════════════════
+   kata             b18c384nbt fp32 · 25 visitas · MCTS PUCT (piso interno: 16 visitas)
+   Human SL         humanv0 fp32 · rango 1k · muestreo con temperatura
+   tablero          19×19 · komi 6.5 · reglas chinas
+   partidas         2 (kata alterna de color) · tope 200 jugadas · semilla base 1
+   EP               wasm (Node) · salida en /Users/kntor/dev/tengen/packages/engine/duel-out
+   ~coste           ≈25 inferencias por jugada de kata · ≈1 inf/s medido en wasm → ≈83 min en total si ninguna partida corta antes
+
+══ Partida 1/2 — kata (25 visitas) juega NEGRO, Human SL 1k juega BLANCO · semilla 1
+  #  1 B D16  kata · lead Negro +0.4 · wr 57.3 % · 25v
+  #  2 W Q4   Human SL 1k
+  #  3 B D4   kata · lead Negro +0.4 · wr 57.4 % · 25v
+  #  4 W Q17  Human SL 1k
+  #  5 B R3   kata · lead Negro +0.6 · wr 58.8 % · 25v
+  #  6 W R4   Human SL 1k
+  #  7 B Q3   kata · lead Negro +0.6 · wr 58.6 % · 25v
+  #  8 W P3   Human SL 1k
+  #  9 B P2   kata · lead Negro +0.7 · wr 60.3 % · 25v
+  # 10 W O3   Human SL 1k
+  # 11 B O2   kata · lead Negro +0.8 · wr 60.9 % · 25v
+  # 12 W N3   Human SL 1k
+  # 13 B Q15  kata · lead Negro +0.8 · wr 61.0 % · 25v
+  # 14 W Q12  Human SL 1k
+  # 15 B N16  kata · lead Negro +0.9 · wr 62.9 % · 25v
+  # 16 W P15  Human SL 1k
+  # 17 B P14  kata · lead Negro +1.6 · wr 68.1 % · 25v
+  # 18 W O15  Human SL 1k
+  # 19 B Q16  kata · lead Negro +1.8 · wr 70.6 % · 25v
+  # 20 W P16  Human SL 1k
+  # 21 B R17  kata · lead Negro +3.2 · wr 78.4 % · 25v
+  # 22 W R18  Human SL 1k
+  # 23 B P17  kata · lead Negro +3.9 · wr 80.5 % · 25v
+  # 24 W Q18  Human SL 1k
+  # 25 B O17  kata · lead Negro +3.9 · wr 79.1 % · 25v
+  # 26 W R16  Human SL 1k
+  # 27 B S17  kata · lead Negro +4.0 · wr 81.8 % · 25v
+  # 28 W S16  Human SL 1k
+  # 29 B S15  kata · lead Negro +3.9 · wr 81.9 % · 25v
+  # 30 W S18  Human SL 1k
+  # 31 B R15  kata · lead Negro +7.9 · wr 95.6 % · 25v
+  # 32 W T17  Human SL 1k
+  # 33 B P12  kata · lead Negro +8.1 · wr 96.1 % · 25v
+  # 34 W O14  Human SL 1k
+  # 35 B Q13  kata · lead Negro +7.7 · wr 95.5 % · 25v
+  # 36 W O13  Human SL 1k
+  # 37 B Q11  kata · lead Negro +7.8 · wr 95.6 % · 25v
+  # 38 W R12  Human SL 1k
+  # 39 B P13  kata · lead Negro +7.9 · wr 95.7 % · 25v
+  # 40 W R11  Human SL 1k
+  # 41 B Q10  kata · lead Negro +9.6 · wr 97.7 % · 25v
+  # 42 W R10  Human SL 1k
+  # 43 B Q9   kata · lead Negro +9.7 · wr 97.8 % · 25v
+  # 44 W R9   Human SL 1k
+  # 45 B Q8   kata · lead Negro +9.7 · wr 97.9 % · 25v
+  # 46 W R8   Human SL 1k
+  # 47 B N11  kata · lead Negro +10.3 · wr 98.3 % · 25v
+  # 48 W M14  Human SL 1k
+  # 49 B L16  kata · lead Negro +11.0 · wr 98.7 % · 25v
+  # 50 W K14  Human SL 1k
+  # 51 B J16  kata · lead Negro +10.8 · wr 98.6 % · 25v
+  # 52 W L11  Human SL 1k
+  # 53 B M9   kata · lead Negro +10.5 · wr 98.5 % · 25v
+  # 54 W K9   Human SL 1k
+  # 55 B H14  kata · lead Negro +11.8 · wr 99.1 % · 25v
+  # 56 W F17  Human SL 1k
+  # 57 B E18  kata · lead Negro +13.5 · wr 99.1 % · 25v
+  # 58 W F15  Human SL 1k
+  # 59 B D14  kata · lead Negro +12.8 · wr 99.0 % · 25v
+  # 60 W F13  Human SL 1k
+  # 61 B H12  kata · lead Negro +12.2 · wr 98.8 % · 25v
+  # 62 W F11  Human SL 1k
+  # 63 B L13  kata · lead Negro +13.0 · wr 99.0 % · 25v
+  # 64 W L14  Human SL 1k
+  # 65 B G12  kata · lead Negro +14.1 · wr 99.0 % · 25v
+  # 66 W F12  Human SL 1k
+  # 67 B G14  kata · lead Negro +14.0 · wr 98.8 % · 25v
+  # 68 W F14  Human SL 1k
+  # 69 B G16  kata · lead Negro +18.1 · wr 99.3 % · 25v
+  # 70 W F16  Human SL 1k
+  # 71 B K10  kata · lead Negro +22.7 · wr 99.6 % · 25v
+  # 72 W L10  Human SL 1k
+  # 73 B L9   kata · lead Negro +23.0 · wr 99.6 % · 25v
+  # 74 W J11  Human SL 1k
+  # 75 B K13  kata · lead Negro +25.3 · wr 99.7 % · 25v
+  # 76 W M12  Human SL 1k
+  # 77 B J10  kata · lead Negro +30.1 · wr 99.6 % · 25v
+  # 78 W H11  Human SL 1k
+  # 79 B K11  kata · lead Negro +33.4 · wr 99.8 % · 25v
+  # 80 W K12  Human SL 1k
+  # 81 B J12  kata · lead Negro +36.9 · wr 99.9 % · 25v
+  # 82 W L12  Human SL 1k
+  # 83 B G11  kata · lead Negro +41.3 · wr 99.9 % · 25v
+  # 84 W H10  Human SL 1k
+  # 85 B J9   kata · lead Negro +44.4 · wr 99.9 % · 25v
+  # 86 W G10  Human SL 1k
+  # 87 B F10  kata · lead Negro +44.7 · wr 99.9 % · 25v
+  # 88 W H8   Human SL 1k
+  # 89 B K8   kata · lead Negro +43.7 · wr 99.9 % · 25v
+  # 90 W F8   Human SL 1k
+  # 91 B F9   kata · lead Negro +43.5 · wr 99.9 % · 25v
+  # 92 W G8   Human SL 1k
+  # 93 B D9   kata · lead Negro +43.4 · wr 99.9 % · 25v
+  # 94 W D12  Human SL 1k
+  # 95 B E8   kata · lead Negro +45.8 · wr 99.9 % · 25v
+  # 96 W F18  Human SL 1k
+  # 97 B H18  kata · lead Negro +48.3 · wr 99.9 % · 25v
+  # 98 W D17  Human SL 1k
+  # 99 B C17  kata · lead Negro +56.4 · wr 99.9 % · 25v
+  #100 W D18  Human SL 1k
+  #101 B C18  kata · lead Negro +58.6 · wr 99.9 % · 25v
+  #102 W E19  Human SL 1k
+  #103 B E6   kata · lead Negro +58.1 · wr 100.0 % · 25v
+  #104 W H5   Human SL 1k
+  #105 B K5   kata · lead Negro +58.8 · wr 100.0 % · 25v
+  #106 W H3   Human SL 1k
+  #107 B K3   kata · lead Negro +59.5 · wr 100.0 % · 25v
+  #108 W E3   Human SL 1k
+  #109 B D3   kata · lead Negro +60.4 · wr 100.0 % · 25v
+  #110 W E4   Human SL 1k
+  #111 B E5   kata · lead Negro +59.6 · wr 100.0 % · 25v
+  #112 W F5   Human SL 1k
+  #113 B F6   kata · lead Negro +60.2 · wr 100.0 % · 25v
+  #114 W G5   Human SL 1k
+  #115 B H7   kata · lead Negro +63.5 · wr 100.0 % · 25v
+  #116 W J7   Human SL 1k
+  #117 B G7   kata · lead Negro +62.0 · wr 100.0 % · 25v
+  #118 W J8   Human SL 1k
+  #119 B J6   kata · lead Negro +64.7 · wr 100.0 % · 25v
+  #120 W K7   Human SL 1k
+  #121 B L7   kata · lead Negro +65.4 · wr 100.0 % · 25v
+  #122 W K6   Human SL 1k
+  #123 B L6   kata · lead Negro +66.1 · wr 100.0 % · 25v
+  #124 W J5   Human SL 1k
+  #125 B H6   kata · lead Negro +65.6 · wr 100.0 % · 25v
+  #126 W L5   Human SL 1k
+  #127 B K4   kata · lead Negro +75.0 · wr 100.0 % · 25v
+  #128 W J13  Human SL 1k
+  #129 B J14  kata · lead Negro +73.9 · wr 100.0 % · 25v
+  #130 W M13  Human SL 1k
+  #131 B N12  kata · lead Negro +76.6 · wr 100.0 % · 25v
+  #132 W M16  Human SL 1k
+  #133 B M17  kata · lead Negro +78.2 · wr 100.0 % · 25v
+  #134 W N15  Human SL 1k
+  #135 B E2   kata · lead Negro +92.5 · wr 100.0 % · 25v
+  #136 W F2   Human SL 1k
+  #137 B D2   kata · lead Negro +94.7 · wr 100.0 % · 25v
+  #138 W J2   Human SL 1k
+  #139 B B13  kata · lead Negro +94.1 · wr 100.0 % · 25v
+  #140 W B12  Human SL 1k
+  #141 B C13  kata · lead Negro +94.5 · wr 100.0 % · 25v
+  #142 W C12  Human SL 1k
+  #143 B B10  kata · lead Negro +96.3 · wr 100.0 % · 25v
+  #144 W C10  Human SL 1k
+  #145 B C9   kata · lead Negro +97.4 · wr 100.0 % · 25v
+  #146 W D10  Human SL 1k
+  #147 B N2   kata · lead Negro +102.9 · wr 100.0 % · 25v
+  #148 W M3   Human SL 1k
+  #149 B K2   kata · lead Negro +101.2 · wr 100.0 % · 25v
+  #150 W M2   Human SL 1k
+  #151 B G2   kata · lead Negro +107.4 · wr 100.0 % · 25v
+  #152 W G3   Human SL 1k
+  #153 B F1   kata · lead Negro +117.5 · wr 100.0 % · 25v
+  #154 W F3   Human SL 1k
+  #155 B K1   kata · lead Negro +125.1 · wr 100.0 % · 25v
+  #156 W H2   Human SL 1k
+  #157 B G1   kata · lead Negro +128.7 · wr 100.0 % · 25v
+  #158 W J4   Human SL 1k
+  #159 B G4   kata · lead Negro +129.3 · wr 100.0 % · 25v
+  #160 W L4   Human SL 1k
+  #161 B S4   kata · lead Negro +136.2 · wr 100.0 % · 25v
+  #162 W S5   Human SL 1k
+  #163 B S3   kata · lead Negro +134.9 · wr 100.0 % · 25v
+  #164 W R6   Human SL 1k
+  #165 B O7   kata · lead Negro +135.2 · wr 100.0 % · 25v
+  #166 W N7   Human SL 1k
+  #167 B N6   kata · lead Negro +135.5 · wr 100.0 % · 25v
+  #168 W N10  Human SL 1k
+  #169 B N8   kata · lead Negro +138.4 · wr 100.0 % · 25v
+  #170 W O10  Human SL 1k
+  #171 B P11  kata · lead Negro +139.8 · wr 100.0 % · 25v
+  #172 W M10  Human SL 1k
+  #173 B P18  kata · lead Negro +144.9 · wr 100.0 % · 25v
+  #174 W L15  Human SL 1k
+  #175 B K17  kata · lead Negro +146.0 · wr 100.0 % · 25v
+  #176 W N13  Human SL 1k
+  #177 B K13  kata · lead Negro +147.2 · wr 100.0 % · 25v
+  #178 W O8   Human SL 1k
+  #179 B P7   kata · lead Negro +148.9 · wr 100.0 % · 25v
+  #180 W N9   Human SL 1k
+  #181 B M7   kata · lead Negro +150.0 · wr 100.0 % · 25v
+  #182 W R13  Human SL 1k
+  #183 B C19  kata · lead Negro +151.0 · wr 100.0 % · 25v
+  #184 W E17  Human SL 1k
+  #185 B M1   kata · lead Negro +154.5 · wr 100.0 % · 25v
+  #186 W N1   Human SL 1k
+  #187 B L1   kata · lead Negro +155.0 · wr 100.0 % · 25v
+  #188 W L3   Human SL 1k
+  #189 B A13  kata · lead Negro +157.5 · wr 100.0 % · 25v
+  #190 W B11  Human SL 1k
+  #191 B B9   kata · lead Negro +158.4 · wr 100.0 % · 25v
+  #192 W E10  Human SL 1k
+  #193 B E9   kata · lead Negro +156.9 · wr 100.0 % · 25v
+  #194 W G15  Human SL 1k
+  #195 B H16  kata · lead Negro +157.7 · wr 100.0 % · 25v
+  #196 W G18  Human SL 1k
+  #197 B H19  kata · lead Negro +158.2 · wr 100.0 % · 25v
+  #198 W G19  Human SL 1k
+  #199 B P5   kata · lead Negro +161.1 · wr 100.0 % · 25v
+  #200 W P4   Human SL 1k
+── Partida 1 terminada: tope de 200 jugadas alcanzado · 200 jugadas · 32.4 min · SGF: /Users/kntor/dev/tengen/packages/engine/duel-out/duel-2026-08-03T05-43-13-g1-kata-black.sgf
+   último lead de kata (persp. Negro): +161.1
+
+══ Partida 2/2 — kata (25 visitas) juega BLANCO, Human SL 1k juega NEGRO · semilla 2
+  #  1 B D4   Human SL 1k
+  #  2 W Q16  kata · lead Negro +0.4 · wr 57.5 % · 25v
+  #  3 B D16  Human SL 1k
+  #  4 W Q4   kata · lead Negro +0.5 · wr 56.9 % · 25v
+  #  5 B O17  Human SL 1k
+  #  6 W C3   kata · lead Negro +0.3 · wr 56.7 % · 25v
+  #  7 B C4   Human SL 1k
+  #  8 W D3   kata · lead Negro +0.3 · wr 56.4 % · 25v
+  #  9 B E3   Human SL 1k
+  # 10 W E2   kata · lead Negro -0.0 · wr 52.8 % · 25v
+  # 11 B F3   Human SL 1k
+  # 12 W F2   kata · lead Negro -0.1 · wr 52.7 % · 25v
+  # 13 B G3   Human SL 1k
+  # 14 W F17  kata · lead Negro -0.1 · wr 52.5 % · 25v
+  # 15 B H17  Human SL 1k
+  # 16 W G2   kata · lead Negro -0.0 · wr 53.2 % · 25v
+  # 17 B H3   Human SL 1k
+  # 18 W D8   kata · lead Negro +0.1 · wr 54.6 % · 25v
+  # 19 B C10  Human SL 1k
+  # 20 W E5   kata · lead Negro +0.0 · wr 54.8 % · 25v
+  # 21 B E4   Human SL 1k
+  # 22 W F9   kata · lead Negro +0.0 · wr 54.6 % · 25v
+  # 23 B F11  Human SL 1k
+  # 24 W C17  kata · lead Negro -0.3 · wr 50.4 % · 25v
+  # 25 B C16  Human SL 1k
+  # 26 W D17  kata · lead Negro -1.0 · wr 42.7 % · 25v
+  # 27 B E16  Human SL 1k
+  # 28 W B17  kata · lead Negro -1.0 · wr 42.6 % · 25v
+  # 29 B F16  Human SL 1k
+  # 30 W G17  kata · lead Negro -1.6 · wr 36.3 % · 25v
+  # 31 B G16  Human SL 1k
+  # 32 W H18  kata · lead Negro -1.6 · wr 36.4 % · 25v
+  # 33 B J18  Human SL 1k
+  # 34 W O16  kata · lead Negro -2.1 · wr 32.0 % · 25v
+  # 35 B N16  Human SL 1k
+  # 36 W O15  kata · lead Negro -2.5 · wr 28.2 % · 25v
+  # 37 B P17  Human SL 1k
+  # 38 W Q17  kata · lead Negro -3.5 · wr 23.5 % · 25v
+  # 39 B G18  Human SL 1k
+  # 40 W F18  kata · lead Negro -3.5 · wr 22.3 % · 25v
+  # 41 B H19  Human SL 1k
+  # 42 W N17  kata · lead Negro -3.5 · wr 22.3 % · 25v
+  # 43 B M17  Human SL 1k
+  # 44 W N18  kata · lead Negro -3.9 · wr 17.7 % · 25v
+  # 45 B M18  Human SL 1k
+  # 46 W B16  kata · lead Negro -3.9 · wr 17.4 % · 25v
+  # 47 B B15  Human SL 1k
+  # 48 W R11  kata · lead Negro -7.6 · wr 5.0 % · 25v
+  # 49 B O18  Human SL 1k
+  # 50 W N15  kata · lead Negro -7.7 · wr 4.0 % · 25v
+  # 51 B M16  Human SL 1k
+  # 52 W Q12  kata · lead Negro -7.8 · wr 4.0 % · 25v
+  # 53 B P16  Human SL 1k
+  # 54 W P15  kata · lead Negro -7.8 · wr 4.3 % · 25v
+  # 55 B Q18  Human SL 1k
+  # 56 W R18  kata · lead Negro -7.7 · wr 4.4 % · 25v
+  # 57 B O3   Human SL 1k
+  # 58 W O4   kata · lead Negro -8.9 · wr 2.5 % · 25v
+  # 59 B N4   Human SL 1k
+  # 60 W O5   kata · lead Negro -8.4 · wr 3.2 % · 25v
+  # 61 B P3   Human SL 1k
+  # 62 W Q3   kata · lead Negro -9.8 · wr 2.4 % · 25v
+  # 63 B N5   Human SL 1k
+  # 64 W O7   kata · lead Negro -9.6 · wr 2.5 % · 25v
+  # 65 B N6   Human SL 1k
+  # 66 W Q7   kata · lead Negro -9.6 · wr 2.4 % · 25v
+  # 67 B F7   Human SL 1k
+  # 68 W F8   kata · lead Negro -10.3 · wr 1.9 % · 25v
+  # 69 B E7   Human SL 1k
+  # 70 W H9   kata · lead Negro -10.4 · wr 1.6 % · 25v
+  # 71 B H11  Human SL 1k
+  # 72 W G7   kata · lead Negro -10.8 · wr 1.3 % · 25v
+  # 73 B G6   Human SL 1k
+  # 74 W H7   kata · lead Negro -11.1 · wr 1.2 % · 25v
+  # 75 B H6   Human SL 1k
+  # 76 W D10  kata · lead Negro -13.7 · wr 0.7 % · 25v
+  # 77 B D11  Human SL 1k
+  # 78 W C11  kata · lead Negro -13.9 · wr 0.6 % · 25v
+  # 79 B C9   Human SL 1k
+  # 80 W E11  kata · lead Negro -15.2 · wr 0.5 % · 25v
+  # 81 B D12  Human SL 1k
+  # 82 W E12  kata · lead Negro -15.0 · wr 0.5 % · 25v
+  # 83 B D9   Human SL 1k
+  # 84 W E10  kata · lead Negro -17.0 · wr 0.3 % · 25v
+  # 85 B E8   Human SL 1k
+  # 86 W D13  kata · lead Negro -17.8 · wr 0.2 % · 25v
+  # 87 B C12  Human SL 1k
+  # 88 W C13  kata · lead Negro -18.7 · wr 0.2 % · 25v
+  # 89 B B12  Human SL 1k
+  # 90 W B13  kata · lead Negro -19.6 · wr 0.2 % · 25v
+  # 91 B B11  Human SL 1k
+  # 92 W G13  kata · lead Negro -20.1 · wr 0.1 % · 25v
+  # 93 B F13  Human SL 1k
+  # 94 W F12  kata · lead Negro -22.3 · wr 0.1 % · 25v
+  # 95 B G12  Human SL 1k
+  # 96 W H12  kata · lead Negro -22.8 · wr 0.1 % · 25v
+  # 97 B G11  Human SL 1k
+  # 98 W F14  kata · lead Negro -23.5 · wr 0.1 % · 25v
+  # 99 B H13  Human SL 1k
+  #100 W G14  kata · lead Negro -23.9 · wr 0.1 % · 25v
+  #101 B J12  Human SL 1k
+  #102 W H15  kata · lead Negro -23.7 · wr 0.1 % · 25v
+  #103 B H16  Human SL 1k
+  #104 W L14  kata · lead Negro -24.0 · wr 0.1 % · 25v
+  #105 B J15  Human SL 1k
+  #106 W M8   kata · lead Negro -23.4 · wr 0.1 % · 25v
+  #107 B L7   Human SL 1k
+  #108 W K13  kata · lead Negro -25.1 · wr 0.1 % · 25v
+  #109 B H14  Human SL 1k
+  #110 W L10  kata · lead Negro -25.7 · wr 0.1 % · 25v
+  #111 B L11  Human SL 1k
+  #112 W K11  kata · lead Negro -26.2 · wr 0.1 % · 25v
+  #113 B K12  Human SL 1k
+  #114 W L12  kata · lead Negro -26.6 · wr 0.1 % · 25v
+  #115 B M11  Human SL 1k
+  #116 W J10  kata · lead Negro -26.3 · wr 0.2 % · 25v
+  #117 B M10  Human SL 1k
+  #118 W M9   kata · lead Negro -27.0 · wr 0.2 % · 25v
+  #119 B L9   Human SL 1k
+  #120 W K10  kata · lead Negro -27.0 · wr 0.2 % · 25v
+  #121 B L8   Human SL 1k
+  #122 W M12  kata · lead Negro -31.2 · wr 0.1 % · 25v
+  #123 B O10  Human SL 1k
+  #124 W O9   kata · lead Negro -31.9 · wr 0.1 % · 25v
+  #125 B P9   Human SL 1k
+  #126 W O8   kata · lead Negro -31.7 · wr 0.1 % · 25v
+  #127 B Q10  Human SL 1k
+  #128 W P11  kata · lead Negro -33.1 · wr 0.1 % · 25v
+  #129 B P10  Human SL 1k
+  #130 W R10  kata · lead Negro -33.8 · wr 0.1 % · 25v
+  #131 B R9   Human SL 1k
+  #132 W Q8   kata · lead Negro -35.1 · wr 0.1 % · 25v
+  #133 B Q9   Human SL 1k
+  #134 W J7   kata · lead Negro -36.8 · wr 0.2 % · 25v
+  #135 B J6   Human SL 1k
+  #136 W Q2   kata · lead Negro -37.4 · wr 0.1 % · 25v
+  #137 B S7   Human SL 1k
+  #138 W S9   kata · lead Negro -40.3 · wr 0.1 % · 25v
+  #139 B S8   Human SL 1k
+  #140 W S10  kata · lead Negro -41.9 · wr 0.1 % · 25v
+  #141 B R8   Human SL 1k
+  #142 W C15  kata · lead Negro -41.6 · wr 0.2 % · 25v
+  #143 B R5   Human SL 1k
+  #144 W Q5   kata · lead Negro -41.4 · wr 0.6 % · 25v
+  #145 B S3   Human SL 1k
+  #146 W R6   kata · lead Negro -44.1 · wr 0.2 % · 25v
+  #147 B S6   Human SL 1k
+  #148 W R4   kata · lead Negro -43.2 · wr 0.7 % · 25v
+  #149 B S5   Human SL 1k
+  #150 W S4   kata · lead Negro -47.1 · wr 0.1 % · 25v
+  #151 B T4   Human SL 1k
+  #152 W S2   kata · lead Negro -47.8 · wr 0.1 % · 25v
+  #153 B T2   Human SL 1k
+  #154 W S1   kata · lead Negro -46.5 · wr 0.1 % · 25v
+  #155 B P6   Human SL 1k
+  #156 W O6   kata · lead Negro -51.2 · wr 0.1 % · 25v
+  #157 B P2   Human SL 1k
+  #158 W P19  kata · lead Negro -54.0 · wr 0.1 % · 25v
+  #159 B N19  Human SL 1k
+  #160 W B3   kata · lead Negro -56.1 · wr 0.1 % · 25v
+  #161 B B4   Human SL 1k
+  #162 W A4   kata · lead Negro -56.2 · wr 0.1 % · 25v
+  #163 B A5   Human SL 1k
+  #164 W A3   kata · lead Negro -56.8 · wr 0.1 % · 25v
+  #165 B B5   Human SL 1k
+  #166 W H2   kata · lead Negro -57.4 · wr 0.1 % · 25v
+  #167 B J2   Human SL 1k
+  #168 W P18  kata · lead Negro -57.4 · wr 0.0 % · 25v
+  #169 B C14  Human SL 1k
+  #170 W A15  kata · lead Negro -58.2 · wr 0.1 % · 25v
+  #171 B D15  Human SL 1k
+  #172 W B14  kata · lead Negro -57.9 · wr 0.1 % · 25v
+  #173 B E14  Human SL 1k
+  #174 W E13  kata · lead Negro -58.3 · wr 0.1 % · 25v
+  #175 B O11  Human SL 1k
+  #176 W O12  kata · lead Negro -57.4 · wr 0.2 % · 25v
+  #177 B Q11  Human SL 1k
+  #178 W P12  kata · lead Negro -57.9 · wr 0.2 % · 25v
+  #179 B R12  Human SL 1k
+  #180 W S12  kata · lead Negro -57.4 · wr 0.1 % · 25v
+  #181 B R13  Human SL 1k
+  #182 W S13  kata · lead Negro -56.9 · wr 0.1 % · 25v
+  #183 B R14  Human SL 1k
+  #184 W S14  kata · lead Negro -59.8 · wr 0.4 % · 25v
+  #185 B R15  Human SL 1k
+  #186 W Q1   kata · lead Negro -61.2 · wr 0.2 % · 25v
+  #187 B T11  Human SL 1k
+  #188 W S15  kata · lead Negro -63.4 · wr 0.1 % · 25v
+  #189 B R16  Human SL 1k
+  #190 W S16  kata · lead Negro -63.6 · wr 1.4 % · 25v
+  #191 B R17  Human SL 1k
+  #192 W Q15  kata · lead Negro -64.2 · wr 0.0 % · 25v
+  #193 B S18  Human SL 1k
+  #194 W Q19  kata · lead Negro -66.4 · wr 0.1 % · 25v
+  #195 B S17  Human SL 1k
+  #196 W L2   kata · lead Negro -71.4 · wr 0.2 % · 25v
+  #197 B K2   Human SL 1k
+  #198 W N3   kata · lead Negro -72.6 · wr 0.1 % · 25v
+  #199 B N2   Human SL 1k
+  #200 W M3   kata · lead Negro -73.9 · wr 0.0 % · 25v
+── Partida 2 terminada: tope de 200 jugadas alcanzado · 200 jugadas · 33.3 min · SGF: /Users/kntor/dev/tengen/packages/engine/duel-out/duel-2026-08-03T05-43-13-g2-kata-white.sgf
+   último lead de kata (persp. Negro): -73.9
+
+══ Resumen ════════════════════════════════════════════════════════════════════
+
+── Partida 1 · kata = Negro
+   jugadas          200 · tope de 200 jugadas alcanzado
+   duración         32.4 min
+   SGF              /Users/kntor/dev/tengen/packages/engine/duel-out/duel-2026-08-03T05-43-13-g1-kata-black.sgf
+   score estimado   Negro +161.1 (komi 6.5, reglas chinas)
+   margen de kata   +161.1 → GANA kata
+   trayectoria      #1:+0.4  #11:+0.8  #21:+3.2  #31:+7.9  #41:+9.6  #51:+10.8  #61:+12.2  #71:+22.7  #81:+36.9  #91:+43.5  #101:+58.6  #111:+59.6  #121:+65.4  #131:+76.6  #141:+94.5  #151:+107.4  #161:+136.2  #171:+139.8  #181:+150.0  #191:+158.4  #199:+161.1
+
+── Partida 2 · kata = Blanco
+   jugadas          200 · tope de 200 jugadas alcanzado
+   duración         33.3 min
+   SGF              /Users/kntor/dev/tengen/packages/engine/duel-out/duel-2026-08-03T05-43-13-g2-kata-white.sgf
+   score estimado   Negro -73.9 (komi 6.5, reglas chinas)
+   margen de kata   +73.9 → GANA kata
+   trayectoria      #2:+0.4  #12:-0.1  #22:+0.0  #32:-1.6  #42:-3.5  #52:-7.8  #62:-9.8  #72:-10.8  #82:-15.0  #92:-20.1  #102:-23.7  #112:-26.2  #122:-31.2  #132:-35.1  #142:-41.6  #152:-47.8  #162:-56.2  #172:-57.9  #182:-56.9  #192:-64.2  #200:-73.9
+
+── Chequeo de perspectiva del score (¿`rootScoreLead` es realmente persp. Negro?)
+   kata Negro  → primer lead +0.40
+   kata Blanco → primer lead +0.38
+   MISMO signo en ambas → consistente con perspectiva Negro. Los leads se leen tal cual.
+
+   kata 2-0 Human SL 1k (score ESTIMADO, no partida terminada).
+   Con esta cantidad de partidas el marcador NO calibra nada: mirar los SGF y la trayectoria.
+   La pregunta que sí responde: ¿kata abre como un dan y luego pierde grupos por no leer, o juega como un kyu?
