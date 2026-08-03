@@ -2,25 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { currentModelVariant, modelVariantFor } from '../src/models/modelVariant'
 import { summarizeUserAgent } from '../src/diagnostics/userAgent'
 
-// UA REALES, no inventados: los mismos que ya usa `userAgent.test.ts`, más los dos volcados del
-// iPhone 12 Pro Max donde el motor muere alrededor de la inferencia 80 en AMBOS navegadores. Ese
-// aparato es la razón de que exista todo esto, así que su UA exacto tiene que estar cubierto.
-const SAFARI_IOS_26_FROZEN =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Mobile/15E148 Safari/604.1'
-const CHROME_IOS =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0 Mobile/15E148 Safari/604.1'
-const SAFARI_IOS_26 =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
-const IPAD_OS =
-  'Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
-const CHROME_ANDROID =
-  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36'
-const CHROME_MAC =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
-const SAFARI_MAC =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15'
-const CHROME_WINDOWS =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+// UA REALES, no inventados. Viven en `fixtures/userAgents.ts` porque `opponentStrength.test.ts`
+// aserta sobre la MISMA batería para verificar que el criterio de fuerza y el de precisión no
+// divergen; dos copias de la lista harían que ese cruce comparara UA distintos sin avisar.
+import {
+  CHROME_ANDROID,
+  CHROME_IOS,
+  CHROME_MAC,
+  CHROME_WINDOWS,
+  IPAD_OS,
+  REAL_USER_AGENTS,
+  SAFARI_IOS_26,
+  SAFARI_IOS_26_FROZEN,
+  SAFARI_MAC,
+} from './fixtures/userAgents'
 
 describe('modelVariantFor — móvil recibe el mixto', () => {
   // El punto de este bloque: los DOS navegadores del mismo iPhone tienen que dar el mismo resultado.
@@ -74,17 +69,7 @@ describe('modelVariantFor — la propiedad de la que depende que el motor arranq
   // El hilo principal descarga y el worker lee de OPFS. Si resuelven distinto, el worker busca un
   // archivo que nadie bajó. La función depende SÓLO del string de UA —el mismo en los dos scopes—,
   // así que dos llamadas con el mismo string no pueden discrepar. Esto es lo que ese contrato dice.
-  const TODOS = [
-    SAFARI_IOS_26_FROZEN,
-    CHROME_IOS,
-    SAFARI_IOS_26,
-    IPAD_OS,
-    CHROME_ANDROID,
-    CHROME_MAC,
-    SAFARI_MAC,
-    CHROME_WINDOWS,
-    'algo raro',
-  ]
+  const TODOS = [...REAL_USER_AGENTS, 'algo raro']
 
   it('es determinista: mismo UA, misma variante, siempre', () => {
     for (const ua of TODOS) expect(modelVariantFor(ua)).toBe(modelVariantFor(ua))
