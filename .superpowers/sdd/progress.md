@@ -1026,3 +1026,56 @@ mecanismo es techo por tanda o una fuga del runtime, una red más chica volverí
 unas inferencias más allá sin resolverlo — que es exactamente lo que acaba de pasar al partir el
 modelo al medio. Convertir otra red antes de saber el mecanismo es repetir el experimento que ya
 salió negativo.
+
+### CRITERIO CUMPLIDO — 6/6 tandas, 120 inferencias (2026-08-03)
+
+Volcado de Edgar, mismo iPhone 12 Pro Max, **Safari 26.5.2**, build `f01b092+local`, y esta vez con
+**`variante medida: mixed16` explícito** en el volcado (ya no es inferencia).
+
+```
+arranque del motor: 5096 ms
+tanda 1: 20 en 13859 ms (1.4 v/s) · acum 20      tanda 4: 20 en 11447 ms (1.7 v/s) · acum 80
+tanda 2: 20 en 10560 ms (1.9 v/s) · acum 40      tanda 5: 20 en 11444 ms (1.7 v/s) · acum 100
+tanda 3: 20 en 10789 ms (1.9 v/s) · acum 60      tanda 6: 20 en 11413 ms (1.8 v/s) · acum 120
+desaceleración última mitad / primera mitad: 0.97×
+```
+
+Contra la corrida de referencia del mismo navegador:
+
+| Safari 26.5.2 | fp32 (antes) | mixto + PWA (ahora) |
+|---|---|---|
+| arranque | 7.036 ms | **5.096 ms** |
+| visitas/s | 1,2 | 1,4 → 1,8 |
+| desaceleración | 0,80× | **0,97×** (plana) |
+| aguantó | ~80 inferencias | **120 — completó** |
+
+**La atribución es ambigua y hay que decirlo: cambiaron DOS variables a la vez** — la variante
+(fp32 → mixto) y el modo (`browser` → `standalone`, o sea PWA instalada). El resultado del producto
+no está en duda; lo que no se puede afirmar todavía es cuál de las dos lo produjo. La corrida de
+control que lo resuelve es **fp32 en standalone**, y ahora es un clic en el selector de variante
+—que además ya no borra el modelo activo—, así que sale barata.
+
+**Un dato que sí es atribuible al modelo:** el arranque bajó de 7.036 a 5.096 ms. Arrancar ES cargar
+el modelo, y el modo de display no cambia ese trabajo. Además, los arranques de las dos corridas con
+mixto **convergen** (5.096 ms Safari, 5.063 ms Chrome iOS) mientras que con fp32 estaban muy
+separados (7.036 vs 3.563). Lectura razonable: con fp32 el arranque estaba dominado por presión de
+memoria —que es variable— y con el mixto pasa a estar dominado por compilar el grafo, que es estable.
+Esto también matiza la sospecha de la entrada anterior sobre las fronteras `Cast`: el arranque más
+lento observado en Chrome iOS no se sostiene como regla.
+
+**La firma cambió de forma, y es la que se quería:** 0,80× (aceleraba) → **0,97×** (plana) sobre la
+serie COMPLETA de 6 tandas, sin morir. No hay degradación monótona.
+
+**Nota para leer estos volcados, que confundió al interpretarlo:** el bloque `[modelos en OPFS]`
+decía "falta" en las cuatro filas con `uso: 28,8 MB`, pese a que la prueba corrió bien. No es
+contradicción — `collectDiagnostics()` se ejecuta al MONTAR la pantalla y la prueba se dispara
+después con el botón, así que ese bloque es el estado de ANTES. Además, una PWA instalada en iOS
+tiene su propio contenedor de almacenamiento, separado del Safari normal: por eso el OPFS aparecía
+vacío y la prueba tuvo que descargar los 58 MB de nuevo.
+
+**`persistente: no` incluso instalada.** iOS no concedió almacenamiento persistente. Con 41,2 GB de
+cuota libre el riesgo real de desalojo es bajo, pero el sistema conserva el derecho de borrar los
+pesos entre sesiones.
+
+**b10c128 sigue sin hacer falta**, y ahora por la razón buena: el modelo que juega igual que el de
+escritorio completa la prueba en el dispositivo.
