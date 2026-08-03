@@ -590,3 +590,39 @@ Edgar preguntó por qué el diagnóstico decía iOS 18.7 si su iPhone está más
 **Arreglado:** `summarizeUserAgent` expone `iosVersionFrozen`, que se reconoce por la COMBINACIÓN (valor "18.7" exacto + Safari ≥26) y no por el número suelto — un iPhone que de verdad corre iOS 18.7 lleva un Safari 18.x y no cae ahí. El volcado ahora escribe "iOS: 26 o superior (Safari congela el UA en 18.7; la versión real no se publica)" y el consejo nunca repite el número falso. 4 tests nuevos fijan la lectura, incluido el UA real del iPhone 12 y el contraejemplo del iOS 18.7 auténtico.
 
 **Lección de método:** un dato que el dispositivo REPORTA no es un dato que el dispositivo TENGA. El diagnóstico vale por lo que mide (adapter, device, cuota, tandas), no por lo que le declaran — y donde no puede distinguir, tiene que decirlo en vez de presentar la declaración como hecho.
+
+## MEDICIÓN REAL DEL IPHONE 12 — el crash está confirmado y NO es lentitud (2026-08-03)
+
+Primera medición del motor en el dispositivo, con Safari sobre iOS 26 (el UA congelado ya se lee bien). **La corrida murió y el mecanismo de persistencia la capturó** — el volcado llegó con la sección que el crash habría borrado:
+
+```
+corrida anterior INTERRUMPIDA (2026-08-03T01:52:40.815Z) — el proceso murió sin terminar
+arranque del motor: 5472 ms
+tanda 1: 20 visitas en 18306 ms (1.1 visitas/s)
+```
+
+El volcado se copió a las 01:52:46, seis segundos después del último registro: **el proceso murió durante la tanda 2**, o sea entre la inferencia 21 y la 40.
+
+### Los números, contra el M1
+
+| | M1 (Chrome) | iPhone 12 (Safari 26) | Relación |
+|---|---|---|---|
+| Arranque del motor | 2.636 ms | 5.472 ms | 2,1× |
+| Tanda de 20 visitas | 6.168 ms | 18.306 ms | 3,0× |
+| Velocidad | 3,2 visitas/s | **1,1 visitas/s** | 2,9× |
+| Tandas completadas | 6 de 6 | **1 de 6** | — |
+
+**El factor real es 2,9×, no el 5× que yo venía extrapolando** — y la extrapolación estaba en el orden correcto pero pesimista. Más importante: **a 1,1 visitas/s el motor SERÍA usable**. Con el preset bajo (50 visitas) una jugada tomaría ~45 s, lento pero jugable para Go casual.
+
+### El veredicto que separa los dos trabajos
+
+**No es un problema de velocidad. Es que muere.** Veinte inferencias seguidas y el proceso no sobrevive a las siguientes veinte. Eso descarta definitivamente la Rama B tal como estaba planteada: convertir b10 haría el motor más rápido, no más resistente — con una fuga, una red más chica sólo corre el crash unas jugadas más adelante.
+
+**Por qué en una partida real aguanta más que en la prueba:** la prueba corre las tandas SEGUIDAS, sin pausa. En una partida hay pausas mientras el humano piensa, y eso le da al sistema tiempo de recuperar. Coherente con acumulación, no con un techo fijo.
+
+### Lo que esto vale como método
+
+La herramienta hizo las tres cosas para las que fue construida, en su primera corrida real:
+1. **Midió** en vez de extrapolar (el 5× era invención mía).
+2. **Distinguió** lento de con-fuga — que era el punto entero, porque mandan a trabajos muy desiguales en costo.
+3. **Sobrevivió al crash**: sin persistir cada tanda antes de dibujarla, este volcado habría llegado vacío y estaríamos igual que hace una semana.
