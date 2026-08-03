@@ -101,6 +101,11 @@ export function judgeEngineProbe(result: EngineProbeResult): EngineVerdict {
  * pico de una tanda. Sin ese número, comparar dos corridas obliga a sumar a mano. */
 export function formatEngineProbe(result: EngineProbeResult): string[] {
   const lines: string[] = []
+  // PRIMERO, y no como detalle: el experimento ES fp32-contra-mixto, así que una corrida volcada sin
+  // decir qué midió no se puede leer ni comparar con otra. Se guarda en `StoredProbe.variant` desde
+  // que existen las variantes; una corrida más vieja no lo trae y se rotula como tal en vez de
+  // suponerla.
+  lines.push(`variante medida: ${result.variant}`)
   if (result.initMs !== undefined) lines.push(`arranque del motor: ${result.initMs} ms`)
   let cumulative = 0
   for (const round of result.rounds) {

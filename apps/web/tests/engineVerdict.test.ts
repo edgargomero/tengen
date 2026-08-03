@@ -89,9 +89,28 @@ describe('judgeEngineProbe', () => {
 describe('formatEngineProbe', () => {
   it('cada tanda entra en el volcado con su duración y su velocidad', () => {
     const lines = formatEngineProbe(result({ rounds: rounds([1000, 1000, 2000, 2000]) }))
-    expect(lines[0]).toBe('arranque del motor: 3000 ms')
-    expect(lines[1]).toContain('tanda 1: 20 visitas en 1000 ms')
+    expect(lines[0]).toBe('variante medida: fp32')
+    expect(lines[1]).toBe('arranque del motor: 3000 ms')
+    expect(lines[2]).toContain('tanda 1: 20 visitas en 1000 ms')
     expect(lines.some((l) => l.includes('desaceleración'))).toBe(true)
+  })
+
+  // El volcado es el artefacto que se copia y se pega para comparar dos corridas. Como el
+  // experimento ES fp32-contra-mixto, uno que no diga qué midió no se puede leer — y guardar el dato
+  // sin mostrarlo es exactamente el defecto que este test impide que vuelva.
+  it('SIEMPRE dice qué variante midió, y va primero', () => {
+    for (const variant of ['fp32', 'mixed16'] as const) {
+      const lines = formatEngineProbe(result({ variant, rounds: rounds([1000]) }))
+      expect(lines[0]).toBe(`variante medida: ${variant}`)
+    }
+  })
+
+  it('lo dice incluso en una corrida sin tandas ni arranque (la que murió al empezar)', () => {
+    // El caso más importante para leer: si el proceso murió antes de la primera tanda, la variante es
+    // casi todo lo que queda del experimento.
+    expect(formatEngineProbe({ modelInOpfs: true, variant: 'mixed16', rounds: [] })[0]).toBe(
+      'variante medida: mixed16',
+    )
   })
 
   it('un error también viaja en el volcado', () => {
@@ -147,9 +166,9 @@ describe('loadStoredProbe / saveStoredProbe', () => {
 describe('formatEngineProbe — acumulado', () => {
   it('cada tanda lleva el total de inferencias hasta ese punto', () => {
     const lines = formatEngineProbe(result({ rounds: rounds([100, 100, 100]) }))
-    expect(lines[1]).toContain('acumulado 20')
-    expect(lines[2]).toContain('acumulado 40')
-    expect(lines[3]).toContain('acumulado 60')
+    expect(lines[2]).toContain('acumulado 20')
+    expect(lines[3]).toContain('acumulado 40')
+    expect(lines[4]).toContain('acumulado 60')
   })
 })
 
