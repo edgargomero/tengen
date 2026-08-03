@@ -25,6 +25,7 @@ describe('summarizeUserAgent', () => {
       iosVersion: '26.0',
       webkitVersion: '605.1.15',
       browser: 'Safari 26.0',
+      browserVersion: '26.0',
     })
   })
 
@@ -50,6 +51,7 @@ describe('summarizeUserAgent', () => {
       iPadOsSuspected: false,
       webkitVersion: '605.1.15',
       browser: 'Safari 26.0',
+      browserVersion: '26.0',
     })
   })
 

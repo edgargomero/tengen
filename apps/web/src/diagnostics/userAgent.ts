@@ -14,6 +14,11 @@ export interface UserAgentSummary {
   webkitVersion?: string
   /** Navegador y versión tal como el propio UA los declara ("Safari 26.0"). */
   browser?: string
+  /** Sólo la versión del navegador ("26.5.2"). Separada de `browser` porque hay que COMPARARLA: en iOS,
+   * la versión de Safari y la del sistema van por caminos distintos — un iPhone 12 real reportó Safari
+   * 26.5.2 corriendo sobre iOS 18.7, con WebGPU funcionando. Quien decide si hay WebGPU en Safari es la
+   * versión de Safari; la del sistema sólo manda sobre WKWebView (Chrome, Edge, Firefox). */
+  browserVersion?: string
   /** El UA declara un iPhone/iPod/iPad. */
   isIos: boolean
   /** iPadOS 13+ miente y dice "Macintosh". Un Mac con pantalla táctil no existe, así que
@@ -31,7 +36,7 @@ function dotted(version: string): string {
  * contiene "Chrome" *y* "Safari". Se va de lo más específico a lo más genérico; invertirlo hace que todo
  * se reporte como Safari.
  */
-function readBrowser(ua: string): string | undefined {
+function readBrowser(ua: string): { name: string; version: string } | undefined {
   const patterns: Array<[RegExp, string]> = [
     [/Edg(?:iOS|A)?\/([\d.]+)/, 'Edge'],
     [/CriOS\/([\d.]+)/, 'Chrome iOS'],
@@ -44,7 +49,7 @@ function readBrowser(ua: string): string | undefined {
   ]
   for (const [pattern, name] of patterns) {
     const match = pattern.exec(ua)
-    if (match?.[1]) return `${name} ${match[1]}`
+    if (match?.[1]) return { name, version: match[1] }
   }
   return undefined
 }
@@ -63,6 +68,9 @@ export function summarizeUserAgent(input: { userAgent: string; maxTouchPoints?: 
   if (ios !== undefined) summary.iosVersion = dotted(ios)
   if (webkit !== undefined) summary.webkitVersion = webkit
   const browser = readBrowser(ua)
-  if (browser !== undefined) summary.browser = browser
+  if (browser !== undefined) {
+    summary.browser = `${browser.name} ${browser.version}`
+    summary.browserVersion = browser.version
+  }
   return summary
 }

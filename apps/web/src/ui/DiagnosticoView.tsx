@@ -179,6 +179,26 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
   // murió a mitad y cuántas tandas alcanzó es exactamente el dato que se estaba buscando.
   const [previous] = useState(() => loadStoredProbe(window.localStorage))
 
+  // La corrida interrumpida entra en el VOLCADO, no sólo en la pantalla. Sin esto, la evidencia del
+  // crash se ve pero no se copia: quien lo reporta pega el volcado —que es el punto de esta pantalla— y
+  // el dato más importante se queda en el teléfono. Va en un efecto porque `onDump` actualiza estado del
+  // padre, y hacerlo durante el render sería mutar mientras se pinta.
+  useEffect(() => {
+    if (previous !== null && !previous.finished) {
+      onDump([
+        `corrida anterior INTERRUMPIDA (${previous.at}) — el proceso murió sin terminar`,
+        ...formatEngineProbe({
+          modelInOpfs: true,
+          rounds: previous.rounds,
+          ...(previous.initMs !== undefined ? { initMs: previous.initMs } : {}),
+        }),
+      ])
+    }
+    // Sólo al montar: `previous` se fija una vez y `onDump` es estable en la práctica (el padre lo pasa
+    // como setState). Re-ejecutarlo pisaría un volcado ya actualizado por una corrida nueva.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function run(): Promise<void> {
     setState({ phase: 'running', rounds: [] })
     const result = await probeEngine({

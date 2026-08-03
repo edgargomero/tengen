@@ -16,15 +16,25 @@
 // mandarlo al único navegador de ese aparato que no puede funcionar.
 import type { UserAgentSummary } from './userAgent'
 
-/** Desde esta versión mayor de iOS, WKWebView también expone WebGPU — o sea, cualquier navegador del
- * dispositivo sirve. Por debajo, sólo Safari (y según la versión, tras una feature flag). */
+/** Desde esta versión mayor del SISTEMA, WKWebView también expone WebGPU — o sea, cualquier navegador
+ * del dispositivo sirve. Por debajo, sólo Safari. */
 export const IOS_WEBGPU_ALL_BROWSERS = 26
 
-/** Versión mayor de iOS declarada, o `null` si el UA no la trae o no es un número. */
-function iosMajor(version: string | undefined): number | null {
+/**
+ * Desde esta versión mayor de SAFARI hay WebGPU por defecto.
+ *
+ * Es un umbral SEPARADO del anterior a propósito, y eso lo enseñó un dispositivo real: un iPhone 12
+ * reportó **Safari 26.5.2 sobre iOS 18.7**, con WebGPU funcionando. Las dos versiones van por caminos
+ * distintos, así que tratarlas como una sola —el error que tenía este archivo— hace que a alguien cuyo
+ * Safari YA sirve se le diga que necesita actualizar el sistema.
+ */
+export const SAFARI_WEBGPU_DEFAULT = 26
+
+/** Versión mayor declarada, o `null` si no viene o no es un número. */
+function major(version: string | undefined): number | null {
   if (version === undefined) return null
-  const major = Number.parseInt(version, 10)
-  return Number.isNaN(major) ? null : major
+  const parsed = Number.parseInt(version, 10)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 function isSafari(browser: string | undefined): boolean {
@@ -47,29 +57,41 @@ export function webGpuAdvice(ua: UserAgentSummary): string[] {
     return ['Abre esta página en Chrome o Edge recientes, con WebGPU habilitado.']
   }
 
-  const major = iosMajor(ua.iosVersion)
-  const version = ua.iosVersion ?? 'esta versión'
+  const iosMajor = major(ua.iosVersion)
+  const iosVersion = ua.iosVersion ?? 'esta versión'
 
-  if (major !== null && major >= IOS_WEBGPU_ALL_BROWSERS) {
-    // Con iOS 26+ cualquier navegador del dispositivo debería exponer WebGPU: si igual falla, el dato
-    // está en el diagnóstico y es información nueva para nosotros, no un problema de configuración.
+  if (iosMajor !== null && iosMajor >= IOS_WEBGPU_ALL_BROWSERS) {
+    // Con un sistema 26+ cualquier navegador del dispositivo debería exponer WebGPU: si igual falla, el
+    // dato está en el diagnóstico y es información nueva para nosotros, no un problema de configuración.
     return [
-      `Este dispositivo tiene iOS ${version}, que ya incluye WebGPU en todos sus navegadores, así que algo más está fallando.`,
+      `Este dispositivo tiene iOS ${iosVersion}, que ya incluye WebGPU en todos sus navegadores, así que algo más está fallando.`,
       'Abre el diagnóstico y comparte el resultado: ahí está el motivo exacto.',
     ]
   }
 
   const lines: string[] = []
   if (isSafari(ua.browser)) {
+    // En Safari lo que manda es la versión de SAFARI, no la del sistema. Un iPhone 12 real corre Safari
+    // 26.5.2 sobre iOS 18.7 y ahí WebGPU funciona: decirle "actualiza a iOS 26" sería mandarlo a hacer
+    // algo que no cambia nada.
+    const safariMajor = major(ua.browserVersion)
     lines.push('Estás en Safari, que es el navegador correcto en un iPhone o iPad.')
-    lines.push(
-      'Prueba habilitando WebGPU en Ajustes → Safari → Avanzado → Funciones experimentales. Si no aparece ahí, hace falta iOS 26 o superior.',
-    )
+    if (safariMajor !== null && safariMajor >= SAFARI_WEBGPU_DEFAULT) {
+      lines.push(
+        `Tu Safari (${ua.browserVersion}) ya trae WebGPU, así que el problema es otro: comparte el diagnóstico completo.`,
+      )
+    } else {
+      lines.push(
+        `Tu Safari es la versión ${ua.browserVersion ?? '(no declarada)'} y WebGPU viene activado desde Safari ${SAFARI_WEBGPU_DEFAULT}. ` +
+          'Actualiza Safari, o prueba a habilitarlo en Ajustes → Safari → Avanzado → Funciones experimentales.',
+      )
+    }
   } else {
-    // El caso del iPhone 12 con iOS 18.7.8: Chrome iOS reporta que no existe `navigator.gpu`.
+    // El caso del iPhone 12 con iOS 18.7: Chrome iOS reporta que no existe `navigator.gpu`, aunque el
+    // Safari del MISMO teléfono sí lo tenga.
     lines.push('En iPhone y iPad, abre esta página en Safari.')
     lines.push(
-      `Chrome, Edge y Firefox en iOS usan WKWebView, que no expone WebGPU hasta iOS 26 — y este dispositivo tiene iOS ${version}. No es una limitación del hardware.`,
+      `Chrome, Edge y Firefox en iOS usan WKWebView, que lo trae el sistema y no expone WebGPU hasta iOS ${IOS_WEBGPU_ALL_BROWSERS} — este dispositivo tiene iOS ${iosVersion}. El Safari del mismo teléfono sí puede: no es una limitación del hardware.`,
     )
   }
   return lines

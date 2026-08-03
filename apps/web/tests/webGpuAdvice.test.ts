@@ -11,6 +11,10 @@ const CHROME_IOS_18 =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0.7871.113 Mobile/15E148 Safari/604.1'
 const SAFARI_IOS_18 =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1'
+/** UA REAL del iPhone 12 de Edgar: Safari 26.5.2 sobre iOS 18.7, con WebGPU funcionando. Es la prueba de
+ * que las dos versiones son independientes, y el caso que corrigió este archivo. */
+const SAFARI_26_ON_IOS_18 =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Mobile/15E148 Safari/604.1'
 const SAFARI_IOS_26 =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
 const CHROME_MAC =
@@ -27,17 +31,29 @@ describe('webGpuAdvice', () => {
     const lines = advice(CHROME_IOS_18).join(' ')
     expect(lines).toContain('Safari')
     expect(lines).not.toMatch(/abre esta página en \*?\*?Chrome/i)
-    // Y explica que no es culpa del hardware: el iPhone 12 puede, su iOS todavía no.
+    // Y explica que no es culpa del hardware: el Safari del MISMO teléfono sí puede — verificado en el
+    // iPhone 12 de Edgar, que corre Safari 26.5.2 con WebGPU sobre ese mismo iOS 18.
     expect(lines).toContain('WKWebView')
     expect(lines).toContain('18.7.8')
-    expect(lines).toContain('No es una limitación del hardware')
+    expect(lines).toContain('no es una limitación del hardware')
+    expect(lines).toContain('El Safari del mismo teléfono sí puede')
   })
 
-  it('en Safari de iOS 18 no repite "usa Safari" (ya está ahí): manda a la feature flag', () => {
+  it('en Safari VIEJO manda a actualizar SAFARI, no el sistema: son versiones independientes', () => {
     const lines = advice(SAFARI_IOS_18).join(' ')
     expect(lines).toContain('Estás en Safari')
+    expect(lines).toContain('Safari 26')
     expect(lines).toContain('Funciones experimentales')
-    expect(lines).toContain('iOS 26')
+  })
+
+  it('EL caso que enseñó el dispositivo real: Safari 26 sobre iOS 18 no manda a actualizar nada', () => {
+    // iPhone 12 de Edgar: Safari 26.5.2 sobre iOS 18.7, con WebGPU funcionando. Decirle "actualiza a
+    // iOS 26" sería mandarlo a hacer algo que no cambia nada — su Safari YA sirve.
+    const lines = advice(SAFARI_26_ON_IOS_18).join(' ')
+    expect(lines).toContain('ya trae WebGPU')
+    expect(lines).toContain('el problema es otro')
+    expect(lines).not.toContain('Actualiza Safari')
+    expect(lines).not.toContain('Funciones experimentales')
   })
 
   it('en iOS 26+ no culpa al navegador: ahí cualquiera sirve, así que el fallo es información nueva', () => {

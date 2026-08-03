@@ -550,3 +550,31 @@ Queda como principal sospechoso el bug conocido de ORT en modo JSEP sobre Safari
 **Gates:** typecheck limpio · 809 tests (120 + 645 + 44) · build OK. 16 tests nuevos sobre el veredicto y la persistencia — la separación "fuga vs lento" decide un desvío caro (convertir b10), así que va fijada con tests y no a criterio de quien mire los números.
 
 **Pendiente:** que Edgar corra la prueba en Safari del iPhone 12 y pegue el resultado. Recién ahí se decide si la Fase 3 es ajuste (Rama A) o red más chica (Rama B).
+
+## SAFARI 26.5.2 SOBRE iOS 18.7 — el umbral no era el que yo creía (2026-08-03)
+
+Volcado de Safari en el iPhone 12: **WebGPU funciona** (adapter ok + device ok en los dos scopes, b18 ya en caché, 144,6 MB de uso). Pero el UA trae el dato que corrige el modelo mental:
+
+```
+navegador: Safari 26.5.2     iOS: 18.7
+```
+
+**La versión de Safari y la del sistema son independientes.** Safari 26.5.2 corre sobre iOS 18.7, y ahí WebGPU está por defecto. Lo que manda:
+- Para **Safari** → la versión de **Safari** (26+).
+- Para **Chrome/Edge/Firefox en iOS** → la versión del **sistema**, porque WKWebView lo trae el sistema (26+).
+
+`webGpuAdvice.ts` tenía UN umbral (`iOS >= 26`) para las dos cosas, así que a alguien con Safari 26 sobre iOS 18 —exactamente este teléfono— le habría dicho "actualiza a iOS 26", mandándolo a hacer algo que no cambia nada. Ahora son dos constantes separadas (`IOS_WEBGPU_ALL_BROWSERS` y `SAFARI_WEBGPU_DEFAULT`), `summarizeUserAgent` expone `browserVersion` para poder comparar, y el UA real del iPhone 12 quedó como caso de test.
+
+### Otro hueco encontrado: la evidencia del crash se veía pero no se copiaba
+
+La corrida interrumpida se mostraba en pantalla ("La prueba anterior se cortó sola") pero **no entraba en el volcado**. Quien reporta pega el volcado —que es el propósito entero de la pantalla— así que el dato más importante se quedaba en el teléfono. Corregido: al montar, si hay una corrida con `finished: false`, sus tandas se publican en el volcado con su marca de tiempo.
+
+### Datos nuevos del dispositivo (Safari, no Chrome)
+
+- `maxBufferSize` / `maxStorageBufferBindingSize`: **1,07 GB** (contra 4,29 GB en el M1). No es limitante para un modelo de 115,8 MB, pero es el techo real si alguna vez se evalúa una red más grande.
+- `features`: **sin** `subgroups` ni las `texture-compression-bc`; **sí** `shader-f16`, `float16-renderable`, `float32-renderable`. Menos features que Metal-3 de escritorio, ninguna que el motor use hoy.
+- `adapter.info` viene enmascarado (`vendor=apple · arch=apple · device=apple · desc=apple`): Safari no revela el modelo de GPU.
+- `hardwareConcurrency: 4` y `crossOriginIsolated: sí` en los dos scopes, igual que en Chrome iOS.
+- `persistente: no` con `modo de display: browser` — sigue pendiente instalar la PWA a la pantalla de inicio antes de una prueba larga.
+
+**LO QUE SIGUE FALTANDO: la prueba del motor.** El volcado llegó sin la sección `[prueba del motor]`, así que o no se apretó el botón o murió antes de la primera tanda (que ahora sí quedaría registrado, tras el fix del volcado).
