@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ensureModel } from '../src/models/modelCache'
-import { requireManifestEntry } from '../src/models/netManifest'
+import { ensureModel, pruneOtherModelVariants } from '../src/models/modelCache'
+import { netManifest, requireManifestEntry } from '../src/models/netManifest'
 import type { DownloadProgress } from '../src/models/progress'
 import type { ModelStore, WritableSink } from '../src/models/modelStore'
 
@@ -313,65 +313,84 @@ describe('ensureModel', () => {
 // Sin esto, un móvil que ya tenía los dos fp32 (223,8 MB) sumaría los mixtos (112,3 MB) sin liberar
 // nada. En el iPhone que originó este trabajo —252,6 MB ya en uso— eso no es desprolijidad: es no
 // entrar.
-describe('ensureModel: limpieza de OPFS', () => {
+describe('pruneOtherModelVariants', () => {
   const MIXED = requireManifestEntry(NET, 'mixed16')
 
-  it('borra la OTRA variante de la misma red antes de descargar', async () => {
+  it('borra la OTRA variante de la misma red', async () => {
     const store = new MockModelStore()
-    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
-
-    await ensureModel(NET, 'mixed16', store, fetchFn)
-
+    await pruneOtherModelVariants(NET, 'mixed16', store)
     expect(store.deleteCalls).toEqual([ENTRY.opfsName]) // el fp32, y sólo él
   })
 
-  it('NUNCA borra la variante que se está por usar', async () => {
+  it('NUNCA borra la variante que se va a usar', async () => {
     const store = new MockModelStore()
-    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
-
-    await ensureModel(NET, 'mixed16', store, fetchFn)
-
+    await pruneOtherModelVariants(NET, 'mixed16', store)
     expect(store.deleteCalls).not.toContain(MIXED.opfsName)
-    expect(await store.isComplete(MIXED.opfsName, MIXED.bytes)).toBe(true)
   })
 
-  it('limpia TAMBIÉN cuando la variante activa ya estaba cacheada (no sólo al descargar)', async () => {
-    // Un dispositivo ya migrado: si la limpieza colgara de la ruta de descarga, se quedaría con los
-    // 115,8 MB viejos para siempre, porque nunca vuelve a descargar.
+  it('libera de verdad: borra el archivo Y su marcador', async () => {
     const store = new MockModelStore()
-    store.committed.set(MIXED.opfsName, MIXED.bytes)
-    store.markers.set(MIXED.opfsName, MIXED.bytes)
     store.committed.set(ENTRY.opfsName, ENTRY.bytes) // el fp32 viejo, todavía ahí
     store.markers.set(ENTRY.opfsName, ENTRY.bytes)
-    const { fetchFn, calls } = makeFetchFn(() => {
-      throw new Error('fetchFn no debería llamarse')
-    })
 
-    await ensureModel(NET, 'mixed16', store, fetchFn)
+    await pruneOtherModelVariants(NET, 'mixed16', store)
 
-    expect(calls).toHaveLength(0) // ruta de caché: cero red
-    expect(store.deleteCalls).toEqual([ENTRY.opfsName])
-    expect(store.committed.has(ENTRY.opfsName)).toBe(false) // los 115,8 MB liberados de verdad
+    expect(store.committed.has(ENTRY.opfsName)).toBe(false) // los 115,8 MB liberados
+    expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(false)
   })
 
   it('no toca las variantes de OTRAS redes', async () => {
     const store = new MockModelStore()
     const otra = requireManifestEntry('humanv0', 'fp32')
-    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
-
-    await ensureModel(NET, 'mixed16', store, fetchFn)
-
+    await pruneOtherModelVariants(NET, 'mixed16', store)
     expect(store.deleteCalls).not.toContain(otra.opfsName)
   })
 
-  it('un fallo al borrar NO impide descargar (best-effort: peor es negar el motor)', async () => {
+  it('conserva la variante EFECTIVA, no la pedida, cuando hay fallback', async () => {
+    // Si se pidiera `mixed16` en una red que no lo publica, `ensureModel` va a servir fp32. Borrar
+    // el fp32 "porque no es la pedida" destruiría justo el archivo que se está por usar.
+    const store = new MockModelStore()
+    const original = netManifest.humanv0
+    try {
+      netManifest.humanv0 = { fp32: original!.fp32! }
+      await pruneOtherModelVariants('humanv0', 'mixed16', store)
+      expect(store.deleteCalls).toEqual([])
+    } finally {
+      netManifest.humanv0 = original
+    }
+  })
+
+  it('una red no disponible no lanza: no hay nada que limpiar', async () => {
+    const store = new MockModelStore()
+    await expect(pruneOtherModelVariants('b10', 'fp32', store)).resolves.toBeUndefined()
+    expect(store.deleteCalls).toEqual([])
+  })
+
+  it('un fallo al borrar NO se propaga (best-effort: peor es negar el motor)', async () => {
     const store = new MockModelStore()
     store.delete = async (): Promise<void> => {
       throw new Error('OPFS: no se pudo borrar')
     }
-    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
+    await expect(pruneOtherModelVariants(NET, 'mixed16', store)).resolves.toBeUndefined()
+  })
+})
 
-    await expect(ensureModel(NET, 'mixed16', store, fetchFn)).resolves.toBe('mixed16')
+// El límite entre las dos funciones, y por qué importa: la prueba del motor de `/diagnostico` llama
+// a `ensureModel` con una variante ELEGIDA. Si `ensureModel` limpiara, medir el fp32 en un móvil
+// borraría el mixto que ese aparato usa de verdad — un diagnóstico que rompe lo que viene a
+// diagnosticar, y en un dispositivo al límite de cuota lo deja sin ninguna de las dos.
+describe('ensureModel NO limpia (la limpieza es política de producción, de ModelGate)', () => {
+  const MIXED = requireManifestEntry(NET, 'mixed16')
+
+  it('descargar una variante no borra la otra', async () => {
+    const store = new MockModelStore()
+    store.committed.set(MIXED.opfsName, MIXED.bytes) // la variante activa del dispositivo
+    store.markers.set(MIXED.opfsName, MIXED.bytes)
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
+
+    await ensureModel(NET, VARIANT, store, fetchFn) // la sonda mide el fp32...
+
+    expect(store.deleteCalls).toEqual([]) // ...y el mixto sigue intacto
     expect(await store.isComplete(MIXED.opfsName, MIXED.bytes)).toBe(true)
   })
 

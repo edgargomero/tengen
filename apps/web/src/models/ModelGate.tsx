@@ -8,7 +8,7 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import type { NetworkId } from '@tengen/engine'
-import { ensureModel } from './modelCache'
+import { ensureModel, pruneOtherModelVariants } from './modelCache'
 import { currentModelVariant } from './modelVariant'
 import { createOpfsModelStore } from './modelStore'
 import { ensurePersistentStorage, isDurable, type PersistenceResult } from './persistentStorage'
@@ -55,24 +55,42 @@ export function ModelGate({ net, children }: ModelGateProps) {
     // `currentModelVariant()` es la MISMA llamada que hace `appFactory` en el worker, sin argumentos
     // en ninguno de los dos lados. Es lo que garantiza que el worker lea el archivo que este efecto
     // acaba de descargar; ver el comentario largo de `modelVariant.ts`.
-    ensureModel(
-      net,
-      currentModelVariant(),
-      createOpfsModelStore(),
-      (url) => fetch(url),
-      (p) => {
-        if (!stale) setProgress(p)
-      },
-    ).then(
-      () => {
-        if (!stale) setStatus('ready')
-      },
-      (err: unknown) => {
-        if (stale) return
-        setErrorMsg(err instanceof Error ? err.message : String(err))
-        setStatus('error')
-      },
-    )
+    const variant = currentModelVariant()
+    const store = createOpfsModelStore()
+
+    // Limpieza ANTES de descargar, y por eso encadenada en vez de en paralelo.
+    //
+    // Es el ÚNICO punto de la app que borra variantes viejas: la prueba de `/diagnostico` también
+    // llama a `ensureModel`, pero con una variante elegida, y no debe tocar la del dispositivo.
+    //
+    // Antes y no después porque es lo único que libera espacio a tiempo para que la descarga entre —
+    // un móvil que ya tiene los dos fp32 sumaría 112,3 MB sin liberar los 223,8 viejos. El
+    // trade-off aparente ("si falla la descarga te quedaste sin la variante vieja") se disuelve al
+    // mirarlo: este gate exige la variante ACTIVA, así que un fallo bloquea igual se hubiera
+    // conservado el archivo viejo o no; conservarlo no da un camino de vuelta, sólo ocupa los MB que
+    // hacían falta. Y es best-effort: si no se puede borrar, la descarga se intenta igual.
+    pruneOtherModelVariants(net, variant, store)
+      .then(() =>
+        ensureModel(
+          net,
+          variant,
+          store,
+          (url) => fetch(url),
+          (p) => {
+            if (!stale) setProgress(p)
+          },
+        ),
+      )
+      .then(
+        () => {
+          if (!stale) setStatus('ready')
+        },
+        (err: unknown) => {
+          if (stale) return
+          setErrorMsg(err instanceof Error ? err.message : String(err))
+          setStatus('error')
+        },
+      )
 
     return () => {
       stale = true

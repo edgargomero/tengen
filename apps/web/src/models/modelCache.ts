@@ -15,11 +15,33 @@ import { type DownloadProgress, getContentLength, getProgressPercent } from './p
 /**
  * Borra de OPFS las variantes de `net` que este dispositivo NO va a usar.
  *
+ * ── Por qué NO vive dentro de `ensureModel` ───────────────────────────────────────────────────
+ * La limpieza es política de PRODUCCIÓN, no parte de "garantizá que este archivo esté". Meterla
+ * dentro de `ensureModel` la aplicaba también a la prueba del motor de `/diagnostico`, que llama a
+ * `ensureModel` con una variante ELEGIDA: medir el fp32 en un móvil habría borrado el mixto que ese
+ * aparato usa de verdad, obligando a re-descargarlo — y en un dispositivo al límite de cuota, la
+ * sonda podría no entrar y dejarlo sin ninguna de las dos. Un diagnóstico no debe romper lo que
+ * viene a diagnosticar. Por eso la llama `ModelGate` (el camino de producción) y sólo él.
+ *
+ * `preferred` es la variante que el dispositivo PIDE; acá se resuelve la EFECTIVA con la misma
+ * función que usa `ensureModel`. Sin eso, pedir una variante no publicada borraría el fp32 que
+ * `ensureModel` está justo por descargar.
+ *
  * Best-effort a propósito: un fallo al borrar no debe impedir jugar. Lo peor que pasa es que sobre
  * un archivo viejo ocupando espacio, y eso es estrictamente mejor que negarle el motor a alguien
  * porque no se pudo limpiar.
  */
-async function pruneOtherVariants(net: NetworkId, keep: ModelVariant, store: ModelStore): Promise<void> {
+export async function pruneOtherModelVariants(
+  net: NetworkId,
+  preferred: ModelVariant,
+  store: ModelStore,
+): Promise<void> {
+  let keep: ModelVariant
+  try {
+    keep = resolveManifestEntry(net, preferred).variant
+  } catch {
+    return // red no disponible (p.ej. b10): no hay nada que conservar ni que borrar.
+  }
   for (const { variant, entry } of manifestVariantsOf(net)) {
     if (variant === keep) continue
     try {
@@ -52,34 +74,25 @@ export async function ensureModel(
   // de `variant` si la preferida no está publicada para esta red.
   const { variant: effective, entry } = resolveManifestEntry(net, variant)
 
-  // 2. Limpieza ANTES de todo lo demás, incluida la ruta de caché.
-  //
-  // Antes del check de completitud porque el caso "el mixto ya está, el fp32 viejo sobra" también
-  // tiene que liberar: si sólo se limpiara al descargar, un dispositivo ya migrado se quedaría con
-  // los 223,8 MB viejos para siempre.
-  //
-  // Y antes de la DESCARGA porque es lo único que libera espacio a tiempo para que quepa. El
-  // trade-off aparente ("si la descarga falla te quedaste sin la variante vieja") se disuelve al
-  // mirarlo: `ModelGate` exige la variante ACTIVA, así que un fallo de descarga bloquea igual
-  // tuviera o no el archivo viejo — conservarlo no da un camino de vuelta, sólo ocupa los MB que
-  // hacían falta para que la descarga entrara.
-  await pruneOtherVariants(net, effective, store)
+  // NOTA: esta función NO borra nada. La limpieza de variantes viejas es `pruneOtherModelVariants`,
+  // que llama `ModelGate` antes de esta llamada (ver el doc de esa función: aplicarla acá rompería
+  // la prueba del motor, que mide una variante elegida y no debe tocar la del dispositivo).
 
-  // 3. Ruta de caché: 0 red si ya está completo (marcador presente Y tamaño coincide).
+  // 2. Ruta de caché: 0 red si ya está completo (marcador presente Y tamaño coincide).
   if (await store.isComplete(entry.opfsName, entry.bytes)) return effective
 
-  // 4. Descarga.
+  // 3. Descarga.
   const res = await fetchFn(entry.sourceUrl)
   if (!res.ok) throw new Error(`descarga de ${net} falló: HTTP ${res.status}`)
   if (res.body === null) throw new Error(`descarga de ${net} sin body (res.body es null)`)
 
-  // 5. Total para el progreso (puede ser null; la validación usa entry.bytes, no total).
+  // 4. Total para el progreso (puede ser null; la validación usa entry.bytes, no total).
   const total = getContentLength(res.headers)
 
-  // 6. Abrir el sink de escritura incremental.
+  // 5. Abrir el sink de escritura incremental.
   const sink = await store.openWritable(entry.opfsName)
 
-  // 7. Loop de streaming: escribe cada chunk y reporta progreso. Si revienta → abort + re-throw.
+  // 6. Loop de streaming: escribe cada chunk y reporta progreso. Si revienta → abort + re-throw.
   // `getReader()` vive DENTRO del try: si lanzara, el sink ya abierto se aborta en vez de
   // quedar huérfano (en vez de abrirlo dos veces, el `try` simplemente lo engloba).
   let received = 0
@@ -105,7 +118,7 @@ export async function ensureModel(
     throw err
   }
 
-  // 8. Validación de completitud ANTES de commitear. Mismatch → abort + throw.
+  // 7. Validación de completitud ANTES de commitear. Mismatch → abort + throw.
   if (received !== entry.bytes) {
     const mismatchErr = new Error(
       `descarga de ${net} incompleta: ${received} bytes recibidos vs ${entry.bytes} esperados`,
@@ -118,7 +131,7 @@ export async function ensureModel(
     throw mismatchErr
   }
 
-  // 9. Commit y SOLO entonces marcar completo (marcador = éxito + validación).
+  // 8. Commit y SOLO entonces marcar completo (marcador = éxito + validación).
   await sink.close()
   await store.markComplete(entry.opfsName, entry.bytes)
   return effective

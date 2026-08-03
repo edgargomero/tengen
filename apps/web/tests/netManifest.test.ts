@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   DEFAULT_VARIANT,
   manifestVariantsOf,
@@ -6,6 +6,16 @@ import {
   requireManifestEntry,
   resolveManifestEntry,
 } from '../src/models/netManifest'
+
+// Algunos tests simulan una red que no publica `mixed16` mutando el manifest (hoy las dos redes
+// publican las dos variantes, así que el caso no existe de otra forma). El manifest es un módulo
+// COMPARTIDO: sin esta restauración, una aserción que falle mid-test dejaría al resto del archivo
+// corriendo contra un manifest mutilado — tres tests rojos y un diagnóstico falso.
+const PRISTINE = { b18: netManifest.b18, humanv0: netManifest.humanv0 }
+afterEach(() => {
+  netManifest.b18 = PRISTINE.b18
+  netManifest.humanv0 = PRISTINE.humanv0
+})
 
 // Los `bytes` de acá están fijados a los valores medidos con `stat -f%z` sobre los binarios reales.
 // No son decorativos: `ensureModel` rechaza la descarga ante UN byte de diferencia, así que un
