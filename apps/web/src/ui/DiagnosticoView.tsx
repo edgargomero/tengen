@@ -15,7 +15,9 @@
 import { useEffect, useState } from 'preact/hooks'
 import { collectDiagnostics } from '../diagnostics/collect'
 import type { Diagnostics } from '../diagnostics/collect'
-import { loadStoredProbe, probeEngine, PROBE_NETWORKS, PROBE_PRESETS } from '../diagnostics/engineProbe'
+import { loadStoredProbe, probeEngine, PROBE_NETWORKS, PROBE_PRESETS, PROBE_VARIANTS } from '../diagnostics/engineProbe'
+import { currentModelVariant } from '../models/modelVariant'
+import type { ModelVariant } from '../models/netManifest'
 import type { EngineProbeResult, EngineRound, ProbePresetId } from '../diagnostics/engineProbe'
 import type { NetworkId } from '@tengen/engine'
 import { formatEngineProbe, judgeEngineProbe } from '../diagnostics/engineVerdict'
@@ -190,6 +192,9 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
         `corrida anterior INTERRUMPIDA (${previous.at}) — el proceso murió sin terminar`,
         ...formatEngineProbe({
           modelInOpfs: true,
+          // Una corrida guardada ANTES de que existieran las variantes es necesariamente fp32: era
+          // el único binario que se servía. No es un default de conveniencia, es lo que fue.
+          variant: previous.variant ?? 'fp32',
           rounds: previous.rounds,
           ...(previous.initMs !== undefined ? { initMs: previous.initMs } : {}),
         }),
@@ -206,6 +211,10 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
   // Qué red medir. Las dos del producto: se juega contra una o contra la otra, y "¿funciona el modo que
   // yo uso?" es una pregunta legítima que medir sólo una deja sin responder.
   const [network, setNetwork] = useState<NetworkId>('b18')
+  // Qué VARIANTE de precisión medir. Arranca en la del dispositivo —así "Probar el motor" sin tocar
+  // nada mide lo que la app realmente hace acá— y se puede cambiar para correr el A/B en el mismo
+  // aparato: es el experimento que decide si la mitad de memoria alcanzó.
+  const [variant, setVariant] = useState<ModelVariant>(() => currentModelVariant())
   const [downloadPct, setDownloadPct] = useState<number | null>(null)
 
   async function run(): Promise<void> {
@@ -215,6 +224,7 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
     const result = await probeEngine({
       storage: window.localStorage,
       network,
+      variant,
       // La red que falte se baja acá mismo: mandar a "jugá una partida primero" para poder medir por qué
       // las partidas mueren es un círculo, y este es justamente el dispositivo donde no cierra.
       download: true,
@@ -226,7 +236,7 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
         setState({ phase: 'running', rounds: all })
         // Publica el parcial en el volcado en cada tanda: si el aparato muere ahora, esto es lo que
         // sobrevive para copiar.
-        onDump(formatEngineProbe({ modelInOpfs: true, rounds: all }))
+        onDump(formatEngineProbe({ modelInOpfs: true, variant, rounds: all }))
       },
     })
     setDownloadPct(null)
@@ -272,6 +282,20 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
           </button>
         ))}
       </div>
+      <div class="choice-row" role="group" aria-label="Variante de precisión">
+        {PROBE_VARIANTS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={variant === option.id}
+            class={variant === option.id ? 'active' : ''}
+            disabled={running}
+            onClick={() => setVariant(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <div class="choice-row" role="group" aria-label="Reparto de la prueba">
         {PROBE_PRESETS.map((option) => (
           <button
@@ -304,7 +328,7 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
             ? 'Murió al arrancar el motor, antes de completar una sola tanda: el pico de memoria más grande de la app es justo ese, subir el modelo a la GPU.'
             : `Alcanzó ${interrupted.rounds.length}${interrupted.totalRounds !== undefined ? ` de ${interrupted.totalRounds}` : ''} tandas (${interrupted.rounds.reduce((sum, r) => sum + r.visits, 0)} inferencias) y el proceso murió. Repite con el otro reparto: si muere cerca del mismo acumulado, algo crece; si aguanta, el problema es el pico de una tanda.`}
           <br />
-          {formatEngineProbe({ modelInOpfs: true, rounds: interrupted.rounds, ...(interrupted.initMs !== undefined ? { initMs: interrupted.initMs } : {}) }).join(' · ')}
+          {formatEngineProbe({ modelInOpfs: true, variant: interrupted.variant ?? 'fp32', rounds: interrupted.rounds, ...(interrupted.initMs !== undefined ? { initMs: interrupted.initMs } : {}) }).join(' · ')}
         </div>
       )}
 

@@ -6,7 +6,7 @@ import type { ModelStore, WritableSink } from '../src/models/modelStore'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nota de tamaño (CRÍTICA): NO materializamos el modelo real de 115 MB. `ensureModel`
-// valida `received` contra `requireManifestEntry(net).bytes` (kata = 115_800_125), así
+// valida `received` contra `requireManifestEntry(net, variant).bytes` (kata = 115_800_125), así
 // que el stream de prueba DEBE sumar ese total exacto para el happy path. Para no retener
 // >100 MB en RAM:
 //   - el mock sink solo CUENTA longitudes de chunk (no retiene bytes);
@@ -66,6 +66,15 @@ class MockModelStore implements ModelStore {
     this.markCompleteCalls.push({ name, bytes })
     this.markers.set(name, bytes)
   }
+
+  /** Espeja la impl OPFS real: borra el archivo Y su marcador, y es idempotente (un nombre ausente
+   *  NO es error). `deleteCalls` deja ver QUÉ se borró, que es lo que prueba la limpieza. */
+  deleteCalls: string[] = []
+  async delete(name: string): Promise<void> {
+    this.deleteCalls.push(name)
+    this.markers.delete(name)
+    this.committed.delete(name)
+  }
 }
 
 /** Spy de fetchFn: registra URLs y sirve un Response construido por `makeResponse`. */
@@ -109,14 +118,15 @@ function okResponse(body: ReadableStream<Uint8Array>, contentLength: number | nu
 }
 
 const NET = 'b18' as const
-const ENTRY = requireManifestEntry(NET)
+const VARIANT = 'fp32' as const
+const ENTRY = requireManifestEntry(NET, VARIANT)
 
 describe('ensureModel', () => {
   it('happy path: streamea `bytes` en varios chunks → commit + markComplete; 2ª llamada no re-fetchea', async () => {
     const store = new MockModelStore()
     const { fetchFn, calls } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
 
-    await ensureModel(NET, store, fetchFn)
+    await ensureModel(NET, VARIANT, store, fetchFn)
 
     // fetchFn llamado 1 vez con la sourceUrl exacta.
     expect(calls).toEqual([ENTRY.sourceUrl])
@@ -128,7 +138,7 @@ describe('ensureModel', () => {
     expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(true)
 
     // 2ª llamada: isComplete true → NO se vuelve a llamar fetchFn (contador sigue en 1).
-    await ensureModel(NET, store, fetchFn)
+    await ensureModel(NET, VARIANT, store, fetchFn)
     expect(calls).toEqual([ENTRY.sourceUrl])
     expect(store.markCompleteCalls).toHaveLength(1)
   })
@@ -151,7 +161,7 @@ describe('ensureModel', () => {
     }
     const { fetchFn, calls } = makeFetchFn(() => okResponse(makeStream(), ENTRY.bytes))
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('boom')
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow('boom')
 
     // Prueba que fue un fallo A MITAD (no inmediato): se escribieron 2 chunks reales al sink
     // ANTES de que reventara → exactamente la clase "datos parciales escritos → abortado → nada aceptado".
@@ -165,7 +175,7 @@ describe('ensureModel', () => {
     expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(false)
 
     // 2ª llamada re-descarga (fetchFn 1→2).
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('boom')
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow('boom')
     expect(calls).toHaveLength(2)
   })
 
@@ -173,7 +183,7 @@ describe('ensureModel', () => {
     const store = new MockModelStore()
     const { fetchFn, calls } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes - 4096), ENTRY.bytes))
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow()
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow()
 
     expect(store.abortCalls).toBe(1)
     expect(store.closeCalls).toBe(0)
@@ -181,7 +191,7 @@ describe('ensureModel', () => {
     expect(store.committed.has(ENTRY.opfsName)).toBe(false)
     expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(false)
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow()
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow()
     expect(calls).toHaveLength(2)
   })
 
@@ -189,7 +199,7 @@ describe('ensureModel', () => {
     const store = new MockModelStore()
     const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes + 4096), ENTRY.bytes))
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow()
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow()
 
     expect(store.abortCalls).toBe(1)
     expect(store.markCompleteCalls).toHaveLength(0)
@@ -202,7 +212,7 @@ describe('ensureModel', () => {
     const { fetchFn, calls } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
 
     // El stream entrega exactamente `bytes` (happy-sized) pero close() rechaza al commitear.
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
 
     // close() se intentó (y rechazó) pero markComplete NUNCA se alcanza: el await de close()
     // lanza antes de llegar a la línea de markComplete.
@@ -213,7 +223,7 @@ describe('ensureModel', () => {
     expect(await store.isComplete(ENTRY.opfsName, ENTRY.bytes)).toBe(false)
 
     // 2ª llamada re-descarga (fetchFn 1→2): sin marcador aceptado, isComplete sigue false.
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow('close: commit OPFS falló')
     expect(calls).toHaveLength(2)
   })
 
@@ -222,7 +232,7 @@ describe('ensureModel', () => {
     const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
     const events: DownloadProgress[] = []
 
-    await ensureModel(NET, store, fetchFn, (p) => events.push(p))
+    await ensureModel(NET, VARIANT, store, fetchFn, (p) => events.push(p))
 
     expect(events.length).toBeGreaterThan(0)
     // receivedBytes estrictamente creciente entre chunks.
@@ -249,7 +259,7 @@ describe('ensureModel', () => {
     const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), null))
     const events: DownloadProgress[] = []
 
-    await ensureModel(NET, store, fetchFn, (p) => events.push(p))
+    await ensureModel(NET, VARIANT, store, fetchFn, (p) => events.push(p))
 
     expect(events.length).toBeGreaterThan(0)
     for (const e of events) {
@@ -270,7 +280,7 @@ describe('ensureModel', () => {
       throw new Error('fetchFn no debería llamarse')
     })
 
-    await ensureModel(NET, store, fetchFn)
+    await ensureModel(NET, VARIANT, store, fetchFn)
 
     expect(calls).toHaveLength(0)
     expect(store.openWritableCalls).toBe(0)
@@ -281,7 +291,7 @@ describe('ensureModel', () => {
     const store = new MockModelStore()
     const { fetchFn } = makeFetchFn(() => new Response('nope', { status: 404 }))
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow('404')
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow('404')
 
     expect(store.openWritableCalls).toBe(0)
     expect(store.markCompleteCalls).toHaveLength(0)
@@ -291,9 +301,84 @@ describe('ensureModel', () => {
     const store = new MockModelStore()
     const { fetchFn } = makeFetchFn(() => new Response(null, { status: 200 }))
 
-    await expect(ensureModel(NET, store, fetchFn)).rejects.toThrow()
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).rejects.toThrow()
 
     expect(store.openWritableCalls).toBe(0)
     expect(store.markCompleteCalls).toHaveLength(0)
+  })
+})
+
+// ── Limpieza de las variantes que este dispositivo no va a usar ─────────────────────────────────
+//
+// Sin esto, un móvil que ya tenía los dos fp32 (223,8 MB) sumaría los mixtos (112,3 MB) sin liberar
+// nada. En el iPhone que originó este trabajo —252,6 MB ya en uso— eso no es desprolijidad: es no
+// entrar.
+describe('ensureModel: limpieza de OPFS', () => {
+  const MIXED = requireManifestEntry(NET, 'mixed16')
+
+  it('borra la OTRA variante de la misma red antes de descargar', async () => {
+    const store = new MockModelStore()
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
+
+    await ensureModel(NET, 'mixed16', store, fetchFn)
+
+    expect(store.deleteCalls).toEqual([ENTRY.opfsName]) // el fp32, y sólo él
+  })
+
+  it('NUNCA borra la variante que se está por usar', async () => {
+    const store = new MockModelStore()
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
+
+    await ensureModel(NET, 'mixed16', store, fetchFn)
+
+    expect(store.deleteCalls).not.toContain(MIXED.opfsName)
+    expect(await store.isComplete(MIXED.opfsName, MIXED.bytes)).toBe(true)
+  })
+
+  it('limpia TAMBIÉN cuando la variante activa ya estaba cacheada (no sólo al descargar)', async () => {
+    // Un dispositivo ya migrado: si la limpieza colgara de la ruta de descarga, se quedaría con los
+    // 115,8 MB viejos para siempre, porque nunca vuelve a descargar.
+    const store = new MockModelStore()
+    store.committed.set(MIXED.opfsName, MIXED.bytes)
+    store.markers.set(MIXED.opfsName, MIXED.bytes)
+    store.committed.set(ENTRY.opfsName, ENTRY.bytes) // el fp32 viejo, todavía ahí
+    store.markers.set(ENTRY.opfsName, ENTRY.bytes)
+    const { fetchFn, calls } = makeFetchFn(() => {
+      throw new Error('fetchFn no debería llamarse')
+    })
+
+    await ensureModel(NET, 'mixed16', store, fetchFn)
+
+    expect(calls).toHaveLength(0) // ruta de caché: cero red
+    expect(store.deleteCalls).toEqual([ENTRY.opfsName])
+    expect(store.committed.has(ENTRY.opfsName)).toBe(false) // los 115,8 MB liberados de verdad
+  })
+
+  it('no toca las variantes de OTRAS redes', async () => {
+    const store = new MockModelStore()
+    const otra = requireManifestEntry('humanv0', 'fp32')
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
+
+    await ensureModel(NET, 'mixed16', store, fetchFn)
+
+    expect(store.deleteCalls).not.toContain(otra.opfsName)
+  })
+
+  it('un fallo al borrar NO impide descargar (best-effort: peor es negar el motor)', async () => {
+    const store = new MockModelStore()
+    store.delete = async (): Promise<void> => {
+      throw new Error('OPFS: no se pudo borrar')
+    }
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(MIXED.bytes), MIXED.bytes))
+
+    await expect(ensureModel(NET, 'mixed16', store, fetchFn)).resolves.toBe('mixed16')
+    expect(await store.isComplete(MIXED.opfsName, MIXED.bytes)).toBe(true)
+  })
+
+  it('devuelve la variante EFECTIVA, que puede no ser la pedida', async () => {
+    const store = new MockModelStore()
+    const { fetchFn } = makeFetchFn(() => okResponse(streamOfTotal(ENTRY.bytes), ENTRY.bytes))
+
+    await expect(ensureModel(NET, VARIANT, store, fetchFn)).resolves.toBe('fp32')
   })
 })

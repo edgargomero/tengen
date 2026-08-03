@@ -8,7 +8,8 @@
 // peor que no tener diagnóstico: deja al usuario sin la parte que sí se pudo medir, que es justo la que
 // contiene la respuesta.
 import { BUILD_ID } from '../buildInfo'
-import { netManifest } from '../models/netManifest'
+import { manifestVariantsOf, type ModelVariant, netManifest, resolveManifestEntry } from '../models/netManifest'
+import { currentModelVariant } from '../models/modelVariant'
 import { createOpfsModelStore } from '../models/modelStore'
 import { currentProbeEnv, errorText, probeGpu } from './gpuProbe'
 import type { GpuProbe, ProbeWorkerMessage } from './gpuProbe'
@@ -41,6 +42,12 @@ export interface StorageReport {
 
 export interface ModelReport {
   net: string
+  /** Precisión de este binario. Se listan TODAS las variantes publicadas, no sólo la activa: un
+   * fp32 viejo que quedó cacheado son 115,8 MB comiéndose la cuota, y sin listarlo es invisible. */
+  variant: ModelVariant
+  /** `true` si es la variante que ESTE dispositivo va a usar. Un `cached: true` en una fila con
+   * `active: false` es exactamente la basura que la limpieza de OPFS debería haber borrado. */
+  active: boolean
   opfsName: string
   bytes: number
   /** `true` = cacheado y completo en OPFS; `null` = no se pudo determinar (ver `error`). */
@@ -60,6 +67,9 @@ export interface Diagnostics {
   userAgent: UserAgentSummary
   serviceWorker: ServiceWorkerReport
   storage: StorageReport
+  /** Variante de precisión que este dispositivo resolvió. Va suelta además de por-fila porque es la
+   * respuesta a "¿por qué este aparato bajó 58 MB y aquel 116?" sin tener que cruzar la tabla. */
+  modelVariant: ModelVariant
   models: ModelReport[]
   /** Sondeo en el hilo principal — el scope donde corre el gate de la app. */
   main: GpuProbe
@@ -126,10 +136,28 @@ async function readStorage(): Promise<StorageReport> {
 
 async function readModels(): Promise<ModelReport[]> {
   const store = createOpfsModelStore()
-  const entries = Object.entries(netManifest)
+  const preferred = currentModelVariant()
+  // Producto cartesiano red × variante: se consulta cada binario publicado, esté activo o no.
+  const rows = Object.keys(netManifest).flatMap((net) => {
+    // La variante ACTIVA de esta red es la resuelta (con fallback), no la preferida a secas: si una
+    // red no publica la preferida, la que se usa de verdad es fp32 y eso es lo que hay que mostrar.
+    let active: ModelVariant | null = null
+    try {
+      active = resolveManifestEntry(net as Parameters<typeof resolveManifestEntry>[0], preferred).variant
+    } catch {
+      // Red sin ninguna variante servible: todas sus filas quedan como no-activas.
+    }
+    return manifestVariantsOf(net as Parameters<typeof manifestVariantsOf>[0]).map(({ variant, entry }) => ({
+      net,
+      variant,
+      active: variant === active,
+      entry,
+    }))
+  })
+
   return Promise.all(
-    entries.map(async ([net, entry]): Promise<ModelReport> => {
-      const base = { net, opfsName: entry.opfsName, bytes: entry.bytes }
+    rows.map(async ({ net, variant, active, entry }): Promise<ModelReport> => {
+      const base = { net, variant, active, opfsName: entry.opfsName, bytes: entry.bytes }
       try {
         return { ...base, cached: await store.isComplete(entry.opfsName, entry.bytes) }
       } catch (err) {
@@ -198,6 +226,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
     }),
     serviceWorker,
     storage,
+    modelVariant: currentModelVariant(),
     models,
     main,
     worker,

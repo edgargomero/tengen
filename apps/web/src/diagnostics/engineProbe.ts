@@ -26,7 +26,8 @@
 import { GameTree } from '../game/gameTree'
 import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
-import { requireManifestEntry } from '../models/netManifest'
+import { type ModelVariant, requireManifestEntry, resolveManifestEntry } from '../models/netManifest'
+import { currentModelVariant } from '../models/modelVariant'
 import { createOpfsModelStore } from '../models/modelStore'
 import { ensureModel } from '../models/modelCache'
 import { errorText } from './gpuProbe'
@@ -46,6 +47,24 @@ const PROBE_BOARD_SIZE: BoardSize = 19
 export const PROBE_NETWORKS = [
   { id: 'b18' as NetworkId, label: 'KataGo' },
   { id: 'humanv0' as NetworkId, label: 'Human SL' },
+] as const
+
+/**
+ * Qué VARIANTE de precisión medir. Este es el eje que la nota de arriba decía que faltaba: cambiar
+ * de red no mide el efecto del tamaño (b18 y humanv0 pesan casi lo mismo), pero cambiar de variante
+ * sí — son el MISMO modelo en 115,8 y 58,1 MB.
+ *
+ * Es el experimento que decide si hace falta convertir una red más chica. Con el fp32, este iPhone
+ * muere alrededor de la inferencia 80 en los dos navegadores; si el mixto completa las 6 tandas
+ * (120 inferencias), la mitad de memoria alcanzó y b10c128 no hace falta. Si también muere, ese dato
+ * reabre la discusión — con evidencia en vez de con una suposición.
+ *
+ * Elegir una variante acá NO cambia lo que hace la app: viaja al worker por un mensaje propio de
+ * apps/web (`engine/variantMessage.ts`) que no toca el protocolo del motor.
+ */
+export const PROBE_VARIANTS = [
+  { id: 'fp32' as ModelVariant, label: 'fp32 (115,8 MB)' },
+  { id: 'mixed16' as ModelVariant, label: 'mixto (58,1 MB)' },
 ] as const
 
 /** Visitas por tanda del reparto por defecto. */
@@ -92,8 +111,10 @@ export interface EngineRound {
 export interface EngineProbeResult {
   /** `false` = el modelo no está descargado en este dispositivo; no hay nada que medir todavía. */
   modelInOpfs: boolean
-  /** Cuánto tardó en levantar el Worker + la sesión ONNX (los 115,8 MB a la GPU). */
+  /** Cuánto tardó en levantar el Worker + la sesión ONNX (el modelo entero a la GPU). */
   initMs?: number
+  /** Qué variante se midió REALMENTE. Sin esto, comparar dos corridas es adivinar. */
+  variant: ModelVariant
   rounds: EngineRound[]
   /** Presente si algo falló; las tandas ya completadas siguen siendo válidas y se devuelven igual. */
   error?: string
@@ -119,6 +140,10 @@ export interface StoredProbe {
   /** Cuántas tandas se habían pedido. Se guarda porque el reparto es configurable: sin esto, un "alcanzó
    * 3 tandas" no se puede leer (¿de 6 o de 12?), y comparar dos corridas es justamente el experimento. */
   totalRounds?: number
+  /** Qué variante de precisión se estaba midiendo. Mismo argumento que `totalRounds`, y más fuerte:
+   * el experimento ES fp32-contra-mixto, así que una corrida guardada sin esto no se puede leer.
+   * Opcional porque las corridas guardadas ANTES de que existieran las variantes no lo tienen. */
+  variant?: ModelVariant
   error?: string
 }
 
@@ -146,6 +171,7 @@ export function loadStoredProbe(storage: Pick<Storage, 'getItem'>): StoredProbe 
     const stored: StoredProbe = { at: p.at, rounds: p.rounds, finished: p.finished === true }
     if (typeof p.initMs === 'number') stored.initMs = p.initMs
     if (typeof p.totalRounds === 'number') stored.totalRounds = p.totalRounds
+    if (p.variant === 'fp32' || p.variant === 'mixed16') stored.variant = p.variant
     if (typeof p.error === 'string') stored.error = p.error
     return stored
   } catch {
@@ -189,6 +215,15 @@ export function slowdownRatio(rounds: EngineRound[]): number | null {
 export async function probeEngine(opts?: {
   /** Qué red medir. Default `b18` (la de KataGo, que es la que Analizar ya deja en OPFS). */
   network?: NetworkId
+  /**
+   * Qué variante de precisión medir. Omitirla mide EXACTAMENTE lo que hace la app en este
+   * dispositivo (misma resolución, con el mismo fallback, y sin forzar nada en el worker).
+   *
+   * Darla la fuerza, y entonces la resolución pasa a ser ESTRICTA: si esa variante no está publicada
+   * para esa red, falla en vez de caer a fp32. Un fallback silencioso acá rotularía "mixto" una
+   * medición del fp32, y es justo la medición que decide si hay que convertir otra red.
+   */
+  variant?: ModelVariant
   /** Si la red no está descargada, bajarla en vez de rendirse. Lo decide el caller porque son ~110 MB
    * y esta pantalla no debe iniciar una descarga así sin que alguien la haya pedido. */
   download?: boolean
@@ -208,37 +243,68 @@ export async function probeEngine(opts?: {
   const visits = opts?.visitsPerRound ?? PROBE_VISITS_PER_ROUND
   const rounds: EngineRound[] = []
   const nowIso = opts?.nowIso ?? ((): string => new Date().toISOString())
-  const persist = (partial: Omit<StoredProbe, 'at' | 'totalRounds'>): void => {
-    if (opts?.storage) saveStoredProbe(opts.storage, { at: nowIso(), totalRounds, ...partial })
+
+  // Resolución de variante — asimétrica a propósito (ver el doc de `opts.variant`):
+  // · sin `variant` ⇒ camino de producción exacto (con fallback), y el worker no recibe override.
+  // · con `variant` ⇒ estricto, y el worker recibe el override para cargar ESE archivo.
+  let entry: ReturnType<typeof requireManifestEntry>
+  let variant: ModelVariant
+  try {
+    if (opts?.variant === undefined) {
+      const resolved = resolveManifestEntry(network, currentModelVariant())
+      entry = resolved.entry
+      variant = resolved.variant
+    } else {
+      entry = requireManifestEntry(network, opts.variant)
+      variant = opts.variant
+    }
+  } catch (err) {
+    return { modelInOpfs: false, variant: opts?.variant ?? currentModelVariant(), rounds, error: errorText(err) }
   }
 
-  // El modelo tiene que estar YA en OPFS: bajar 115,8 MB desde una pantalla de diagnóstico sin avisar
-  // sería hostil, y en el dispositivo que interesa ya está (jugó una partida).
-  const entry = requireManifestEntry(network)
+  const persist = (partial: Omit<StoredProbe, 'at' | 'totalRounds' | 'variant'>): void => {
+    if (opts?.storage) saveStoredProbe(opts.storage, { at: nowIso(), totalRounds, variant, ...partial })
+  }
+
+  // El modelo tiene que estar YA en OPFS: bajar más de 50 MB desde una pantalla de diagnóstico sin
+  // avisar sería hostil, y en el dispositivo que interesa ya está (jugó una partida).
   const store = createOpfsModelStore()
   let modelInOpfs = false
   try {
     modelInOpfs = await store.isComplete(entry.opfsName, entry.bytes)
   } catch (err) {
-    return { modelInOpfs: false, rounds, error: `no se pudo consultar OPFS: ${errorText(err)}` }
+    return { modelInOpfs: false, variant, rounds, error: `no se pudo consultar OPFS: ${errorText(err)}` }
   }
   if (!modelInOpfs) {
     if (!opts?.download) {
       return {
         modelInOpfs: false,
+        variant,
         rounds,
-        error: `el modelo ${network} todavía no está en este dispositivo (${entry.opfsName}, ${Math.round(entry.bytes / 1e6)} MB).`,
+        // Nombra el `opfsName` de la VARIANTE, no el de la red: con dos variantes por red, decir
+        // sólo "b18" no alcanza para saber qué archivo falta.
+        error: `el modelo ${network} (${variant}) todavía no está en este dispositivo (${entry.opfsName}, ${Math.round(entry.bytes / 1e6)} MB).`,
       }
     }
     try {
-      await ensureModel(network, store, (url) => fetch(url), (p) => opts.onDownloadProgress?.(p.receivedBytes, p.totalBytes ?? entry.bytes))
+      await ensureModel(network, variant, store, (url) => fetch(url), (p) =>
+        opts.onDownloadProgress?.(p.receivedBytes, p.totalBytes ?? entry.bytes),
+      )
       modelInOpfs = true
     } catch (err) {
-      return { modelInOpfs: false, rounds, error: `no se pudo descargar ${network}: ${errorText(err)}` }
+      return { modelInOpfs: false, variant, rounds, error: `no se pudo descargar ${network} (${variant}): ${errorText(err)}` }
     }
   }
 
-  const manager = new EngineManager(createWorkerManagedEngine)
+  // La variante viaja en la CLOSURE de la factory, no en un postMessage suelto: `EngineManager`
+  // reconstruye el worker ante un crash llamándola de nuevo, y una corrida que cambia de variante a
+  // mitad —justo cuando el aparato empieza a fallar— no mediría nada interpretable.
+  // Sin `opts.variant` no se pasa override: el worker resuelve como en producción.
+  const manager = new EngineManager(
+    opts?.variant === undefined
+      ? createWorkerManagedEngine
+      : () => createWorkerManagedEngine({ variant }),
+  )
   // Posición vacía de 19×19: la misma para todas las tandas, así el trabajo pedido es idéntico y la
   // única variable que queda es el estado del dispositivo. Ese es el punto de la medición.
   const tree = new GameTree({
@@ -281,14 +347,14 @@ export async function probeEngine(opts?: {
       opts?.onRound?.(entryRound, [...rounds])
     }
     persist({ initMs, rounds: [...rounds], finished: true })
-    return { modelInOpfs, initMs, rounds }
+    return { modelInOpfs, variant, initMs, rounds }
   } catch (err) {
     const error = errorText(err)
     persist({ rounds: [...rounds], finished: true, error })
-    return { modelInOpfs, rounds, error }
+    return { modelInOpfs, variant, rounds, error }
   } finally {
-    // Siempre: sin esto queda un Worker con 115,8 MB en la GPU vivo mientras la pantalla siga abierta —
-    // justo lo que no hay que hacer en el dispositivo que se está investigando por memoria.
+    // Siempre: sin esto queda un Worker con el modelo entero en la GPU vivo mientras la pantalla siga
+    // abierta — justo lo que no hay que hacer en el dispositivo que se investiga por memoria.
     manager.dispose()
   }
 }

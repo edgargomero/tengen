@@ -5,10 +5,12 @@
 // Por qué escrito a mano y no `generateSW`: tengen tiene tres restricciones que una config genérica
 // no cubre, y las tres romperían algo si se manejaran mal.
 //
-//   1. `/models/*` NO se cachea NUNCA. Los ONNX (110 MB b18 + 103 MB humanv0) ya viven en OPFS,
-//      gestionados por `modelCache.ts` con validación de bytes y marcador de completitud. Dejar que
-//      el service worker los cachee duplicaría 213 MB en el dispositivo y crearía una segunda copia
-//      sin las garantías de integridad de la primera. Van a red y punto.
+//   1. `/models/*` NO se cachea NUNCA. Los ONNX (fp32: 115,8 MB b18 + 108,0 MB humanv0; mixtos:
+//      58,1 y 54,2 MB) ya viven en OPFS, gestionados por `modelCache.ts` con validación de bytes y
+//      marcador de completitud. Dejar que el service worker los cachee duplicaría todo eso en el
+//      dispositivo y crearía una segunda copia sin las garantías de integridad de la primera —
+//      justamente en los móviles, que son los que ya andan cortos de cuota. Van a red y punto.
+//      La ruta se filtra por PREFIJO, así que no hay que tocarla al agregar variantes.
 //   2. `/api/*` NO se cachea NUNCA. Sesión, partidas en D1 y backup a Drive son estado del servidor;
 //      servir una respuesta vieja de `/api/auth/get-session` mostraría al usuario logueado cuando no
 //      lo está. Sin red, fallan — y la app ya degrada bien ante eso (verificado: renderiza y ofrece

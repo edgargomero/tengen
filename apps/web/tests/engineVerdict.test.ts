@@ -18,7 +18,7 @@ function rounds(msPerRound: number[]): EngineRound[] {
 }
 
 function result(over: Partial<EngineProbeResult> = {}): EngineProbeResult {
-  return { modelInOpfs: true, initMs: 3000, rounds: [], ...over }
+  return { modelInOpfs: true, variant: 'fp32', initMs: 3000, rounds: [], ...over }
 }
 
 describe('slowdownRatio', () => {

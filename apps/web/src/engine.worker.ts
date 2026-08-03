@@ -4,6 +4,8 @@
 import { createWorkerHandler, LocalEngine } from '@tengen/engine'
 import type { WorkerRequest } from '@tengen/engine'
 import { appEvaluatorFactory } from './appFactory'
+import { isVariantMessage } from './engine/variantMessage'
+import type { ModelVariant } from './models/netManifest'
 
 // `self` está tipado como Window (lib DOM); su postMessage tiene otra firma. Cast al contrato real del
 // dedicated worker scope (mismo patrón que packages/engine/src/worker/engine.worker.ts).
@@ -12,6 +14,23 @@ const scope = self as unknown as {
   addEventListener(type: 'message', listener: (ev: { data: unknown }) => void): void
 }
 
-const engine = new LocalEngine({ evaluatorFactory: appEvaluatorFactory })
+// Variante forzada por la prueba de `/diagnostico`. `undefined` = producción: `appEvaluatorFactory`
+// resuelve la del dispositivo, la misma que resolvió `ModelGate` al descargar (ver `modelVariant.ts`).
+// Se lee DENTRO de la closure, no al construir: el mensaje llega antes del init, pero la factory sólo
+// se invoca en el init, así que para entonces el valor ya está.
+let variantOverride: ModelVariant | undefined
+
+const engine = new LocalEngine({
+  evaluatorFactory: (net, boardSize) => appEvaluatorFactory(net, boardSize, variantOverride),
+})
 const handle = createWorkerHandler(engine, (msg, transfer) => scope.postMessage(msg, transfer ?? []))
-scope.addEventListener('message', (ev) => handle(ev.data as WorkerRequest))
+
+scope.addEventListener('message', (ev) => {
+  // El mensaje de variante es de apps/web, no del protocolo del motor: se consume y se RETORNA acá.
+  // Pasarlo a `handle` haría que `createWorkerHandler` lance por `type` desconocido.
+  if (isVariantMessage(ev.data)) {
+    variantOverride = ev.data.variant
+    return
+  }
+  handle(ev.data as WorkerRequest)
+})

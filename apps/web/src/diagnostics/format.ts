@@ -167,7 +167,11 @@ function modelLines(models: ModelReport[]): string[] {
   if (models.length === 0) return ['(el manifest no tiene redes)']
   return models.map((model) => {
     const state = model.cached === null ? `indeterminado (${model.error ?? 'sin detalle'})` : model.cached ? 'en caché' : 'falta'
-    return `${model.net}: ${state} — ${formatBytes(model.bytes)} (${model.opfsName})`
+    // La marca de activa/inactiva es el dato que hace legible el resto: una variante INACTIVA que
+    // figura "en caché" son 100+ MB de basura que la limpieza de OPFS debería haber borrado, y sin
+    // esta columna se lee igual que una activa sana.
+    const role = model.active ? 'activa' : 'inactiva'
+    return `${model.net} ${model.variant} (${role}): ${state} — ${formatBytes(model.bytes)} (${model.opfsName})`
   })
 }
 
@@ -227,7 +231,7 @@ export function formatDiagnostics(d: Diagnostics, extras: ExtraSection[] = []): 
       ...(d.serviceWorker.error ? [`error: ${d.serviceWorker.error}`] : []),
     ]),
     section('almacenamiento', storageLines(d.storage)),
-    section('modelos en OPFS', modelLines(d.models)),
+    section('modelos en OPFS', [`variante de este dispositivo: ${d.modelVariant}`, ...modelLines(d.models)]),
   ]
 
   if (notes.length > 0) blocks.push(section('avisos', notes.map((note) => `· ${note}`)))

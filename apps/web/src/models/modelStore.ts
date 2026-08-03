@@ -26,6 +26,15 @@ export interface ModelStore {
   openWritable(name: string): Promise<WritableSink>
   /** Setea el marcador de completado. Lo llama SOLO ensureModel, tras validar bytes. */
   markComplete(name: string, bytes: number): Promise<void>
+  /**
+   * Borra la entrada de OPFS Y su marcador. Idempotente: un archivo ausente NO es un error.
+   * Sólo hilo principal (toca `localStorage`, igual que `markComplete`/`isComplete`).
+   *
+   * Existe por la migración a variantes de precisión: un móvil que ya tenía los dos fp32 (223,8 MB)
+   * sumaría los mixtos (112,3 MB) sin liberar nada. En el iPhone que originó todo esto —252,6 MB ya
+   * en uso— eso no es una ineficiencia, es no entrar.
+   */
+  delete(name: string): Promise<void>
 }
 
 // Impl OPFS real (browser-only; 100% tengen, no adaptada de upstream). No hay unit test
@@ -97,6 +106,19 @@ export function createOpfsModelStore(): ModelStore {
       } catch (err) {
         if (isNotFound(err)) return false // archivo ausente → no completo (fuerza re-descarga).
         throw err
+      }
+    },
+
+    async delete(name: string): Promise<void> {
+      // El marcador PRIMERO: si el borrado del archivo fallara a mitad, el estado resultante
+      // (archivo presente, marcador ausente) es el seguro — `isComplete` da false y se re-descarga.
+      // El orden inverso dejaría un marcador prometiendo un archivo que ya no está.
+      localStorage.removeItem(MARKER_PREFIX + name)
+      try {
+        const dir = await navigator.storage.getDirectory()
+        await dir.removeEntry(name)
+      } catch (err) {
+        if (!isNotFound(err)) throw err // ausente = ya está borrado, que es el estado buscado.
       }
     },
 

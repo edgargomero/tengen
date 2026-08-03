@@ -38,7 +38,10 @@ function diagnostics(overrides: Partial<Diagnostics> = {}): Diagnostics {
     userAgent: summarizeUserAgent({ userAgent: UA_IPHONE }),
     serviceWorker: { supported: true, controlled: true, scope: 'https://tengen.kntor.io/', waiting: false },
     storage: { persisted: true, usageBytes: 223_840_268, quotaBytes: 1_000_000_000 },
-    models: [{ net: 'b18', opfsName: 'b18c384nbt-kata1.fp32.v1.onnx', bytes: 115_800_125, cached: true }],
+    modelVariant: 'fp32',
+    models: [
+      { net: 'b18', variant: 'fp32', active: true, opfsName: 'b18c384nbt-kata1.fp32.v1.onnx', bytes: 115_800_125, cached: true },
+    ],
     main: probe('main'),
     worker: probe('worker'),
     ...overrides,
@@ -153,13 +156,13 @@ describe('formatDiagnostics', () => {
     const dump = formatDiagnostics(
       diagnostics({
         models: [
-          { net: 'b18', opfsName: 'a.onnx', bytes: 115_800_125, cached: true },
-          { net: 'humanv0', opfsName: 'b.onnx', bytes: 108_040_143, cached: false },
+          { net: 'b18', variant: 'fp32', active: true, opfsName: 'a.onnx', bytes: 115_800_125, cached: true },
+          { net: 'humanv0', variant: 'fp32', active: true, opfsName: 'b.onnx', bytes: 108_040_143, cached: false },
         ],
       }),
     )
-    expect(dump).toContain('b18: en caché — 115.8 MB')
-    expect(dump).toContain('humanv0: falta — 108.0 MB')
+    expect(dump).toContain('b18 fp32 (activa): en caché — 115.8 MB')
+    expect(dump).toContain('humanv0 fp32 (activa): falta — 108.0 MB')
   })
 })
 

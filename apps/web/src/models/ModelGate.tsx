@@ -9,6 +9,7 @@ import type { ComponentChildren } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import type { NetworkId } from '@tengen/engine'
 import { ensureModel } from './modelCache'
+import { currentModelVariant } from './modelVariant'
 import { createOpfsModelStore } from './modelStore'
 import { ensurePersistentStorage, isDurable, type PersistenceResult } from './persistentStorage'
 import type { DownloadProgress } from './progress'
@@ -51,8 +52,12 @@ export function ModelGate({ net, children }: ModelGateProps) {
       if (!stale) setPersistence(result)
     })
 
+    // `currentModelVariant()` es la MISMA llamada que hace `appFactory` en el worker, sin argumentos
+    // en ninguno de los dos lados. Es lo que garantiza que el worker lea el archivo que este efecto
+    // acaba de descargar; ver el comentario largo de `modelVariant.ts`.
     ensureModel(
       net,
+      currentModelVariant(),
       createOpfsModelStore(),
       (url) => fetch(url),
       (p) => {
