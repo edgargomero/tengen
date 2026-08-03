@@ -51,7 +51,6 @@ import { exportSgf, importSgf } from '../game/sgf'
 import { colorToSign, engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
-import { TopBar } from './TopBar'
 import { useBoundedBoardSize } from './useBoundedBoardSize'
 
 interface PlayViewProps {
@@ -66,7 +65,6 @@ interface PlayViewProps {
   /** Bubblea un SGF importado hacia `main.tsx`, que remonta este componente con el árbol nuevo
    * (ver Task 5 R4: el remonte real ocurre por `key`, no por un cambio de props). */
   onImport(config: GameConfig, tree: GameTree): void
-  onBack(): void
 }
 
 /** Visitas fijas para la estimación de score de fin de partida (`analyzeToScore`). Valor modesto:
@@ -113,7 +111,7 @@ function formatClockMs(ms: number): string {
 
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
  * antes de montar nada que asuma el modelo listo (`ReadyPlayView`). */
-export function PlayView({ config, initialTree, cloudId, onNewGame, onImport, onBack }: PlayViewProps) {
+export function PlayView({ config, initialTree, cloudId, onNewGame, onImport }: PlayViewProps) {
   const net = networkForOpponent(config.opponent)
   return (
     <ModelGate net={net}>
@@ -124,7 +122,6 @@ export function PlayView({ config, initialTree, cloudId, onNewGame, onImport, on
         net={net}
         onNewGame={onNewGame}
         onImport={onImport}
-        onBack={onBack}
       />
     </ModelGate>
   )
@@ -137,7 +134,6 @@ interface ReadyPlayViewProps {
   net: NetworkId
   onNewGame(): void
   onImport(config: GameConfig, tree: GameTree): void
-  onBack(): void
 }
 
 /** Nombre autogenerado de la partida en la nube (sin UI de renombrar en esta fase — spec §Modelo
@@ -148,7 +144,7 @@ function cloudGameName(config: GameConfig): string {
   return `${size} vs ${opponentLabel(config.opponent)} — ${formatDateForFilename(new Date())}`
 }
 
-function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport, onBack }: ReadyPlayViewProps) {
+function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport }: ReadyPlayViewProps) {
   // Árbol y motor: UNA instancia por montaje (una partida = un ReadyPlayView montado; "Nueva
   // partida"/import/restore desmontan este árbol vía main.tsx —con un `key` distinto— y montan uno
   // nuevo desde cero).
@@ -746,7 +742,6 @@ function ReadyPlayView({ config, initialTree, cloudId, net, onNewGame, onImport,
 
   return (
     <div class="study-shell">
-      <TopBar mode="jugar" onHome={onBack} />
       <div class="study-main">
       <div class="study-board" ref={boardRef}>
         {boardBounds && (

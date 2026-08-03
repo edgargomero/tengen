@@ -1,6 +1,11 @@
 <!doctype html>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- `viewport-fit=cover` es lo que hace que `env(safe-area-inset-*)` devuelva algo distinto de 0: sin
+     él, la barra inferior de navegación cae debajo del indicador de inicio en la PWA instalada y
+     queda parcialmente intocable. Ojo con el alcance: extiende el viewport bajo el recorte en TODA
+     la app, no sólo en esa barra, así que el padding de safe-area va también en la topbar y en el
+     contenedor de contenido (ver `.topbar` / `.app-frame-main` en app.css). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>tengen</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 

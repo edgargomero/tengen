@@ -132,9 +132,19 @@
   /* Movimiento — una sola duración. La UI RESPONDE al dedo; no se anima. */
   --motion-fast: 90ms;
 
-  /* Chrome — alto de la TopBar. Fijo a propósito: el cálculo no-scroll del tablero
-     (useBoundedBoardSize) depende de que esta banda no cambie de alto con su contenido. */
+  /* Chrome — alto de las dos barras del marco. Fijo a propósito: el cálculo no-scroll del tablero
+     (useBoundedBoardSize) depende de que estas bandas no cambien de alto con su contenido. Que la
+     superior sume el estado de sesión no puede moverlo — por eso su badge usa los tokens compactos
+     de control (`--ctl-*`) y no el padding por defecto del átomo botón. */
   --topbar-h: 3rem;
+  /* 56px: el mínimo que deja un tap target cómodo con etiqueta debajo del pulgar. */
+  --navbar-h: 3.5rem;
+
+  /* Lo que la barra INFERIOR le quita al contenido. Vale 0 por defecto y sólo toma cuerpo en la
+     forma de viewport donde esa barra existe (ver el media query al final del archivo), así que el
+     mismo `padding-bottom` sirve en las dos formas sin condicionales. Incluye la safe-area porque
+     una barra fija al fondo cae debajo del indicador de inicio en la PWA instalada. */
+  --nav-inset: 0px;
 
   /* Proporciones del template "estudio de tablero", declaradas juntas porque lo que dicen es su
      RELACIÓN: el tablero puede ocupar hasta 46rem y el rail nunca pasa de 18rem — ~2.5:1. Eso
@@ -534,11 +544,16 @@ fieldset.field {
   border-top: 1px solid var(--border-2);
 }
 
-/* BrandNav — marca (home) + separador + dónde estás. */
+/* BrandNav — marca (home) + separador + dónde estás.
+   `min-width: 0` + `flex: 0 1 auto` la vuelven la parte que CEDE cuando el ancho aprieta: la
+   ubicación es el dato redundante del marco (el destino activo ya la dice), así que se recorta
+   antes que los destinos o el estado de sesión, que son acciones. */
 .topbar-brand {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .topbar-home {
@@ -566,6 +581,52 @@ fieldset.field {
 .topbar-location {
   color: var(--ink-2);
   font-size: var(--text-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El estado de sesión, presente en TODA pantalla y no sólo en el menú. Dos formas del mismo lugar:
+   un botón cuando no hay sesión (la única acción que el marco ofrece) y un `<span>` cuando la hay
+   (el marco informa; "Cerrar sesión" se queda en el menú, para que un toque accidental sobre el
+   chrome no te desconecte a mitad de partida).
+   Tokens de control COMPACTOS a propósito: `--topbar-h` es un alto fijo por contrato, así que un
+   botón con el padding por defecto del átomo no la agrandaría — la desbordaría. */
+.topbar-session {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  max-width: 14rem;
+  padding: var(--ctl-pad-y) var(--ctl-pad-x);
+  font-size: var(--ctl-font);
+  color: var(--ink-2);
+}
+
+/* Con sesión no es interactivo: sin superficie, sin borde, sin cursor. */
+.topbar-session--in {
+  border: 1px solid transparent;
+  color: var(--ink-3);
+}
+
+.topbar-session-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sin foto de Google: la inicial dentro del mismo disco de 24px. Mantiene la presencia (el ojo
+   busca un avatar, no un texto) sin introducir una segunda forma. */
+.session-avatar--initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-2);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 
 /* Barra de progreso de descarga (gate de modelo): pista inset + relleno kaya. El único acento de
@@ -594,16 +655,85 @@ fieldset.field {
 
 /* TopBar — chrome de la VENTANA, no del contenido: la banda cruza el viewport entero y su línea
    inferior separa app de lienzo. Por eso no comparte el ancho centrado del board+panel (intentar
-   alinearlos dejaba dos bordes compitiendo, uno más ancho que el otro). */
+   alinearlos dejaba dos bordes compitiendo, uno más ancho que el otro).
+   Ya NO la monta cada vista: la monta `AppFrame` una sola vez alrededor del router, así que la
+   heredan también las pantallas sin tablero — que es donde faltaba.
+   `sticky` y no `fixed`: se queda pegada arriba mientras la página scrollea, sin salir del flujo y
+   sin obligar a compensar su alto con un padding que habría que mantener sincronizado.
+   El `max()` del padding es por `viewport-fit=cover`: con el viewport extendido bajo el notch, un
+   padding fijo dejaría la marca debajo del recorte en apaisado. */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
   height: var(--topbar-h);
-  padding: 0 var(--sp-5);
+  flex: 0 0 auto;
+  padding-left: max(var(--sp-5), env(safe-area-inset-left));
+  padding-right: max(var(--sp-5), env(safe-area-inset-right));
   background: var(--surface);
   border-bottom: 1px solid var(--border-1);
+  position: sticky;
+  top: 0;
+  /* Debajo del `PwaToast` (10), que es lo único que FLOTA sobre el contenido. */
+  z-index: 5;
+}
+
+/* La mitad derecha: a dónde puedes ir + quién eres. Agrupadas porque las dos hablan de la APP y no
+   del contenido, y porque juntas son el bloque que NO cede ancho (ver `.topbar-brand`). */
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: 0 0 auto;
+}
+
+/* AppBar — los destinos al alcance del pulgar, en el viewport ANGOSTO Y ALTO.
+   `display: none` por defecto y `flex` sólo dentro del media query que a la vez apaga el conmutador
+   de la topbar: el criterio de qué forma manda vive en UN lugar, así que no puede existir un
+   viewport sin ninguna de las dos. El nodo se renderiza siempre (aunque esté oculto) porque
+   `useBoundedBoardSize` MIDE su alto — oculto da 0 y el hook no necesita repetir el breakpoint.
+   Es `fixed` y no parte del flujo: en un formulario de 1196px, una barra al final del documento
+   estaría a 1,4 pantallas de scroll, que es exactamente el problema que este marco elimina.
+   Sin sombra: no flota sobre el contenido como el `PwaToast` (un aviso despegado del plano), está
+   anclada a un borde de la ventana. Un borde-susurro es toda la separación que necesita. */
+.appbar {
+  display: none;
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 5;
+  align-items: stretch;
+  height: calc(var(--navbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background: var(--surface);
+  border-top: 1px solid var(--border-1);
+}
+
+/* Celdas iguales: son destinos pares, ninguno es la acción que lidera. Botón sin superficie ni
+   borde — la barra ya ES la superficie, y un botón dentro de otra caja duplicaría el tratamiento. */
+.appbar button {
+  flex: 1 1 0;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  padding: var(--sp-1) var(--sp-2);
+}
+
+/* El destino donde estás. Tercera expresión del MISMO acento, no un cuarto patrón de "activo":
+   `.segmented` eleva a `--surface-raised` (está adelante) y `.choice-row` usa el kaya tenue de
+   fondo (está encendido); acá no sirve ninguno de los dos — la barra es full-bleed, así que no hay
+   superficie contra la cual despegarse, y pintar una celda entera de 56px sería el bloque de color
+   más grande de la app, en una interfaz cuya regla es que el color vive en el TABLERO. Queda la
+   TINTA: `--kaya-ink` (el token de acento que pasa AA como texto, 5.64 sobre `--surface`) más el
+   peso, que es el segundo eje de jerarquía del sistema. */
+.appbar button[aria-current='page'] {
+  color: var(--kaya-ink);
+  font-weight: var(--weight-semibold);
 }
 
 /* Rail de estudio — la columna de trabajo junto al goban. Es una superficie, no un borde: se
@@ -1019,7 +1149,12 @@ fieldset.field {
 .pwa-toast {
   position: fixed;
   left: 50%;
-  bottom: var(--sp-4);
+  /* Se apoya SOBRE la barra de destinos, no encima de ella. El toast tiene más z-index (es lo único
+     que flota), así que sin este desplazamiento taparía los tres destinos — y el aviso de versión
+     nueva no se autodescarta a propósito, con lo cual la navegación quedaría bloqueada hasta que el
+     usuario lo cierre. `--nav-inset` vale 0 donde la barra no existe, así que en escritorio la
+     posición no cambia. */
+  bottom: calc(var(--sp-4) + var(--nav-inset));
   transform: translateX(-50%);
   z-index: 10;
   display: flex;
@@ -1088,18 +1223,59 @@ fieldset.field {
   padding: 0 0.15em;
 }
 
+/* ═══ Nivel 4: TEMPLATE "marco de app" ═════════════════════════════════════════════════════════
+   El esqueleto que envuelve a TODOS los demás. Lo monta `AppFrame` una sola vez alrededor del
+   router, así que toda ruta presente y futura lo hereda sin hacer nada.
+
+   ANCHO (≥768px, incluido cualquier teléfono APAISADO)      ANGOSTO Y ALTO (<768px, ≥480px de alto)
+   ┌──────────────────────────────────────────┐              ┌───────────────────────┐
+   │ tengen · Jugar   [Jugar|Analizar|…]  (o) │ --topbar-h   │ tengen · Jugar    (o) │ --topbar-h
+   ├──────────────────────────────────────────┤              ├───────────────────────┤
+   │              .app-frame-main             │              │    .app-frame-main    │
+   └──────────────────────────────────────────┘              ├───────────────────────┤
+                                                             │ Jugar Analizar Partidas│ --navbar-h
+                                                             └───────────────────────┘
+
+   `min-height` y NUNCA `height` + `overflow: hidden` en el marco: el contenido largo (la lista de
+   partidas, el formulario de nueva partida) tiene que poder crecer y scrollear la página. Poner el
+   viewport en el marco cortaría ambas en una pantalla corta. Quien toma el viewport es el `.study-shell`
+   de escritorio, que ya lo hacía y ahora descuenta la banda superior. */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* `justify-content: center` es seguro EXACTAMENTE por lo de arriba: como este contenedor no tiene
+   altura fija ni overflow propio, crece con su contenido y el centrado sólo actúa cuando SOBRA
+   espacio — nunca corta el principio de una pantalla larga. Es lo que despega las tarjetas del
+   borde superior, que dejaban dos tercios de pantalla vacíos en las cortas.
+   El `padding-bottom` es lo que impide que la barra fija tape el final del contenido: `min-height`
+   sola alcanza para las pantallas cortas, pero un formulario de 1196px termina debajo de la barra.
+   El `padding-inline` es por `viewport-fit=cover`, que extiende el viewport bajo el notch en TODA
+   la app y no sólo en la barra nueva. */
+.app-frame-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: var(--nav-inset);
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
 /* ═══ Nivel 4: TEMPLATE "estudio de tablero" ═══════════════════════════════════════════════════
    Un solo esqueleto para Jugar y Analizar (antes eran dos copias idénticas con nombres distintos):
 
-   ┌ TopBar (chrome de la ventana) ──────────────────────────────┐
-   ├ .study-main ────────────────────────────────────────────────┤
+   ┌ .study-main ────────────────────────────────────────────────┐
    │   .study-board (héroe, llena la altura)  │  .study-rail      │
    └─────────────────────────────────────────────────────────────┘
 
-   En desktop el shell toma el viewport y la PÁGINA nunca scrollea; en mobile se apila. */
+   Vive DENTRO del marco de app (que aporta las barras). En desktop el shell toma el viewport menos
+   la banda superior y la PÁGINA nunca scrollea; en mobile se apila. */
 .study-shell {
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 /* Ocupa todo el ancho del shell y CENTRA el par tablero+rail con `justify-content`. Nunca lleva
@@ -1129,8 +1305,14 @@ fieldset.field {
 
 /* ═══ Nivel 5: PANTALLAS DE TARJETA (menú, formularios, listados) ══════════════════════════════ */
 
-/* Tarjeta centrada: el patrón de toda pantalla que NO es el estudio de tablero. */
+/* Tarjeta centrada: el patrón de toda pantalla que NO es el estudio de tablero.
+   `width: 100%` no es decorativo y la razón es la MISMA trampa que documenta `.study-main`: desde que
+   el marco de app existe, estas pantallas son flex items en vez de bloques, y un margen automático en
+   el eje transversal (el `auto` de `margin: … auto`, que es lo que las centra) CANCELA el stretch —
+   el ancho pasa a depender del contenido. Medido: 355px donde el contenedor daba 390. Con esto
+   vuelven a llenar hasta su `max-width` como cuando eran bloques. */
 .card-screen {
+  width: 100%;
   margin: var(--sp-6) auto;
   padding: var(--sp-6);
   background: var(--surface);
@@ -1289,6 +1471,9 @@ fieldset.field {
 /* Pantallas de sistema (gate de WebGPU, error boundary, descarga del modelo): centradas, sobrias,
    mismo lenguaje que las tarjetas. La de descarga es la que más tiempo mira un usuario nuevo. */
 .system-screen {
+  /* Ver la nota de `.card-screen`: también son flex items del marco y también las centra un margen
+     automático, que sin esto les cancelaría el stretch. */
+  width: 100%;
   margin: var(--sp-6) auto;
   padding: 0 var(--sp-4);
   max-width: 32rem;
@@ -1406,9 +1591,12 @@ fieldset.field {
    apps de Go serias (Lizzie/KaTrain/OGS). Solo ≥768px; mobile sigue apilando + scroll de página.
    El breakpoint está espejado en `useBoundedBoardSize.ts`: si cambia acá, cambia allá. */
 @media (min-width: 768px) {
+  /* Descuenta la banda superior, que desde el marco unificado ya no vive DENTRO de este shell. Sin
+     el `calc`, tablero + topbar sumarían más que el viewport y la página escrituraría scroll justo
+     en la pantalla cuyo contrato es no tenerlo. */
   .study-shell {
-    height: 100vh;
-    max-height: 100vh;
+    height: calc(100dvh - var(--topbar-h));
+    max-height: calc(100dvh - var(--topbar-h));
     overflow: hidden;
   }
 
@@ -1451,11 +1639,56 @@ fieldset.field {
   }
 }
 
+/* ═══ La forma ANGOSTA Y ALTA: los destinos bajan al pulgar ════════════════════════════════════
+   El criterio es la FORMA del viewport, no el dispositivo, y las dos condiciones de este único
+   media query son también la definición de "acá NO" para el conmutador de arriba. Que vivan juntas
+   no es estilo: escritas como dos reglas independientes (`≥768` para el conmutador, `<768 y ≥480`
+   para la barra) dejan un hueco donde no aparece NINGUNA de las dos — un iPhone SE apaisado
+   (667×375) o una ventana de escritorio a 700×400 se quedaban sin ningún destino, que es la misma
+   regresión que este marco existe para cerrar.
+
+   Por qué el alto también entra en el criterio: en un teléfono APAISADO el goban lo fija la altura
+   (844×390 → `min(828, 294)`), así que 56px ahí serían un 19% de tablero. Pero un teléfono apaisado
+   mide 844px de ancho, o sea que cae del lado ancho y recibe los destinos arriba, donde sobra
+   lugar. El `min-height` cubre a los teléfonos chicos, que apaisados no llegan al breakpoint (un
+   iPhone SE da 667px). En retrato, en cambio, manda el ANCHO (`min(374, …)` en un iPhone 12): la
+   barra podría comer 374px de alto antes de tocar el tablero. Cero píxeles perdidos. */
+@media (max-width: 767px) and (min-height: 480px) {
+  :root {
+    --nav-inset: calc(var(--navbar-h) + env(safe-area-inset-bottom));
+  }
+
+  .appbar {
+    display: flex;
+  }
+
+  /* Los destinos están abajo: acá arriba sobrarían, y son los 144px que le devuelven a la ubicación
+     y al estado de sesión el ancho que necesitan en 390px. */
+  .topbar .segmented {
+    display: none;
+  }
+}
+
+/* Fuera de escritorio el email no cabe: el badge con sesión mide 208px medidos, contra los 24 de un
+   avatar solo, y lo que cede por él es la UBICACIÓN — la mitad del punto del marco. Criterio propio y
+   por eso regla propia (no entra en el media query de arriba): el email sobra en cuanto el ancho
+   aprieta, tanto en retrato como en el apaisado chico donde los destinos siguen arriba. El avatar se
+   queda: lo que hay que poder leer de un vistazo es "hay alguien logueado", y el email completo sigue
+   en el `title` y en el menú. */
+@media (max-width: 767px) {
+  .topbar-session-email {
+    display: none;
+  }
+}
+
 /* ═══ Mobile ══════════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 480px) {
+  /* Longhand y no el shorthand `padding`: el shorthand borraría el `max(…, env(safe-area-inset-*))`
+     de la regla base, que es lo que mantiene la marca fuera del recorte del notch. */
   .topbar {
-    padding: 0 var(--sp-4);
+    padding-left: max(var(--sp-4), env(safe-area-inset-left));
+    padding-right: max(var(--sp-4), env(safe-area-inset-right));
   }
 
   .study-main {

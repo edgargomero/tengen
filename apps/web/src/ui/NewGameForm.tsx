@@ -352,14 +352,20 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
 
       {errorMsg && <p class="notice notice--danger">{errorMsg}</p>}
 
-      {/* La acción que lidera va al final y sola en su peso; "Volver" se apaga debajo — antes
-          encabezaba el formulario a ancho completo, compitiendo con el título. */}
-      <button type="submit" class="primary">
-        Empezar partida
-      </button>
-      <button type="button" class="ghost" onClick={onBack}>
-        Volver
-      </button>
+      {/* La acción que lidera va al final; la de al lado se apaga — antes encabezaba el formulario
+          a ancho completo, compitiendo con el título.
+          Dejó de decir "Volver" y de ser una acción apilada: con el marco de navegación arriba, la
+          SALIDA ya está siempre visible, así que este botón no es navegación — es CANCELAR el
+          formulario que estás llenando. Por eso comparte fila con el primario (`.action-row`) en vez
+          de colgar debajo, que es donde vivía a 1196px de scroll en un teléfono. */}
+      <div class="action-row">
+        <button type="submit" class="primary">
+          Empezar partida
+        </button>
+        <button type="button" class="ghost" onClick={onBack}>
+          Cancelar
+        </button>
+      </div>
     </form>
   )
 }

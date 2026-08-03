@@ -56,8 +56,16 @@ no derivan de nada: una sombra no es tinta.
 | Controles | `--control-bg` · `--control-border` · `--control-hover` · `--control-press` |
 | Espaciado / radios | `--sp-0..6` · `--radius-sm/md/lg` |
 | **Tipografía** | `--text-xs/sm/md/base/lg` · `--weight-medium/semibold/bold` · `--leading-tight/normal` · `--tracking-tight/eyebrow` |
-| Movimiento / chrome | `--motion-fast` · `--topbar-h` |
+| Movimiento / chrome | `--motion-fast` · `--topbar-h` (3rem) · **`--navbar-h`** (3.5rem) · **`--nav-inset`** |
 | Proporciones del template | `--board-max` (46rem) · `--rail-w` (18rem) · `--rail-w-min` |
+
+**`--nav-inset` es un token CONDICIONAL, y es el único.** Vale `0px` en `:root` y sólo toma cuerpo
+(`calc(var(--navbar-h) + env(safe-area-inset-bottom))`) dentro del media query donde la barra
+inferior existe. Eso permite que el mismo `padding-bottom` sirva en las dos formas de viewport sin
+un solo condicional en el CSS de contenido. Lo que **no** permite es leerlo desde JS:
+`getComputedStyle(root).getPropertyValue('--nav-inset')` devuelve la string `calc(…)` sin resolver
+(verificado en Chrome), así que `useBoundedBoardSize` mide el `offsetHeight` del nodo real — misma
+disciplina que el auditor de contraste, se mide lo pintado.
 
 **Los colores de TEXTO se eligen por contraste medido, no a ojo.** Cuatro correcciones salieron de
 medir en vez de mirar — y las últimas dos, de medir el DOM **renderizado** en vez de la paleta:
@@ -130,10 +138,41 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
 
 ## Nivel 3 — Organismos
 
-- **TopBar** (`.topbar`, `ui/TopBar.tsx`): **chrome de la VENTANA, no del contenido** — la banda cruza
-  el viewport entero. Antes compartía el ancho centrado del contenido y quedaban dos bordes compitiendo,
-  uno más ancho que el otro (la "deuda de alineación" que este cambio elimina, no documenta). Alto fijo
-  (`--topbar-h`) porque el cálculo no-scroll del tablero depende de que no cambie con su contenido.
+- **TopBar** (`.topbar`, dentro de `ui/AppFrame.tsx`): **chrome de la VENTANA, no del contenido** — la
+  banda cruza el viewport entero. Antes compartía el ancho centrado del contenido y quedaban dos bordes
+  compitiendo, uno más ancho que el otro (la "deuda de alineación" que este cambio elimina, no documenta).
+  Alto fijo (`--topbar-h`) porque el cálculo no-scroll del tablero depende de que no cambie con su
+  contenido — por eso el badge de sesión usa los tokens compactos `--ctl-*` y no el padding por defecto
+  del átomo botón, que la desbordaría en vez de agrandarla. Es `sticky`, no `fixed`: se queda arriba
+  al scrollear sin salir del flujo ni obligar a compensar su alto con un padding paralelo.
+  **Ya NO la montan las vistas.** Ese era el fallo estructural: `PlayView` y `AnalyzeView` eran sus dos
+  únicos usos, así que una pantalla nueva no heredaba nada y las cuatro sin tablero (menú, nueva partida,
+  mis partidas, picker de SGF) se quedaron sin chrome. Ahora la monta el marco.
+- **AppBar** (`.appbar`, dentro de `ui/AppFrame.tsx`): los destinos al alcance del pulgar, en el viewport
+  **angosto y alto**. Es `fixed` porque en un formulario de 1196px una barra al final del documento
+  estaría a 1,4 pantallas de scroll — exactamente el problema que existe para eliminar. **Sin sombra:**
+  no flota sobre el contenido como el `PwaToast` (un aviso despegado del plano), está anclada a un borde
+  de la ventana; un borde-susurro es toda la separación que necesita.
+  - **El destino activo es la TERCERA expresión del mismo acento**, no un cuarto patrón: `.segmented`
+    eleva a `--surface-raised` (*está adelante*) y `.choice-row` usa el kaya tenue de fondo (*está
+    encendido*); acá no sirve ninguno — la barra es full-bleed, así que no hay superficie contra la
+    cual despegarse, y pintar una celda de 56px sería el bloque de color más grande de la app en una
+    interfaz cuya regla es que el color vive en el TABLERO. Queda la TINTA: `--kaya-ink` (6.00 sobre
+    `--surface` en claro, 7.37 en oscuro) más el peso, que es el segundo eje de jerarquía del sistema.
+  - **Se renderiza SIEMPRE y se apaga con CSS.** No es pereza: `useBoundedBoardSize` mide su
+    `offsetHeight`, y con render condicional por JS esa medición daría 0 justo donde la barra sí existe.
+- **Badge de sesión** (`.topbar-session`): el estado de cuenta, presente en toda pantalla y no sólo en el
+  menú. Dos formas del mismo lugar — `<button>` sin sesión (la única acción que el marco ofrece, porque
+  es la que arregla el problema: sin ella la partida no se guarda en la nube y nada lo decía) y `<span>`
+  no interactivo con ella. **"Cerrar sesión" se queda en el menú** a propósito: un toque accidental sobre
+  el chrome no puede desconectarte a mitad de una partida.
+  - **El email se apaga por debajo de 768px.** Con él, el badge mide 208px medidos contra los 24 de un
+    avatar solo, y lo que cede por él es la UBICACIÓN — la mitad del punto del marco. Sin él, el peor
+    caso a 390px (ubicación "Mis partidas" + sesión + chip de sin conexión) entra sin recortar nada.
+    El avatar se queda porque lo que hay que leer de un vistazo es *"hay alguien logueado"*, no quién;
+    el email completo sigue en el `title` y en el menú.
+  - Verificado que **no mueve `--topbar-h`**: 48px con el badge puesto, que es el contrato del que
+    depende el cálculo no-scroll del tablero.
 - **`.study-rail`** — la columna de trabajo. Es una **superficie** (`--surface`), no un borde: se percibe
   como panel aunque le quites las líneas. Sin padding propio: cada región trae el suyo, así los
   separadores cruzan el rail de lado a lado **sin un solo margen negativo**.
@@ -156,11 +195,63 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
   dispositivo—; lo único que se apaga es guardar en la nube. Pintarlo de rojo mentiría sobre la
   gravedad.
 
+## Nivel 4 — Template "marco de app"
+
+El esqueleto que envuelve a todos los demás (`.app-frame`, `ui/AppFrame.tsx`). Lo monta `ModeApp` una
+sola vez **alrededor del `<Router>`**, así que toda ruta presente y futura lo hereda sin hacer nada.
+Ese es el punto entero: antes el chrome era opt-in y por eso faltaba en cuatro pantallas; ahora es
+opt-out.
+
+```
+ANCHO (≥768px, incluido cualquier teléfono APAISADO)   ANGOSTO Y ALTO (<768px y ≥480px de alto)
+┌──────────────────────────────────────────┐           ┌───────────────────────┐
+│ tengen · Jugar  [Jugar|Analizar|…]  (o)  │ topbar-h  │ tengen · Jugar    (o) │ topbar-h
+├──────────────────────────────────────────┤           ├───────────────────────┤
+│            .app-frame-main               │           │    .app-frame-main    │
+└──────────────────────────────────────────┘           ├───────────────────────┤
+                                                       │ Jugar Analizar Partidas│ navbar-h
+                                                       └───────────────────────┘
+```
+
+**El criterio es la FORMA del viewport, no el dispositivo.** Un teléfono apaisado mide 844px de
+ancho, así que cae del lado ancho y recibe los destinos arriba — que es justo donde hacen falta,
+porque en apaisado el goban lo fija la ALTURA (844×390 → `min(828, 294)`) y 56px ahí serían un 19%
+de tablero. En retrato manda el ANCHO (`min(374, 692)` en un iPhone 12, medido), así que la barra
+podría comer 374px de alto antes de tocarlo: **cero píxeles perdidos**.
+
+**Las dos condiciones son una y su complemento, y viven en UN media query.** El conmutador se ve por
+defecto y se apaga *dentro* del mismo bloque que enciende la barra inferior. Escritas como reglas
+independientes (`≥768` para uno, `<768 y ≥480` para la otra) dejan un hueco donde no aparece
+**ninguna** — un iPhone SE apaisado (667×375) o una ventana a 700×400 se quedaban sin ningún destino,
+que es la misma regresión que el marco existe para cerrar.
+
+**La trampa del margen automático vuelve, y ahora en otro sitio.** El template de estudio ya
+documentaba que un margen `auto` en el eje transversal **cancela el `stretch`** de un flex item (por
+eso `.study-main` nunca lleva `margin-inline: auto`). Al meter todas las pantallas dentro del marco,
+`.card-screen` y `.system-screen` pasaron de ser bloques a ser flex items — y las centra justamente
+un `margin: … auto`, así que su ancho pasó a depender del contenido: **355px medidos donde el
+contenedor daba 390**. Se arregla con `width: 100%`, que reproduce el comportamiento de bloque.
+Lección: cuando un contenedor cambia de modo de layout, hay que **medir** a sus hijos; nada falla de
+forma visible — una tarjeta algo angosta se ve como una tarjeta algo angosta.
+
+**Regla estructural:** el marco lleva `min-height`, **nunca** `height` + `overflow: hidden`. El
+contenido largo (la lista de partidas, el formulario de nueva partida) tiene que poder crecer y
+scrollear la página; poner el viewport en el marco cortaría ambas en una pantalla corta. Quien toma
+el viewport sigue siendo `.study-shell` en escritorio, ahora con `calc(100dvh - var(--topbar-h))`
+(verificado: 48 + 852 = 900 exacto, sin scroll de página). Es también lo que hace seguro el
+`justify-content: center` que despega las tarjetas del borde superior: como el contenedor no tiene
+altura fija ni overflow propio, el centrado sólo actúa cuando SOBRA espacio y nunca corta el
+principio de una pantalla larga.
+
+**Cuatro pantallas quedan fuera del marco, a propósito** (documentado en `AppFrame.tsx`): el marco
+envuelve el `<Router>`, así que cubre *rutas*. `/diagnostico` y el cartel de sin-WebGPU viven fuera
+del router para poder abrir en un aparato donde la app no arranca; "Detectando WebGPU…" y el fallback
+del `ErrorBoundary` se pintan por encima de `ModeApp`. Las cuatro conservan su propia salida.
+
 ## Nivel 4 — Template "estudio de tablero"
 
 ```
-┌ TopBar (chrome de la ventana, full-bleed) ──────────────────┐
-├ .study-main ────────────────────────────────────────────────┤
+┌ .study-main (dentro del marco de app) ──────────────────────┐
 │   .study-board (héroe, llena la altura)  │  .study-rail      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -198,6 +289,13 @@ verificado en Chrome** a 500/820/1440/1600px de ancho, en claro y en oscuro.
 > El auditor vive en `apps/web/scripts/contrast-audit.js` (documentado en CLAUDE.md). Correrlo de
 > nuevo ante cualquier cambio de paleta: los tres fallos más graves (botón primario, success,
 > warning) sobrevivieron a una ronda de cálculo sobre los tokens y solo cayeron midiendo lo pintado.
+>
+> **Marco de navegación (2026-08-03):** cero fallos en las 4 rutas × 2 temas, en móvil y escritorio.
+> Los nodos de las dos barras se midieron **uno por uno** en vez de confiar en el "0 fallos" global:
+> el filtro `offsetParent === null` del auditor también es cierto para `position: fixed`, así que la
+> `.appbar` entera podría haber quedado fuera de la auditoría sin que nada avisara. Claro —
+> marca 16.38 · ubicación 7.30 · destino activo 6.00 · inactivos 7.30. Oscuro — 14.89 / 9.49 / 7.37
+> / 9.49.
 
 ## Tema oscuro
 
@@ -240,6 +338,14 @@ conexión (service worker en `apps/web/src/sw.ts`). Tres puntos donde eso toca a
 - **La superficie informativa de la app vive fuera del template.** `PwaToast` y el chip de conexión
   hablan del *programa* (hay versión nueva, no hay red), no de la partida; por eso no entran en el
   rail, que es la superficie del contenido.
+- **La safe-area es parte del sistema desde que hay una barra pegada al fondo.** El manifest es
+  `display: standalone`, así que una barra fija cae **debajo del indicador de inicio** y queda
+  parcialmente intocable. `viewport-fit=cover` en el meta viewport es lo que hace que
+  `env(safe-area-inset-*)` devuelva algo distinto de 0 — y su alcance es **toda la app, no sólo esa
+  barra**: extiende el viewport bajo el recorte también a los lados, así que el padding de safe-area
+  va además en `.topbar` (con `max()`, para no perder el padding de diseño donde no hay notch) y en
+  `.app-frame-main`. Ningún test automático cubre esto y Chrome emulando 844×390 tampoco: **se
+  verifica en la PWA instalada, en el aparato**.
 
 ## La pantalla que tiene que funcionar cuando nada funciona
 

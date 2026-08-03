@@ -34,6 +34,7 @@ import { signInWithGoogle, signOut } from './cloud/authClient'
 import { takePendingOpen } from './cloud/pendingOpen'
 import { useSession } from './cloud/useSession'
 import { AnalyzeView } from './ui/AnalyzeView'
+import { AppFrame } from './ui/AppFrame'
 import { AppVersionFooter } from './ui/AppVersionFooter'
 import { DiagnosticoView } from './ui/DiagnosticoView'
 import { NewGameForm } from './ui/NewGameForm'
@@ -194,7 +195,6 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
       cloudId={session.cloudId}
       onNewGame={handleNewGame}
       onImport={handleImport}
-      onBack={onBack}
     />
   )
 }
@@ -255,19 +255,25 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, ErrorBoun
   }
 }
 
-// ── Conmutador de modo Jugar/Analizar (Task 11), ruteo por URL (navegación + UX) ──────────────
-// Se inserta ENTRE el gate de WebGPU y PlayApp/AnalyzeView: ambos modos lo necesitan, así que el
-// gate sigue siendo lo primero (ver App() más abajo). La ruta decide el modo inicial (en vez de
-// arrancar siempre en el menú); los 3 modos tienen botón "Volver" (`route('/')`), así que ya no
-// hay modo sin salida.
+// ── Ruteo por URL + marco de navegación ────────────────────────────────────────────────────────
+// Se inserta ENTRE el gate de WebGPU y PlayApp/AnalyzeView: todas las pantallas lo necesitan, así
+// que el gate sigue siendo lo primero (ver App() más abajo). La ruta decide qué se monta.
+//
+// `AppFrame` envuelve al `<Router>`, no al revés, y ahí está el punto entero del cambio: el marco
+// (ubicación, salida, destinos, sesión, chip de conexión) lo hereda toda ruta PRESENTE Y FUTURA sin
+// hacer nada. Antes lo montaban las vistas —`PlayView` y `AnalyzeView` eran sus dos únicos usos—,
+// así que las cuatro pantallas sin tablero quedaron sin ningún chrome. Ver el alcance declarado en
+// `AppFrame.tsx`: lo que queda fuera (diagnóstico, cartel de sin-WebGPU) es deliberado.
 function ModeApp() {
   return (
-    <Router>
-      <ModeMenu path="/" default />
-      <PlayApp path="/jugar" onBack={() => route('/')} />
-      <AnalyzeView path="/analizar" onBack={() => route('/')} />
-      <PartidasView path="/partidas" onBack={() => route('/')} />
-    </Router>
+    <AppFrame>
+      <Router>
+        <ModeMenu path="/" default />
+        <PlayApp path="/jugar" onBack={() => route('/')} />
+        <AnalyzeView path="/analizar" onBack={() => route('/')} />
+        <PartidasView path="/partidas" />
+      </Router>
+    </AppFrame>
   )
 }
 

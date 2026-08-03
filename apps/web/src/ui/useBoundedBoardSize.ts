@@ -10,6 +10,21 @@ const DESKTOP_MIN_WIDTH = 768
  * ningún número mágico — se mide la caja real (ver abajo). */
 const MOBILE_HEIGHT_MARGIN = 96
 
+/** Alto que la barra inferior de destinos (`.appbar`) le quita al viewport.
+ *
+ * Se MIDE el nodo renderizado en vez de espejar el token, y las dos alternativas fallan por razones
+ * distintas: una constante en TS tendría que duplicar el media query (la barra sólo existe en el
+ * viewport angosto-y-alto), y `getComputedStyle(root).getPropertyValue('--nav-inset')` devuelve la
+ * string `calc(3.5rem + env(safe-area-inset-bottom))` SIN resolver, que no sirve para sumar.
+ *
+ * Funciona porque `AppFrame` renderiza la barra SIEMPRE y el CSS la apaga con `display: none` donde
+ * no corresponde: ahí `offsetHeight` da 0 solo. Es la misma disciplina que el resto del proyecto ya
+ * adoptó para el contraste — se mide el DOM pintado, no se recalcula la regla. */
+function navBarHeight(): number {
+  const el = document.querySelector('.appbar')
+  return el instanceof HTMLElement ? el.offsetHeight : 0
+}
+
 export interface BoundedBoardSize {
   maxWidth: number
   maxHeight: number
@@ -27,7 +42,8 @@ export interface BoundedBoardSize {
  *     que adivinaba el alto de la TopBar y del padding. Además el tablero ahora aprovecha el alto
  *     REAL disponible en vez de una estimación conservadora.
  *   - **mobile (<768px)**: la vista se apila y la página scrollea, así que el wrapper SÍ crece con
- *     su contenido: medir su alto sería circular. Ahí se conserva `innerHeight - margen`.
+ *     su contenido: medir su alto sería circular. Ahí se conserva `innerHeight - margen`, más el
+ *     alto MEDIDO de la barra inferior de destinos (ver `navBarHeight`).
  *
  * Devuelve `null` hasta la primera medición útil (ancho y alto > 0): `BoundedGoban` no debe montarse
  * con un `maxWidth` de 0. */
@@ -42,7 +58,9 @@ export function useBoundedBoardSize(ref: { current: HTMLElement | null }): Bound
       const width = el!.offsetWidth
       if (width <= 0) return
       const isDesktop = window.innerWidth >= DESKTOP_MIN_WIDTH
-      const height = isDesktop ? el!.clientHeight : window.innerHeight - MOBILE_HEIGHT_MARGIN
+      const height = isDesktop
+        ? el!.clientHeight
+        : window.innerHeight - MOBILE_HEIGHT_MARGIN - navBarHeight()
       if (height <= 0) return
       setSize((prev) =>
         prev !== null && prev.maxWidth === width && prev.maxHeight === height

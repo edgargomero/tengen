@@ -1,6 +1,9 @@
 // Pantalla "Mis partidas" (Fase 5 Task 6): lista las partidas guardadas del usuario y reabre una
-// en el modo correcto. Solo útil con sesión activa — sin ella, invita a loguearse (mismo patrón
-// que el resto de la app: nunca un callejón sin salida, siempre un "Volver").
+// en el modo correcto. Solo útil con sesión activa — sin ella, invita a loguearse.
+//
+// Ya no trae su propio "Volver" al pie: la salida vive en el marco (`AppFrame`), visible desde el
+// primer píxel y sin scrollear. Acá no había, además, ningún formulario que cancelar — que es lo
+// único que justifica conservar una acción secundaria al pie (ver `NewGameForm`).
 import { useEffect, useState } from 'preact/hooks'
 import type { RoutableProps } from 'preact-router'
 import { route } from 'preact-router'
@@ -27,11 +30,7 @@ function formatDate(epochMs: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-interface PartidasViewProps extends RoutableProps {
-  onBack(): void
-}
-
-export function PartidasView({ onBack }: PartidasViewProps) {
+export function PartidasView(_props: RoutableProps) {
   const { user, pending: sessionPending } = useSession()
   const [games, setGames] = useState<GameSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -69,8 +68,12 @@ export function PartidasView({ onBack }: PartidasViewProps) {
   }
 
   if (sessionPending) {
+    // El título va también acá: es la rama que más fácil se ve rota, y sin él la pantalla entera es
+    // un "Cargando…" suelto en una tarjeta que no dice de qué. Reservarlo evita además que el h1
+    // aparezca de golpe cuando el get-session vuelve.
     return (
       <main class="card-screen partidas-view">
+        <h1>Mis partidas</h1>
         <p class="hint">Cargando…</p>
       </main>
     )
@@ -84,7 +87,6 @@ export function PartidasView({ onBack }: PartidasViewProps) {
         <button class="primary" onClick={signInWithGoogle}>
           Iniciar sesión con Google
         </button>
-        <button class="ghost" onClick={onBack}>Volver</button>
       </main>
     )
   }
@@ -127,7 +129,6 @@ export function PartidasView({ onBack }: PartidasViewProps) {
           </table>
         </div>
       )}
-      <button class="ghost" onClick={onBack}>Volver</button>
     </main>
   )
 }

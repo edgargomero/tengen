@@ -59,7 +59,7 @@ import type { AnalyzeSpeed } from '../analysis/speedPreference'
 import { loadPvDetail, PV_DETAIL_LEVELS, pvDetailMoves, savePvDetail } from '../analysis/pvDetailPreference'
 import type { PvDetail } from '../analysis/pvDetailPreference'
 import { AnnotationEditor } from './AnnotationEditor'
-import { TopBar } from './TopBar'
+import { useNavigationGuard } from './navigationGuard'
 import { GameTreeGraph } from './GameTreeGraph'
 import { WinrateGraphPanel } from './WinrateGraphPanel'
 import { GameReviewPanel } from './GameReviewPanel'
@@ -406,6 +406,11 @@ function ReadyAnalyzeView({
   // Guardado a la nube (Fase 5): no-op sin sesión. `cloudId` restaura el id de D1 si esta sesión
   // viene de reabrir una partida (Task 6); si no, el primer `cloud.save` hace el POST inicial.
   const cloud = useCloudSync(cloudId)
+  // Backup a Drive al salir de la sesión de análisis. Antes colgaba del `onLeave` de la `TopBar`
+  // que esta vista montaba; con la navegación mudada al marco, el guard es lo que conserva el hilo
+  // — y tiene que correr con el componente AÚN MONTADO, porque un cleanup de desmontaje encontraría
+  // el `GameSync` ya dispuesto y `finish()` retornaría sin hacer nada. Ver `navigationGuard.ts`.
+  useNavigationGuard(() => cloud.finish())
   const cloudNameRef = useRef<string | null>(null)
   if (cloudNameRef.current === null) cloudNameRef.current = cloudSessionName(tree.meta.boardSize)
 
@@ -782,7 +787,6 @@ function ReadyAnalyzeView({
 
   return (
     <div class="study-shell">
-      <TopBar mode="analizar" onLeave={() => cloud.finish()} />
       <div class="study-main">
       <div class={`study-board${bubbleTone ? ` study-board--loss-${bubbleTone}` : ''}`} ref={boardRef}>
         {boardBounds && (
