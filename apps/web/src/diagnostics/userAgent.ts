@@ -24,11 +24,32 @@ export interface UserAgentSummary {
   /** iPadOS 13+ miente y dice "Macintosh". Un Mac con pantalla táctil no existe, así que
    * `maxTouchPoints > 1` sobre un UA de Mac es, en la práctica, un iPad. */
   iPadOsSuspected: boolean
+  /**
+   * `true` cuando `iosVersion` NO es la versión real del sistema sino el valor congelado de Apple.
+   *
+   * Desde iOS 26, Safari deja de publicar la versión del sistema y la fija en `18_7` para siempre, como
+   * medida anti-fingerprinting. La consecuencia es contraintuitiva y hay que decirla al derecho: **ver
+   * exactamente "18.7" junto a un Safari 26+ es evidencia de que el sistema es iOS 26 o SUPERIOR**, no
+   * de que sea viejo. Es el mismo truco que Safari de escritorio lleva años haciendo con
+   * "Mac OS X 10_15_7" (Catalina, 2019) en Macs modernos.
+   */
+  iosVersionFrozen: boolean
 }
+
+/** El valor exacto en el que Apple congeló la versión del sistema en el UA de Safari. */
+export const FROZEN_IOS_VERSION = '18.7'
+/** Desde esta versión mayor de Safari rige el congelamiento (es decir, desde iOS 26). */
+export const FROZEN_SINCE_SAFARI = 26
 
 /** En iOS el UA escribe la versión con guiones bajos ("26_0_1"). */
 function dotted(version: string): string {
   return version.replace(/_/g, '.')
+}
+
+/** Versión mayor de un "26.5.2", o 0 si no se puede leer. */
+function majorOf(version: string): number {
+  const parsed = Number.parseInt(version, 10)
+  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 /**
@@ -61,13 +82,20 @@ export function summarizeUserAgent(input: { userAgent: string; maxTouchPoints?: 
   const ios = /(?:iPhone )?OS (\d+(?:_\d+)*) like Mac OS X/.exec(ua)?.[1]
   const webkit = /AppleWebKit\/([\d.]+)/.exec(ua)?.[1]
 
+  const browser = readBrowser(ua)
+  const iosVersion = ios === undefined ? undefined : dotted(ios)
+
   const summary: UserAgentSummary = {
     isIos,
     iPadOsSuspected: !isIos && /Macintosh/.test(ua) && (input.maxTouchPoints ?? 0) > 1,
+    // El congelamiento se reconoce por la COMBINACIÓN, no por el número suelto: el valor fijo exacto
+    // ("18.7", sin tercer componente) junto a un Safari que ya es 26+. Un iPhone que de verdad corre
+    // iOS 18.7 lleva un Safari 18.x, así que no cae acá.
+    iosVersionFrozen:
+      iosVersion === FROZEN_IOS_VERSION && browser?.name === 'Safari' && majorOf(browser.version) >= FROZEN_SINCE_SAFARI,
   }
-  if (ios !== undefined) summary.iosVersion = dotted(ios)
+  if (iosVersion !== undefined) summary.iosVersion = iosVersion
   if (webkit !== undefined) summary.webkitVersion = webkit
-  const browser = readBrowser(ua)
   if (browser !== undefined) {
     summary.browser = `${browser.name} ${browser.version}`
     summary.browserVersion = browser.version

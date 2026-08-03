@@ -578,3 +578,15 @@ La corrida interrumpida se mostraba en pantalla ("La prueba anterior se cortó s
 - `persistente: no` con `modo de display: browser` — sigue pendiente instalar la PWA a la pantalla de inicio antes de una prueba larga.
 
 **LO QUE SIGUE FALTANDO: la prueba del motor.** El volcado llegó sin la sección `[prueba del motor]`, así que o no se apretó el botón o murió antes de la primera tanda (que ahora sí quedaría registrado, tras el fix del volcado).
+
+### El UA de Safari MIENTE sobre la versión de iOS — y el "18.7" prueba lo contrario de lo que parece
+
+Edgar preguntó por qué el diagnóstico decía iOS 18.7 si su iPhone está más actualizado. Tenía razón, y la respuesta invierte una conclusión previa de este mismo ledger.
+
+**Desde iOS 26, Safari dejó de publicar la versión del sistema y la fija en `18_7` para siempre** (anti-fingerprinting; [firefox-ios#29263](https://github.com/mozilla-mobile/firefox-ios/issues/29263), [Broadcom sobre Safari 26](https://knowledge.broadcom.com/external/article/411222/risk-authentication-data-collection-impa.html)). O sea: **ver exactamente "18.7" junto a un Safari 26+ es evidencia de que el sistema es iOS 26 o SUPERIOR**, no de que sea viejo. Es el mismo truco que Safari de escritorio hace hace años con "Mac OS X 10_15_7" (Catalina, 2019) — y ese valor estaba en TODOS los volcados de Chrome/M1 de esta sesión, delante de los ojos, sin que lo notara.
+
+**Consecuencia sobre lo ya escrito:** la afirmación de que el iPhone 12 "tiene iOS 18.7.8, no 26" se apoyaba en el UA. Para el volcado de **Chrome iOS** (que dijo `18_7_8`, tres componentes) sigue siendo probablemente cierta —ese no es el valor congelado y Chrome no tenía WebGPU, lo que encaja con iOS < 26—. Para el de **Safari** (`18_7` exacto + `Version/26.5.2`) es falsa: ese aparato corre iOS 26+. Lo más plausible es que Edgar haya actualizado entre el 26 de julio y el 3 de agosto. **Verificación cruzada pendiente y trivial: si Chrome iOS ahora funciona, confirma iOS 26.**
+
+**Arreglado:** `summarizeUserAgent` expone `iosVersionFrozen`, que se reconoce por la COMBINACIÓN (valor "18.7" exacto + Safari ≥26) y no por el número suelto — un iPhone que de verdad corre iOS 18.7 lleva un Safari 18.x y no cae ahí. El volcado ahora escribe "iOS: 26 o superior (Safari congela el UA en 18.7; la versión real no se publica)" y el consejo nunca repite el número falso. 4 tests nuevos fijan la lectura, incluido el UA real del iPhone 12 y el contraejemplo del iOS 18.7 auténtico.
+
+**Lección de método:** un dato que el dispositivo REPORTA no es un dato que el dispositivo TENGA. El diagnóstico vale por lo que mide (adapter, device, cuota, tandas), no por lo que le declaran — y donde no puede distinguir, tiene que decirlo en vez de presentar la declaración como hecho.

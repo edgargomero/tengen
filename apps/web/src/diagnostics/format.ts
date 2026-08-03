@@ -201,7 +201,14 @@ export function formatDiagnostics(d: Diagnostics, extras: ExtraSection[] = []): 
     ]),
     section('navegador', [
       `navegador: ${ua.browser ?? '(no declarado)'}`,
-      `iOS: ${ua.iosVersion ?? (ua.iPadOsSuspected ? '(iPadOS sospechado: UA de Mac con táctil)' : 'no')}`,
+      // El número crudo NO se muestra solo cuando está congelado: desde iOS 26 Safari lo fija en "18.7"
+      // para siempre, así que leerlo al pie de la letra reporta un sistema viejo en un dispositivo
+      // moderno — y ese dato es del que dependen las decisiones sobre este aparato.
+      `iOS: ${
+        ua.iosVersionFrozen
+          ? `26 o superior (Safari congela el UA en ${ua.iosVersion}; la versión real no se publica)`
+          : (ua.iosVersion ?? (ua.iPadOsSuspected ? '(iPadOS sospechado: UA de Mac con táctil)' : 'no'))
+      }`,
       `WebKit: ${ua.webkitVersion ?? '(no declarado)'}`,
       `user agent: ${d.userAgentRaw}`,
     ]),

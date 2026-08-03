@@ -22,6 +22,7 @@ describe('summarizeUserAgent', () => {
     expect(summarizeUserAgent({ userAgent: SAFARI_IOS_26 })).toEqual({
       isIos: true,
       iPadOsSuspected: false,
+      iosVersionFrozen: false,
       iosVersion: '26.0',
       webkitVersion: '605.1.15',
       browser: 'Safari 26.0',
@@ -49,6 +50,7 @@ describe('summarizeUserAgent', () => {
     expect(summary).toEqual({
       isIos: false,
       iPadOsSuspected: false,
+      iosVersionFrozen: false,
       webkitVersion: '605.1.15',
       browser: 'Safari 26.0',
       browserVersion: '26.0',
@@ -67,6 +69,45 @@ describe('summarizeUserAgent', () => {
   })
 
   it('un UA irreconocible no lanza ni inventa: devuelve lo que no pudo leer como ausente', () => {
-    expect(summarizeUserAgent({ userAgent: 'algo raro' })).toEqual({ isIos: false, iPadOsSuspected: false })
+    expect(summarizeUserAgent({ userAgent: 'algo raro' })).toEqual({
+      isIos: false,
+      iPadOsSuspected: false,
+      iosVersionFrozen: false,
+    })
+  })
+})
+
+// ── El UA congelado de iOS 26+ ────────────────────────────────────────────────────────────────
+//
+// Desde iOS 26, Safari deja de publicar la versión del sistema y la fija en "18_7" para siempre
+// (anti-fingerprinting). La lectura es contraintuitiva y por eso va fijada con tests: ver ese valor
+// exacto junto a un Safari 26+ es evidencia de que el sistema es NUEVO, no viejo. Leerlo al pie de la
+// letra hacía que el diagnóstico reportara iOS 18 en un iPhone actualizado, y que el consejo mandara a
+// actualizar un sistema que ya estaba al día.
+describe('summarizeUserAgent — versión de iOS congelada', () => {
+  const FROZEN =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Mobile/15E148 Safari/604.1'
+
+  it('"18.7" exacto + Safari 26 = congelado (el UA REAL del iPhone 12 de Edgar)', () => {
+    const summary = summarizeUserAgent({ userAgent: FROZEN })
+    expect(summary.iosVersionFrozen).toBe(true)
+    expect(summary.iosVersion).toBe('18.7') // el crudo se conserva; quien lo muestre decide cómo decirlo
+    expect(summary.browserVersion).toBe('26.5.2')
+  })
+
+  it('un iOS 18.7 DE VERDAD (con su Safari 18.x) no se confunde con uno congelado', () => {
+    const real =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1'
+    expect(summarizeUserAgent({ userAgent: real }).iosVersionFrozen).toBe(false)
+  })
+
+  it('18.7.8 (tres componentes) no es el valor congelado: el fijo es "18.7" exacto', () => {
+    const chrome =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0 Mobile/15E148 Safari/604.1'
+    expect(summarizeUserAgent({ userAgent: chrome }).iosVersionFrozen).toBe(false)
+  })
+
+  it('iOS 26 que SÍ publica su versión tampoco se marca como congelado', () => {
+    expect(summarizeUserAgent({ userAgent: SAFARI_IOS_26 }).iosVersionFrozen).toBe(false)
   })
 })

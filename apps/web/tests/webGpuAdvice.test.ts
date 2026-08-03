@@ -46,12 +46,14 @@ describe('webGpuAdvice', () => {
     expect(lines).toContain('Funciones experimentales')
   })
 
-  it('EL caso que enseñó el dispositivo real: Safari 26 sobre iOS 18 no manda a actualizar nada', () => {
-    // iPhone 12 de Edgar: Safari 26.5.2 sobre iOS 18.7, con WebGPU funcionando. Decirle "actualiza a
-    // iOS 26" sería mandarlo a hacer algo que no cambia nada — su Safari YA sirve.
+  it('EL caso que enseñó el dispositivo real: el "18.7" congelado NO manda a actualizar nada', () => {
+    // iPhone 12 de Edgar: Safari 26.5.2 con el UA congelado en 18_7. Ese valor es prueba de iOS 26+, no
+    // de un sistema viejo, así que el consejo tiene que tratarlo como al día — y NO repetirle al usuario
+    // un número de versión que no es el suyo.
     const lines = advice(SAFARI_26_ON_IOS_18).join(' ')
-    expect(lines).toContain('ya trae WebGPU')
-    expect(lines).toContain('el problema es otro')
+    expect(lines).toContain('iOS 26 o superior')
+    expect(lines).toContain('ya incluye WebGPU en todos sus navegadores')
+    expect(lines).not.toContain('18.7')
     expect(lines).not.toContain('Actualiza Safari')
     expect(lines).not.toContain('Funciones experimentales')
   })

@@ -57,14 +57,20 @@ export function webGpuAdvice(ua: UserAgentSummary): string[] {
     return ['Abre esta página en Chrome o Edge recientes, con WebGPU habilitado.']
   }
 
-  const iosMajor = major(ua.iosVersion)
+  // Un UA congelado NO significa iOS 18: significa iOS 26 o superior, porque el congelamiento arranca
+  // justamente en 26. Leer el número al pie de la letra mandaría a actualizar un sistema que ya está al
+  // día — el error que este dispositivo destapó.
+  const iosMajor = ua.iosVersionFrozen ? IOS_WEBGPU_ALL_BROWSERS : major(ua.iosVersion)
   const iosVersion = ua.iosVersion ?? 'esta versión'
 
   if (iosMajor !== null && iosMajor >= IOS_WEBGPU_ALL_BROWSERS) {
     // Con un sistema 26+ cualquier navegador del dispositivo debería exponer WebGPU: si igual falla, el
     // dato está en el diagnóstico y es información nueva para nosotros, no un problema de configuración.
+    // Nunca se cita el número crudo cuando está congelado: sería repetirle al usuario un "18.7" que no
+    // es su versión.
+    const label = ua.iosVersionFrozen ? 'iOS 26 o superior' : `iOS ${iosVersion}`
     return [
-      `Este dispositivo tiene iOS ${iosVersion}, que ya incluye WebGPU en todos sus navegadores, así que algo más está fallando.`,
+      `Este dispositivo tiene ${label}, que ya incluye WebGPU en todos sus navegadores, así que algo más está fallando.`,
       'Abre el diagnóstico y comparte el resultado: ahí está el motivo exacto.',
     ]
   }
