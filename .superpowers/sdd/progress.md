@@ -743,3 +743,40 @@ if (r < 1073741824) return new Uint8Array(await t.arrayBuffer());
 El camino de streaming (leer por chunks a un `ArrayBuffer` preasignado) sólo se activa para archivos de **1 GB o más**. Con 115,8 MB caemos siempre en `arrayBuffer()`. Y el `else` final hace lo mismo con un `Blob`. Así que **da igual pasar OPFS→ArrayBuffer, una URL, o un Blob: el pico de 2× es inherente a la API con un modelo de este tamaño.**
 
 **Consecuencia:** el único camino que reduce ese pico es **un modelo más chico**. b10c128 bajaría el pico de ~232 MB a ~40 MB y además correría bastante más rápido que 1,2 v/s. Es el trabajo más incierto del plan (falta convertirla), pero ya no es una apuesta por velocidad: es la única palanca que queda sobre el pico de carga.
+
+## EL BUG DEL fp16, LOCALIZADO (2026-08-03)
+
+Edgar propuso servir fp16 en móvil y fp32 en escritorio. La arquitectura (modelo por dispositivo) es la correcta; el vehículo tenía un asterisco: **los fp16 ya convertidos están rotos** (`CLAUDE.md`, corrección del 2026-07-10 — policy NaN, el motor juega la esquina 1-1). Esta sesión averiguó POR QUÉ, que era lo que faltaba para saber si es reparable.
+
+### Lo que se descartó, en orden
+
+1. **No es overflow al convertir los pesos.** Los 476 initializers fp16 del ONNX no tienen ni un `inf` ni un `NaN` (inspeccionados con onnx/numpy).
+2. **No es la conversión fp16 propia del motor.** `f32ToF16`/`f16ToF32` (`packages/engine/src/f16.ts`) coinciden **bit a bit** con `Float16Array` nativo en 15 casos, incluidos los bordes duros: 65505→65504, 1e5→Infinity, subnormales (1e-5, 6.1e-5), negativos. Cero diferencias.
+3. **No es el modelo per se, ni ORT.** Con un input SINTÉTICO (canal 0 en 1, el resto en cero), el fp16 corre limpio en WASM/Node y elige **exactamente la misma jugada** que el fp32: policy sin NaN, rango [-8.367, 3.709] contra [-8.365, 3.704], mejor vertex (14,15) en ambos. Diferencia de 0,005 — ruido de precisión.
+
+### Lo que SÍ es: depende del INPUT
+
+Con los features V7 **reales** (fixture `empty-19`, encoder del motor), el mismo modelo fp16 da:
+
+```
+fp32:  policy NaN=0    rango [-5.436, 4.647]   value NaN=0
+fp16:  policy NaN=325  (de 361)                value NaN=1
+```
+
+O sea: el desbordamiento ocurre en las **activaciones intermedias** durante la inferencia, no en los pesos, y sólo cuando la entrada tiene señal de verdad. Un input casi vacío no lo dispara; los 22 canales poblados del encoder V7, sí.
+
+### Por qué es plausible que sea reparable
+
+El conversor (`~/dev/vendor/katago-onnx`, `_convert_to_fp16_native`) hace una conversión **ciega y total**:
+
+```python
+arr_fp16 = arr.astype(np.float16)   # todos los pesos, sin exclusiones ni saturación
+```
+
+y su propio docstring admite que reemplaza a la herramienta estándar: *"This is an alternative to onnxconverter_common that produces cleaner graphs."* Justamente `onnxconverter_common.float16.convert_float_to_float16` aporta las tres cosas que faltan: `op_block_list` (dejar en fp32 los operadores que desbordan), saturación de valores fuera de rango, e inserción de los `Cast` en las fronteras. Y `auto_mixed_precision` va más lejos: prueba capa por capa cuáles toleran fp16 y deja el resto en fp32, automáticamente.
+
+**Camino concreto:** reconvertir con precisión mixta en vez de fp16 total. Resultado esperado: ~60-70 MB (algo más que los 56 del fp16 puro, la mitad de los 110 del fp32) **con la fuerza completa de b18**, que es mejor que b10c128 en calidad de juego.
+
+### Cambio conservado de esta investigación
+
+`packages/engine/tests/nn.reference.test.ts` acepta `TENGEN_NN_MODEL` para apuntar el gate de referencia a OTRA variante del mismo modelo sin duplicar el harness. Sin variable, mide exactamente lo de siempre (el fp32 del producto). Es lo que permitió correr los 10 fixtures contra el fp16 y confirmar que fallan los 10 — y será lo que valide la reconversión.

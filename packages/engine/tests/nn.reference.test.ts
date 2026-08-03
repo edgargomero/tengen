@@ -32,7 +32,10 @@ import { postprocessKataGoV8 } from '../src/vendor/web-katrain/evalV8'
 const req = createRequire(import.meta.url)
 const ORT_DIST = dirname(req.resolve('onnxruntime-web')) + '/'
 const HERE = dirname(fileURLToPath(import.meta.url))
-const MODEL = resolve(HERE, '../models/b18c384nbt-kata1.fp32.onnx')
+// Override por entorno para poder validar OTRA variante del mismo modelo (p.ej. el fp16) contra los
+// MISMOS vectores de referencia, sin duplicar el harness. El default sigue siendo el fp32 que sirve el
+// producto, así que `npm run test:nn` sin variables mide exactamente lo de siempre.
+const MODEL = process.env.TENGEN_NN_MODEL ?? resolve(HERE, '../models/b18c384nbt-kata1.fp32.onnx')
 const DIR = resolve(HERE, 'fixtures/reference')
 
 // --- Forma de los fixtures `kata-raw-nn` (Task 0) ---------------------------------------------
