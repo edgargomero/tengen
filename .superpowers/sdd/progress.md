@@ -922,3 +922,33 @@ con el fp32 por defecto** (el binario del escritorio no se toca) y **10/10 con e
 
 No se tocó `numThreads` (es un paliativo de otra variable — pie base, no pico de carga — y mezclarlo
 impediría atribuir la mejora) ni el escritorio (mismo modelo, mismo binario, mismo comportamiento).
+
+### Desplegado (2026-08-03, Version `51f600e1-1a53-4f7b-ae23-c3861a64cdfd`)
+
+**Trampa de `wrangler r2 object put` que costó una subida entera:** wrangler 4.x escribe al bucket de
+**simulación local** (`.wrangler/state/`) salvo que se pase `--remote`. La salida lo dice —
+`Resource location: local` — pero termina en `Upload complete.`, así que **una subida fallida se lee
+como exitosa**. Confirmado con evidencia: los dos mixtos daban 404 en `tengen.kntor.io/models/`
+mientras el fp32 de control daba 200. Además hace falta `account_id`, que sólo existe en
+`apps/worker/wrangler.jsonc` → **el comando se corre desde `apps/worker/`, no desde la raíz**. La
+forma correcta:
+
+```bash
+cd apps/worker && npx wrangler r2 object put tengen-models/<archivo>.onnx \
+  --file ../../packages/engine/models/<archivo>.onnx --remote
+```
+
+Verificado en producción: **4/4 con `content-length` exacto** — los dos mixtos (58093573 / 54194233)
+y los dos fp32 intactos (115800125 / 108040143), que es la no-regresión del escritorio.
+
+**Segundo falso negativo, ya conocido en este proyecto: comparar hashes de bundle no sirve acá.** El
+`BUILD_ID` lleva la fecha del build, así que **el hash cambia en cada corrida aunque el código sea
+idéntico** — y encima el primer `curl` cae en `cf-cache-status: HIT` con el HTML viejo. Los dos
+efectos juntos hacen que un deploy correcto se vea como uno roto. La verificación que sí discrimina
+es **por contenido, con `Cache-Control: no-cache`**: pedir el bundle y buscar los literales de la
+feature. Cadena confirmada `HTML → index-BSUCAMQM.js → engine.worker-B1qTk9Og.js`, y ambos contienen
+`mixed16`, los dos `opfsName` versionados, los bytes exactos y `tengen:web:variant`. Que el bundle
+principal Y el worker del motor coincidan es la comprobación que importa: si sólo uno tuviera la
+lógica nueva, sería exactamente la divergencia hilo-principal/worker que el diseño evita.
+
+**Queda SOLO el gate manual en el iPhone.**
