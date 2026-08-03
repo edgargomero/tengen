@@ -780,3 +780,34 @@ y su propio docstring admite que reemplaza a la herramienta estándar: *"This is
 ### Cambio conservado de esta investigación
 
 `packages/engine/tests/nn.reference.test.ts` acepta `TENGEN_NN_MODEL` para apuntar el gate de referencia a OTRA variante del mismo modelo sin duplicar el harness. Sin variable, mide exactamente lo de siempre (el fp32 del producto). Es lo que permitió correr los 10 fixtures contra el fp16 y confirmar que fallan los 10 — y será lo que valide la reconversión.
+
+## EL fp16 ESTÁ ARREGLADO — precisión mixta, 10/10 en el gate de referencia (2026-08-03)
+
+Edgar propuso servir fp16 en móvil y fp32 en escritorio, y aportó desde otra conversación el detalle de `keep_io_types=True`. Con eso más el diagnóstico anterior, la reconversión funcionó.
+
+**`packages/engine/models/b18c384nbt-kata1.mixed16.onnx` — 110,0 MB → 55 MB, y `TENGEN_NN_MODEL=... npm run -w @tengen/engine test:nn` da 10/10** contra los vectores `kata-raw-nn` de KataGo desktop. Misma red, misma fuerza, la mitad del peso.
+
+### Las tres decisiones, y cómo se llegó a ellas
+
+Ninguna salió de leer documentación: salieron de que el error se movía.
+
+1. **`keep_io_types=True`** (aporte de Edgar vía Gemini). Entradas y salidas siguen en fp32. Beneficio extra que no estaba en la propuesta: `OnnxEvaluator` deja de necesitar `f32ToF16` por inferencia.
+2. **Vaciar `graph.value_info`.** Primer error: *"Type (tensor(float16)) of output arg (.../gpool/Cast) does not match expected type (tensor(float))"*. El `value_info` declara los tipos de los tensores INTERMEDIOS, escritos cuando el grafo era fp32; la conversión no los reescribe todos y ORT se niega a crear la sesión. Vaciarlo (1.528 entradas) deja que ORT infiera los reales.
+3. **`node_block_list` con TODO el subgrafo `gpool`** (229 nodos). Acá estuvo la lección: bloquear operadores de a uno movía el error al siguiente nodo del MISMO bloque — `Cast` → `Div` → `Concat`, todos bajo `.../convpool/gpool/`. El global pooling de KataGo mezcla reducciones, divisiones por constantes y concatenaciones, y convertirlo a medias siempre deja una frontera mal tipada. Dejarlo entero en fp32 cuesta 229 nodos de un modelo de 55 MB y es lo que hace que cargue.
+
+**Conservado en `packages/engine/scripts/convert-mixed16.py`**, con las tres decisiones documentadas y el comando del gate en el propio docstring. Herramienta local, no del producto. Requiere `onnx` + `onnxconverter-common` en un venv (el entorno pixi de katago-onnx no trae pip).
+
+### Estado de cada red
+
+| red | fp32 | mixed16 | gate |
+|---|---|---|---|
+| b18 kata | 110 MB | **55 MB** | **10/10 fixtures** ✅ |
+| humanv0 | 103 MB | **52 MB** | convertido, **SIN validar** ⚠️ |
+
+`humanv0` se convirtió con el mismo script (mismos 229 nodos gpool — misma arquitectura), pero **su validación queda pendiente**: los fixtures `kata-raw-nn` son de la red KATA, así que el gate no aplica tal cual. Necesita su propia comparación fp32 vs mixed16 sobre el mismo input con `meta_input[192]`, que es lo que faltó armar. **No dar por buena esa red hasta medirla.**
+
+### Lo que esto cambia del plan móvil
+
+El pico de carga (inherente a ORT, que sólo streamea archivos ≥1 GB) baja de **~232 MB a ~110 MB** con el mismo modelo y la misma fuerza de juego. **b10c128 deja de ser necesaria** salvo que la mitad no alcance: no hay que convertir una red nueva ni degradar cómo juega la IA. Lo que queda por construir es exactamente lo que Edgar propuso — el perfil por dispositivo — más subir los mixed16 a R2 y añadirlos al manifest.
+
+Pendiente antes de servirlos: validar humanv0, medir velocidad (el fp16 podría ser más rápido en la GPU del A14, que declara `shader-f16`), y el gate manual en WebGPU real — el gate de referencia corre en WASM/Node.
