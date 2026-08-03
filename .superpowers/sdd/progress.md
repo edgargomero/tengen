@@ -678,3 +678,34 @@ Tiene razón y apunta al hueco de producto: la prueba medía `b18` a 20 visitas,
 - **Reparto**: Fina (12×5) · Normal (6×20) · **Jugada real (3×50)** — 50 visitas es EXACTAMENTE una jugada del preset "Fuerza baja", fijado con un test contra `KATA_STRENGTH_PRESETS[0].visits` para que no puedan divergir. Tres tandas son tres jugadas de la IA: si eso no sobrevive, no hay partida posible y no hace falta ninguna otra medición.
 
 **Lo que cambiar de red NO mide:** el efecto del tamaño. `humanv0` pesa 108,0 MB contra 115,8 MB — misma arquitectura, mismo orden. Sirve para saber si el fallo es del pipeline (mueren las dos) o de una red concreta. Para medir el efecto del TAMAÑO haría falta una red chica, y b10 sigue sin convertir.
+
+### Tercera corrida: murió EN EL ARRANQUE. El patrón es degradación monótona (2026-08-03)
+
+Con Human SL (descargada por la propia prueba — `uso` pasó de 144,6 a 252,6 MB, y `humanv0: en caché` lo confirma):
+
+```
+corrida anterior INTERRUMPIDA (2026-08-03T02:10:28.436Z) — el proceso murió sin terminar
+(sin datos)
+```
+
+**"(sin datos)" = ni `initMs`.** Murió durante `ensureReady`, cargando el modelo en la GPU, sin llegar a una sola inferencia.
+
+### El patrón, con las tres corridas juntas
+
+| # | Red | Reparto | Arranque | Aguantó |
+|---|---|---|---|---|
+| 1 | b18 | 6×20 | 5.472 ms | 1 tanda (20 inferencias), murió en la 2ª |
+| 2 | b18 | 12×5 | 6.862 ms | ni una tanda de 5 |
+| 3 | humanv0 | 3×50 | **nunca terminó** | ni el arranque |
+
+**Degradación monótona: cada corrida aguanta menos que la anterior.** El arranque se encareció un 25% entre la 1 y la 2, y en la 3 directamente no completó. **El dispositivo no vuelve a su estado inicial entre corridas**, ni siquiera con el proceso muerto y la página recargada de por medio.
+
+### Qué queda establecido, y qué NO
+
+**Establecido:** el fallo no es "cuántas inferencias aguanta" — es que el estado se degrada y no se recupera. Un umbral fijo de inferencias no existe: la corrida 1 hizo 20 y la 3 no hizo ninguna, con el mismo dispositivo y el mismo binario.
+
+**NO establecido:** qué exactamente no se libera. Candidatos que quedan vivos: memoria GPU que WebKit no devuelve al morir el proceso, el pie base del proceso (shell + 26,8 MB de WASM de ORT + modelo) demasiado cerca del límite por pestaña de Safari desde el arranque, o el doble buffer de carga (`appFactory.ts` materializa el ONNX completo en un ArrayBuffer que ORT después copia a su heap WASM — pico de 2× sobre 108-116 MB antes de tocar la GPU).
+
+**Y esto sí decide algo:** morir CARGANDO el modelo, antes de inferir, es evidencia directa de que el problema está dominado por el **pie de memoria del modelo**, no por lo que pasa después. La Rama B (red más chica) deja de ser una apuesta y pasa a ser la hipótesis con más respaldo — por un camino distinto del original, que la justificaba por velocidad.
+
+**Suficiente medición.** Cinco diagnósticos pedidos a Edgar; el instrumento ya dio lo que podía dar con este binario. Seguir midiendo sin cambiar nada sería una cinta de correr.
