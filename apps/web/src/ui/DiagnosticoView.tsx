@@ -15,8 +15,9 @@
 import { useEffect, useState } from 'preact/hooks'
 import { collectDiagnostics } from '../diagnostics/collect'
 import type { Diagnostics } from '../diagnostics/collect'
-import { loadStoredProbe, probeEngine, PROBE_PRESETS } from '../diagnostics/engineProbe'
+import { loadStoredProbe, probeEngine, PROBE_NETWORKS, PROBE_PRESETS } from '../diagnostics/engineProbe'
 import type { EngineProbeResult, EngineRound, ProbePresetId } from '../diagnostics/engineProbe'
+import type { NetworkId } from '@tengen/engine'
 import { formatEngineProbe, judgeEngineProbe } from '../diagnostics/engineVerdict'
 import { diagnose, formatDiagnostics, warnings } from '../diagnostics/format'
 import { errorText } from '../diagnostics/gpuProbe'
@@ -202,12 +203,23 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
   // Qué reparto de inferencias usar. Cambiarlo es el experimento que separa acumulación de techo (ver
   // `PROBE_PRESETS`), así que es un control de primera clase, no un ajuste escondido.
   const [preset, setPreset] = useState<ProbePresetId>('normal')
+  // Qué red medir. Las dos del producto: se juega contra una o contra la otra, y "¿funciona el modo que
+  // yo uso?" es una pregunta legítima que medir sólo una deja sin responder.
+  const [network, setNetwork] = useState<NetworkId>('b18')
+  const [downloadPct, setDownloadPct] = useState<number | null>(null)
 
   async function run(): Promise<void> {
     const chosen = PROBE_PRESETS.find((p) => p.id === preset) ?? PROBE_PRESETS[1]
     setState({ phase: 'running', rounds: [] })
+    setDownloadPct(null)
     const result = await probeEngine({
       storage: window.localStorage,
+      network,
+      // La red que falte se baja acá mismo: mandar a "jugá una partida primero" para poder medir por qué
+      // las partidas mueren es un círculo, y este es justamente el dispositivo donde no cierra.
+      download: true,
+      onDownloadProgress: (received, total) =>
+        setDownloadPct(total > 0 ? Math.round((received / total) * 100) : null),
       rounds: chosen.rounds,
       visitsPerRound: chosen.visitsPerRound,
       onRound: (_round, all) => {
@@ -217,6 +229,7 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
         onDump(formatEngineProbe({ modelInOpfs: true, rounds: all }))
       },
     })
+    setDownloadPct(null)
     setState({ phase: 'done', result })
     onDump(formatEngineProbe(result))
   }
@@ -245,6 +258,20 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
         morir en el mismo acumulado con tandas chicas y grandes significa que algo crece; sobrevivir a las
         chicas y morir sólo en las grandes significa que el problema es el pico de una tanda.
       </p>
+      <div class="choice-row" role="group" aria-label="Red a probar">
+        {PROBE_NETWORKS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={network === option.id}
+            class={network === option.id ? 'active' : ''}
+            disabled={running}
+            onClick={() => setNetwork(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <div class="choice-row" role="group" aria-label="Reparto de la prueba">
         {PROBE_PRESETS.map((option) => (
           <button
@@ -261,7 +288,11 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
       </div>
       <div class="action-row">
         <button type="button" onClick={() => void run()} disabled={running}>
-          {running ? `Midiendo… (${rounds.length}/${activePreset.rounds})` : 'Probar el motor'}
+          {!running
+            ? 'Probar el motor'
+            : downloadPct !== null
+              ? `Descargando la red… ${downloadPct}%`
+              : `Midiendo… (${rounds.length}/${activePreset.rounds})`}
         </button>
       </div>
 

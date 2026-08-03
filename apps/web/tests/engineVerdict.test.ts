@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { EngineProbeResult, EngineRound } from '../src/diagnostics/engineProbe'
 import { loadStoredProbe, PROBE_PRESETS, saveStoredProbe, slowdownRatio } from '../src/diagnostics/engineProbe'
 import { formatEngineProbe, judgeEngineProbe, LEAK_SLOWDOWN_THRESHOLD } from '../src/diagnostics/engineVerdict'
+import { KATA_STRENGTH_PRESETS } from '../src/game/opponentStrength'
 
 /** Tandas con las duraciones dadas, todas pidiendo las mismas 20 visitas. */
 function rounds(msPerRound: number[]): EngineRound[] {
@@ -153,17 +154,27 @@ describe('formatEngineProbe — acumulado', () => {
 })
 
 describe('PROBE_PRESETS', () => {
-  it('los dos repartos llegan a un total de inferencias comparable', () => {
+  // `fina` y `normal` son el EXPERIMENTO (separan acumulación de techo); `jugada` mide PRODUCTO (¿sobrevive
+  // a tres jugadas reales?). Sólo los dos primeros necesitan ser comparables entre sí — exigírselo también
+  // al tercero lo obligaría a medir un trabajo que no es el que le interesa.
+  const fina = PROBE_PRESETS.find((p) => p.id === 'fina')!
+  const normal = PROBE_PRESETS.find((p) => p.id === 'normal')!
+  const jugada = PROBE_PRESETS.find((p) => p.id === 'jugada')!
+
+  it('los dos repartos del experimento llegan a un total de inferencias comparable', () => {
     // Comparables a propósito: si un reparto midiera mucho menos trabajo que el otro, "sobrevivió" no
     // significaría nada — habría que preguntarse si aguantó o si simplemente hizo menos.
-    const totals = PROBE_PRESETS.map((p) => p.rounds * p.visitsPerRound)
-    const [min, max] = [Math.min(...totals), Math.max(...totals)]
-    expect(max / min).toBeLessThanOrEqual(2)
+    const totals = [fina, normal].map((p) => p.rounds * p.visitsPerRound)
+    expect(Math.max(...totals) / Math.min(...totals)).toBeLessThanOrEqual(2)
   })
 
   it('el reparto fino usa tandas MUCHO más chicas: es lo que hace el experimento', () => {
-    const fina = PROBE_PRESETS.find((p) => p.id === 'fina')!
-    const normal = PROBE_PRESETS.find((p) => p.id === 'normal')!
     expect(normal.visitsPerRound / fina.visitsPerRound).toBeGreaterThanOrEqual(4)
+  })
+
+  it('"jugada real" usa las visitas EXACTAS del preset más bajo del juego', () => {
+    // Si divergiera de `KATA_STRENGTH_PRESETS[0].visits`, la prueba mediría algo que nadie juega y su
+    // respuesta ("no sobrevive a tres jugadas") dejaría de significar lo que dice.
+    expect(jugada.visitsPerRound).toBe(KATA_STRENGTH_PRESETS[0].visits)
   })
 })

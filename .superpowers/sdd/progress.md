@@ -650,3 +650,31 @@ Los totales son comparables a propósito (fijado con test, ≤2× de diferencia)
 **Cómo se lee el resultado:** si muere cerca del mismo acumulado (~30-40) con los dos repartos → algo crece. Si aguanta las 12 tandas finas y sólo muere con las de 20 → es el pico de una tanda, no acumulación.
 
 Corregido de paso: el mensaje de la corrida interrumpida afirmaba "algo crece con el uso" —justo lo que NO está determinado— y citaba un total de tandas fijo que ya no aplica. Ahora informa el acumulado real, el total pedido (que se persiste en `StoredProbe.totalRounds`) y propone repetir con el otro reparto, sin adelantar el veredicto.
+
+### La corrida FINA murió antes de completar 5 inferencias — y eso no encaja limpio con ninguna hipótesis
+
+Segunda medición, reparto fino (12×5):
+
+```
+corrida anterior INTERRUMPIDA (2026-08-03T02:01:54.237Z) — el proceso murió sin terminar
+arranque del motor: 6862 ms
+```
+
+Ni una tanda de **5** completada. Contra la corrida anterior, que sobrevivió una tanda de **20**.
+
+**Eso rompe las dos hipótesis en su forma limpia.** Con acumulación pura, tandas de 5 deberían haber llegado a ~6-8 tandas antes del mismo acumulado; con techo puro, las tandas chicas deberían sobrevivir indefinidamente. Ninguna de las dos predice "murió antes que la vez anterior con tandas cuatro veces más chicas".
+
+Lo que sí queda: **el margen tras cargar el modelo es mínimo y VARIABLE entre corridas**. El arranque también empeoró — 6.862 ms contra 5.472 ms, un 25% más lento pidiendo lo mismo. El dispositivo no vuelve a su estado inicial entre corridas (memoria del proceso anterior sin liberar, GPU ocupada, o throttling térmico acumulado), así que cada intento arranca en peores condiciones que el anterior.
+
+**Hipótesis que esto favorece y que antes estaba descartada:** el problema está dominado por el **pie de memoria del modelo** (115,8 MB fp32 → JS heap + heap WASM + GPU), no por lo que pasa después. Si el margen post-arranque es de entre 1 y 40 inferencias según cómo esté el aparato, entonces achicar el modelo SÍ sería el arreglo — o sea, la Rama B vuelve a la mesa por un camino distinto del que la había traído.
+
+### Lo que Edgar pidió, y por qué es lo correcto
+
+> "necesito que el test haga prueba sobre humansl y kata debil"
+
+Tiene razón y apunta al hueco de producto: la prueba medía `b18` a 20 visitas, que **no es lo que él juega**. Ahora hay dos ejes:
+
+- **Red**: KataGo (`b18`) / Human SL (`humanv0`) — las dos del producto. Si la red elegida falta, la prueba **la descarga** (mandar a "jugá una partida primero" para poder medir por qué las partidas mueren es un círculo, y este es justo el dispositivo donde no cierra).
+- **Reparto**: Fina (12×5) · Normal (6×20) · **Jugada real (3×50)** — 50 visitas es EXACTAMENTE una jugada del preset "Fuerza baja", fijado con un test contra `KATA_STRENGTH_PRESETS[0].visits` para que no puedan divergir. Tres tandas son tres jugadas de la IA: si eso no sobrevive, no hay partida posible y no hace falta ninguna otra medición.
+
+**Lo que cambiar de red NO mide:** el efecto del tamaño. `humanv0` pesa 108,0 MB contra 115,8 MB — misma arquitectura, mismo orden. Sirve para saber si el fallo es del pipeline (mueren las dos) o de una red concreta. Para medir el efecto del TAMAÑO haría falta una red chica, y b10 sigue sin convertir.

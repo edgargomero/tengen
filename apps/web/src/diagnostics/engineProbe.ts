@@ -28,21 +28,33 @@ import { EngineManager } from '../engine/engineManager'
 import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import { requireManifestEntry } from '../models/netManifest'
 import { createOpfsModelStore } from '../models/modelStore'
+import { ensureModel } from '../models/modelCache'
 import { errorText } from './gpuProbe'
 import type { BoardSize, NetworkId } from '@tengen/engine'
 
-/** La misma red que usa Analizar. Si el dispositivo ya jugó una partida, está en OPFS. */
-const PROBE_NETWORK: NetworkId = 'b18'
 const PROBE_BOARD_SIZE: BoardSize = 19
 
-/** Visitas por tanda. Deliberadamente bajo: la pregunta no es "cuánto aguanta" sino "cada tanda igual
- * tarda lo mismo", y con tandas cortas el resultado llega antes de que el aparato se caliente. */
+/**
+ * Qué red probar. Son las DOS del producto, y hay que poder elegir porque son dos experiencias
+ * distintas: contra KataGo se juega con `b18`, contra el oponente estilo humano con `humanv0`. Medir
+ * sólo una deja sin respuesta "¿y el modo que yo uso?".
+ *
+ * Pesan casi lo mismo (115,8 y 108,0 MB) y comparten arquitectura, así que cambiar de red **no** mide el
+ * efecto del TAMAÑO — para eso haría falta una red chica, que hoy no está convertida. Lo que sí mide es
+ * si el fallo es del pipeline (ambas mueren) o de una red en particular.
+ */
+export const PROBE_NETWORKS = [
+  { id: 'b18' as NetworkId, label: 'KataGo' },
+  { id: 'humanv0' as NetworkId, label: 'Human SL' },
+] as const
+
+/** Visitas por tanda del reparto por defecto. */
 export const PROBE_VISITS_PER_ROUND = 20
 export const PROBE_ROUNDS = 6
 
 /**
- * Dos formas de repartir un total parecido de inferencias. Existen para separar dos mecanismos que un
- * solo tamaño de tanda NO distingue, y que llevan a arreglos opuestos:
+ * Formas de repartir el trabajo. Los dos primeros existen para separar dos mecanismos que un solo tamaño
+ * de tanda NO distingue, y que llevan a arreglos opuestos:
  *
  * · **Acumulación** — algo crece con cada inferencia hasta cruzar el límite. Entonces el aparato muere
  *   cerca de la misma cuenta ACUMULADA sin importar cómo se agrupen: ~30 inferencias son ~30 tanto en
@@ -52,10 +64,15 @@ export const PROBE_ROUNDS = 6
  *
  * Con una fuga, achicar el modelo sólo corre el crash más adelante; con un techo, achicarlo ES el
  * arreglo. La decisión más cara del plan depende de cuál sea, así que se mide en vez de suponerse.
+ *
+ * `jugada` no mide mecanismos: mide PRODUCTO. 50 visitas es exactamente una jugada del preset "Fuerza
+ * baja", así que tres tandas son tres jugadas de la IA. Si eso no sobrevive, no hay partida posible en
+ * este dispositivo — y esa respuesta no necesita ninguna otra medición.
  */
 export const PROBE_PRESETS = [
   { id: 'fina', label: 'Fina', visitsPerRound: 5, rounds: 12 },
   { id: 'normal', label: 'Normal', visitsPerRound: PROBE_VISITS_PER_ROUND, rounds: PROBE_ROUNDS },
+  { id: 'jugada', label: 'Jugada real', visitsPerRound: 50, rounds: 3 },
 ] as const
 
 export type ProbePresetId = (typeof PROBE_PRESETS)[number]['id']
@@ -170,6 +187,12 @@ export function slowdownRatio(rounds: EngineRound[]): number | null {
  * mitad (el caso que se está investigando), lo ya reportado es lo único que va a sobrevivir.
  */
 export async function probeEngine(opts?: {
+  /** Qué red medir. Default `b18` (la de KataGo, que es la que Analizar ya deja en OPFS). */
+  network?: NetworkId
+  /** Si la red no está descargada, bajarla en vez de rendirse. Lo decide el caller porque son ~110 MB
+   * y esta pantalla no debe iniciar una descarga así sin que alguien la haya pedido. */
+  download?: boolean
+  onDownloadProgress?: (receivedBytes: number, totalBytes: number) => void
   rounds?: number
   visitsPerRound?: number
   onRound?: (round: EngineRound, all: EngineRound[]) => void
@@ -180,6 +203,7 @@ export async function probeEngine(opts?: {
    * mismo criterio que el resto del proyecto: nunca `Date.now()` escondido adentro). */
   nowIso?: () => string
 }): Promise<EngineProbeResult> {
+  const network = opts?.network ?? 'b18'
   const totalRounds = opts?.rounds ?? PROBE_ROUNDS
   const visits = opts?.visitsPerRound ?? PROBE_VISITS_PER_ROUND
   const rounds: EngineRound[] = []
@@ -190,7 +214,7 @@ export async function probeEngine(opts?: {
 
   // El modelo tiene que estar YA en OPFS: bajar 115,8 MB desde una pantalla de diagnóstico sin avisar
   // sería hostil, y en el dispositivo que interesa ya está (jugó una partida).
-  const entry = requireManifestEntry(PROBE_NETWORK)
+  const entry = requireManifestEntry(network)
   const store = createOpfsModelStore()
   let modelInOpfs = false
   try {
@@ -199,10 +223,18 @@ export async function probeEngine(opts?: {
     return { modelInOpfs: false, rounds, error: `no se pudo consultar OPFS: ${errorText(err)}` }
   }
   if (!modelInOpfs) {
-    return {
-      modelInOpfs: false,
-      rounds,
-      error: `el modelo ${PROBE_NETWORK} todavía no está en este dispositivo (${entry.opfsName}). Juega o analiza una partida primero: la descarga se hace ahí, con su barra de progreso.`,
+    if (!opts?.download) {
+      return {
+        modelInOpfs: false,
+        rounds,
+        error: `el modelo ${network} todavía no está en este dispositivo (${entry.opfsName}, ${Math.round(entry.bytes / 1e6)} MB).`,
+      }
+    }
+    try {
+      await ensureModel(network, store, (url) => fetch(url), (p) => opts.onDownloadProgress?.(p.receivedBytes, p.totalBytes ?? entry.bytes))
+      modelInOpfs = true
+    } catch (err) {
+      return { modelInOpfs: false, rounds, error: `no se pudo descargar ${network}: ${errorText(err)}` }
     }
   }
 
@@ -225,7 +257,7 @@ export async function probeEngine(opts?: {
 
   try {
     const initStart = performance.now()
-    await manager.ensureReady(PROBE_NETWORK, PROBE_BOARD_SIZE)
+    await manager.ensureReady(network, PROBE_BOARD_SIZE)
     const initMs = Math.round(performance.now() - initStart)
     persist({ initMs, rounds: [], finished: false })
 
