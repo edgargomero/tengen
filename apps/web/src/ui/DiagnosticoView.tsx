@@ -15,8 +15,8 @@
 import { useEffect, useState } from 'preact/hooks'
 import { collectDiagnostics } from '../diagnostics/collect'
 import type { Diagnostics } from '../diagnostics/collect'
-import { loadStoredProbe, probeEngine, PROBE_ROUNDS, PROBE_VISITS_PER_ROUND } from '../diagnostics/engineProbe'
-import type { EngineProbeResult, EngineRound } from '../diagnostics/engineProbe'
+import { loadStoredProbe, probeEngine, PROBE_PRESETS } from '../diagnostics/engineProbe'
+import type { EngineProbeResult, EngineRound, ProbePresetId } from '../diagnostics/engineProbe'
 import { formatEngineProbe, judgeEngineProbe } from '../diagnostics/engineVerdict'
 import { diagnose, formatDiagnostics, warnings } from '../diagnostics/format'
 import { errorText } from '../diagnostics/gpuProbe'
@@ -199,10 +199,17 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Qué reparto de inferencias usar. Cambiarlo es el experimento que separa acumulación de techo (ver
+  // `PROBE_PRESETS`), así que es un control de primera clase, no un ajuste escondido.
+  const [preset, setPreset] = useState<ProbePresetId>('normal')
+
   async function run(): Promise<void> {
+    const chosen = PROBE_PRESETS.find((p) => p.id === preset) ?? PROBE_PRESETS[1]
     setState({ phase: 'running', rounds: [] })
     const result = await probeEngine({
       storage: window.localStorage,
+      rounds: chosen.rounds,
+      visitsPerRound: chosen.visitsPerRound,
       onRound: (_round, all) => {
         setState({ phase: 'running', rounds: all })
         // Publica el parcial en el volcado en cada tanda: si el aparato muere ahora, esto es lo que
@@ -221,17 +228,40 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
   const running = state.phase === 'running'
   const verdict = state.phase === 'done' ? judgeEngineProbe(state.result) : null
   const rounds = state.phase === 'running' ? state.rounds : state.phase === 'done' ? state.result.rounds : []
+  const activePreset = PROBE_PRESETS.find((p) => p.id === preset) ?? PROBE_PRESETS[1]
+  // El acumulado por tanda se calcula al vuelo (una suma) en vez de guardarse: es la variable que
+  // discrimina, pero derivarla evita que el dato persistido tenga dos fuentes de verdad.
+  let cumulative = 0
+  const withCumulative = rounds.map((round) => {
+    cumulative += round.visits
+    return { round, cumulative }
+  })
 
   return (
     <div class="rail-field">
       <span class="eyebrow">Prueba del motor</span>
       <p class="hint">
-        Corre {PROBE_ROUNDS} tandas iguales de {PROBE_VISITS_PER_ROUND} visitas y mide cada una. Tandas
-        estables = el dispositivo es lento y nada más; tandas que se alargan = memoria que crece.
+        Tandas iguales de análisis real, cada una cronometrada. Cambiar el reparto es el experimento:
+        morir en el mismo acumulado con tandas chicas y grandes significa que algo crece; sobrevivir a las
+        chicas y morir sólo en las grandes significa que el problema es el pico de una tanda.
       </p>
+      <div class="choice-row" role="group" aria-label="Reparto de la prueba">
+        {PROBE_PRESETS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={preset === option.id}
+            class={preset === option.id ? 'active' : ''}
+            disabled={running}
+            onClick={() => setPreset(option.id)}
+          >
+            {option.label} ({option.rounds}×{option.visitsPerRound})
+          </button>
+        ))}
+      </div>
       <div class="action-row">
         <button type="button" onClick={() => void run()} disabled={running}>
-          {running ? `Midiendo… (${rounds.length}/${PROBE_ROUNDS})` : 'Probar el motor'}
+          {running ? `Midiendo… (${rounds.length}/${activePreset.rounds})` : 'Probar el motor'}
         </button>
       </div>
 
@@ -241,17 +271,19 @@ function EngineProbeSection({ onDump }: { onDump(lines: string[]): void }) {
           <br />
           {interrupted.rounds.length === 0
             ? 'Murió al arrancar el motor, antes de completar una sola tanda: el pico de memoria más grande de la app es justo ese, subir el modelo a la GPU.'
-            : `Alcanzó ${interrupted.rounds.length} de ${PROBE_ROUNDS} tandas y el proceso murió. Esa es la evidencia de que algo crece con el uso.`}
+            : `Alcanzó ${interrupted.rounds.length}${interrupted.totalRounds !== undefined ? ` de ${interrupted.totalRounds}` : ''} tandas (${interrupted.rounds.reduce((sum, r) => sum + r.visits, 0)} inferencias) y el proceso murió. Repite con el otro reparto: si muere cerca del mismo acumulado, algo crece; si aguanta, el problema es el pico de una tanda.`}
           <br />
           {formatEngineProbe({ modelInOpfs: true, rounds: interrupted.rounds, ...(interrupted.initMs !== undefined ? { initMs: interrupted.initMs } : {}) }).join(' · ')}
         </div>
       )}
 
-      {rounds.length > 0 && (
+      {withCumulative.length > 0 && (
         <ul class="diagnostico-rounds">
-          {rounds.map((round) => (
+          {withCumulative.map(({ round, cumulative: acc }) => (
             <li key={round.round} class="meta-row">
-              <span>Tanda {round.round}</span>
+              <span>
+                Tanda {round.round} · {acc} acum.
+              </span>
               <span>
                 {round.ms} ms · {round.visitsPerSecond} v/s
               </span>

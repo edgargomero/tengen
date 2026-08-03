@@ -616,7 +616,16 @@ El volcado se copió a las 01:52:46, seis segundos después del último registro
 
 ### El veredicto que separa los dos trabajos
 
-**No es un problema de velocidad. Es que muere.** Veinte inferencias seguidas y el proceso no sobrevive a las siguientes veinte. Eso descarta definitivamente la Rama B tal como estaba planteada: convertir b10 haría el motor más rápido, no más resistente — con una fuga, una red más chica sólo corre el crash unas jugadas más adelante.
+**No es un problema de velocidad. Es que muere.** Veinte inferencias seguidas y el proceso no sobrevive a las siguientes veinte.
+
+**Pero CUIDADO con el paso siguiente: lo confirmado es que muere, no POR QUÉ.** Un solo dato más una muerte encajan con dos mecanismos distintos, y llevan a arreglos distintos:
+
+- **Acumulación (fuga):** algo crece por inferencia hasta cruzar el límite.
+- **Techo (working set):** nada crece; el conjunto de trabajo simplemente no entra bajo el límite por pestaña de Safari, y la primera tanda lo roza mientras la segunda lo cruza.
+
+Con una fuga, achicar el modelo sólo corre el crash más adelante; con un techo, achicarlo ES el arreglo. Justo la decisión más cara del plan (convertir b10) depende de cuál sea, así que no se decide con este dato.
+
+**La medición que los separa es barata:** repetir con tandas de 5 visitas en vez de 20. Si muere alrededor de la misma cuenta ACUMULADA de inferencias (~30-40) sin importar cómo se agrupen, es acumulación. Si sobrevive muchas tandas chicas y sólo muere con las de 20, es un pico por tanda — un techo.
 
 **Por qué en una partida real aguanta más que en la prueba:** la prueba corre las tandas SEGUIDAS, sin pausa. En una partida hay pausas mientras el humano piensa, y eso le da al sistema tiempo de recuperar. Coherente con acumulación, no con un techo fijo.
 
@@ -626,3 +635,18 @@ La herramienta hizo las tres cosas para las que fue construida, en su primera co
 1. **Midió** en vez de extrapolar (el 5× era invención mía).
 2. **Distinguió** lento de con-fuga — que era el punto entero, porque mandan a trabajos muy desiguales en costo.
 3. **Sobrevivió al crash**: sin persistir cada tanda antes de dibujarla, este volcado habría llegado vacío y estaríamos igual que hace una semana.
+
+### El experimento que separa acumulación de techo (2026-08-03)
+
+**Dato del dispositivo que faltaba: es un iPhone 12 Pro MAX — 6 GB de RAM**, no los 4 GB del 12 base (mismo A14, así que la velocidad no cambia). El diagnóstico no puede detectarlo solo: Safari enmascara `adapter.info` con "apple" en los cuatro campos. Que muera con 6 GB deja bastante incómoda la hipótesis del techo simple, pero no la descarta — Safari impone su propio límite por pestaña, independiente de la RAM total.
+
+La prueba pasa a tener **reparto configurable** (`PROBE_PRESETS`), y esa es toda la razón de su existencia:
+
+- **Normal**: 6 tandas × 20 visitas = 120 inferencias.
+- **Fina**: 12 tandas × 5 visitas = 60 inferencias.
+
+Los totales son comparables a propósito (fijado con test, ≤2× de diferencia): si un reparto midiera mucho menos trabajo, "sobrevivió" no significaría nada. Y cada tanda del volcado ahora lleva el **acumulado** de inferencias, que es la variable a comparar entre corridas — sin eso habría que sumar a mano.
+
+**Cómo se lee el resultado:** si muere cerca del mismo acumulado (~30-40) con los dos repartos → algo crece. Si aguanta las 12 tandas finas y sólo muere con las de 20 → es el pico de una tanda, no acumulación.
+
+Corregido de paso: el mensaje de la corrida interrumpida afirmaba "algo crece con el uso" —justo lo que NO está determinado— y citaba un total de tandas fijo que ya no aplica. Ahora informa el acumulado real, el total pedido (que se persiste en `StoredProbe.totalRounds`) y propone repetir con el otro reparto, sin adelantar el veredicto.

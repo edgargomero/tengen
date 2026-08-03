@@ -8,15 +8,18 @@
 //
 // ── Qué distingue, y por qué son TANDAS y no una sola medición ────────────────────────────────
 // El síntoma a explicar es "funciona, se calienta y muere tras varias jugadas" con el preset MÁS BAJO
-// (50 visitas). Eso no es un presupuesto excesivo: es crecimiento con el uso. Una sola medición no
-// distingue las dos causas posibles, pero varias tandas iguales sí:
+// (50 visitas), o sea sin un presupuesto que lo justifique. Una sola medición no separa las causas
+// posibles; varias tandas iguales sí:
 //
-//   · Tandas de duración ESTABLE → no hay fuga. El dispositivo es lento y punto, y la respuesta es
+//   · Tandas de duración ESTABLE → nada se degrada. El dispositivo es lento y punto, y la respuesta es
 //     ajustar presupuesto (o una red más chica), no cazar un bug.
 //   · Tandas que se van ALARGANDO → algo crece: presión de memoria, GC, thrashing. Es la firma del bug
 //     conocido de onnxruntime en modo JSEP sobre Safari (microsoft/onnxruntime#26827, memoria creciendo
 //     hasta matar el proceso), y también la que dejaría una fuga propia.
-//   · Muere a mitad → la respuesta está en cuántas tandas aguantó.
+//   · Muere a mitad → cuántas tandas aguantó es el dato, y compararlo entre repartos distintos separa
+//     ACUMULACIÓN de TECHO (ver `PROBE_PRESETS`). Que muera NO alcanza para saber por qué muere:
+//     medido en un iPhone 12 Pro Max real (6 GB, Safari 26), murió tras la primera tanda de 20 visitas
+//     — dato que encaja igual de bien con las dos causas, y por eso el reparto es configurable.
 //
 // Corre el motor DE VERDAD (el mismo Worker, la misma sesión ONNX, el mismo MCTS) en vez de sintetizar
 // inferencias sueltas: lo que hay que medir es el camino que falla, no una aproximación suya.
@@ -36,6 +39,26 @@ const PROBE_BOARD_SIZE: BoardSize = 19
  * tarda lo mismo", y con tandas cortas el resultado llega antes de que el aparato se caliente. */
 export const PROBE_VISITS_PER_ROUND = 20
 export const PROBE_ROUNDS = 6
+
+/**
+ * Dos formas de repartir un total parecido de inferencias. Existen para separar dos mecanismos que un
+ * solo tamaño de tanda NO distingue, y que llevan a arreglos opuestos:
+ *
+ * · **Acumulación** — algo crece con cada inferencia hasta cruzar el límite. Entonces el aparato muere
+ *   cerca de la misma cuenta ACUMULADA sin importar cómo se agrupen: ~30 inferencias son ~30 tanto en
+ *   tandas de 20 como en tandas de 5.
+ * · **Techo** — nada crece, pero el conjunto de trabajo de una tanda no entra bajo el límite por pestaña.
+ *   Entonces las tandas chicas sobreviven indefinidamente y sólo mueren las grandes.
+ *
+ * Con una fuga, achicar el modelo sólo corre el crash más adelante; con un techo, achicarlo ES el
+ * arreglo. La decisión más cara del plan depende de cuál sea, así que se mide en vez de suponerse.
+ */
+export const PROBE_PRESETS = [
+  { id: 'fina', label: 'Fina', visitsPerRound: 5, rounds: 12 },
+  { id: 'normal', label: 'Normal', visitsPerRound: PROBE_VISITS_PER_ROUND, rounds: PROBE_ROUNDS },
+] as const
+
+export type ProbePresetId = (typeof PROBE_PRESETS)[number]['id']
 
 /** Tope por tanda. Muy por encima de los 30 s de producción a propósito: acá el objetivo es MEDIR
  * cuánto tarda, y cortar a los 30 s escondería justamente el dato que se busca. */
@@ -76,6 +99,9 @@ export interface StoredProbe {
   /** `true` si la corrida llegó a su fin (con éxito o con error reportado). `false` = quedó a mitad, que
    * en este contexto significa casi siempre que el proceso murió. */
   finished: boolean
+  /** Cuántas tandas se habían pedido. Se guarda porque el reparto es configurable: sin esto, un "alcanzó
+   * 3 tandas" no se puede leer (¿de 6 o de 12?), y comparar dos corridas es justamente el experimento. */
+  totalRounds?: number
   error?: string
 }
 
@@ -102,6 +128,7 @@ export function loadStoredProbe(storage: Pick<Storage, 'getItem'>): StoredProbe 
     if (typeof p.at !== 'string' || !Array.isArray(p.rounds) || !p.rounds.every(isEngineRound)) return null
     const stored: StoredProbe = { at: p.at, rounds: p.rounds, finished: p.finished === true }
     if (typeof p.initMs === 'number') stored.initMs = p.initMs
+    if (typeof p.totalRounds === 'number') stored.totalRounds = p.totalRounds
     if (typeof p.error === 'string') stored.error = p.error
     return stored
   } catch {
@@ -157,8 +184,8 @@ export async function probeEngine(opts?: {
   const visits = opts?.visitsPerRound ?? PROBE_VISITS_PER_ROUND
   const rounds: EngineRound[] = []
   const nowIso = opts?.nowIso ?? ((): string => new Date().toISOString())
-  const persist = (partial: Omit<StoredProbe, 'at'>): void => {
-    if (opts?.storage) saveStoredProbe(opts.storage, { at: nowIso(), ...partial })
+  const persist = (partial: Omit<StoredProbe, 'at' | 'totalRounds'>): void => {
+    if (opts?.storage) saveStoredProbe(opts.storage, { at: nowIso(), totalRounds, ...partial })
   }
 
   // El modelo tiene que estar YA en OPFS: bajar 115,8 MB desde una pantalla de diagnóstico sin avisar

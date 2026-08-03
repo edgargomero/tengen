@@ -95,12 +95,19 @@ export function judgeEngineProbe(result: EngineProbeResult): EngineVerdict {
   }
 }
 
-/** Las tandas en texto plano, para que entren en el volcado que se copia y se pega. */
+/** Las tandas en texto plano, para que entren en el volcado que se copia y se pega. Cada línea lleva el
+ * ACUMULADO de inferencias, que es la variable que separa acumulación de techo: si el aparato muere
+ * cerca del mismo acumulado con tandas de 5 y de 20, algo crece; si sólo muere con las grandes, es el
+ * pico de una tanda. Sin ese número, comparar dos corridas obliga a sumar a mano. */
 export function formatEngineProbe(result: EngineProbeResult): string[] {
   const lines: string[] = []
   if (result.initMs !== undefined) lines.push(`arranque del motor: ${result.initMs} ms`)
+  let cumulative = 0
   for (const round of result.rounds) {
-    lines.push(`tanda ${round.round}: ${round.visits} visitas en ${round.ms} ms (${round.visitsPerSecond} visitas/s)`)
+    cumulative += round.visits
+    lines.push(
+      `tanda ${round.round}: ${round.visits} visitas en ${round.ms} ms (${round.visitsPerSecond} visitas/s) · acumulado ${cumulative}`,
+    )
   }
   const ratio = slowdownRatio(result.rounds)
   if (ratio !== null) lines.push(`desaceleración última mitad / primera mitad: ${ratio.toFixed(2)}×`)

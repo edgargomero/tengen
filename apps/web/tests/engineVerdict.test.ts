@@ -3,7 +3,7 @@
 // así que la separación va fijada con tests en vez de quedar a criterio de quien mire los números.
 import { describe, expect, it } from 'vitest'
 import type { EngineProbeResult, EngineRound } from '../src/diagnostics/engineProbe'
-import { loadStoredProbe, saveStoredProbe, slowdownRatio } from '../src/diagnostics/engineProbe'
+import { loadStoredProbe, PROBE_PRESETS, saveStoredProbe, slowdownRatio } from '../src/diagnostics/engineProbe'
 import { formatEngineProbe, judgeEngineProbe, LEAK_SLOWDOWN_THRESHOLD } from '../src/diagnostics/engineVerdict'
 
 /** Tandas con las duraciones dadas, todas pidiendo las mismas 20 visitas. */
@@ -139,5 +139,31 @@ describe('loadStoredProbe / saveStoredProbe', () => {
       },
     }
     expect(() => saveStoredProbe(hostile, { at: 'x', rounds: [], finished: false })).not.toThrow()
+  })
+})
+
+// ── El acumulado por tanda: la variable que separa acumulación de techo ──────────────────────
+describe('formatEngineProbe — acumulado', () => {
+  it('cada tanda lleva el total de inferencias hasta ese punto', () => {
+    const lines = formatEngineProbe(result({ rounds: rounds([100, 100, 100]) }))
+    expect(lines[1]).toContain('acumulado 20')
+    expect(lines[2]).toContain('acumulado 40')
+    expect(lines[3]).toContain('acumulado 60')
+  })
+})
+
+describe('PROBE_PRESETS', () => {
+  it('los dos repartos llegan a un total de inferencias comparable', () => {
+    // Comparables a propósito: si un reparto midiera mucho menos trabajo que el otro, "sobrevivió" no
+    // significaría nada — habría que preguntarse si aguantó o si simplemente hizo menos.
+    const totals = PROBE_PRESETS.map((p) => p.rounds * p.visitsPerRound)
+    const [min, max] = [Math.min(...totals), Math.max(...totals)]
+    expect(max / min).toBeLessThanOrEqual(2)
+  })
+
+  it('el reparto fino usa tandas MUCHO más chicas: es lo que hace el experimento', () => {
+    const fina = PROBE_PRESETS.find((p) => p.id === 'fina')!
+    const normal = PROBE_PRESETS.find((p) => p.id === 'normal')!
+    expect(normal.visitsPerRound / fina.visitsPerRound).toBeGreaterThanOrEqual(4)
   })
 })
