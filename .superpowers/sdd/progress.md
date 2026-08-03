@@ -709,3 +709,37 @@ corrida anterior INTERRUMPIDA (2026-08-03T02:10:28.436Z) — el proceso murió s
 **Y esto sí decide algo:** morir CARGANDO el modelo, antes de inferir, es evidencia directa de que el problema está dominado por el **pie de memoria del modelo**, no por lo que pasa después. La Rama B (red más chica) deja de ser una apuesta y pasa a ser la hipótesis con más respaldo — por un camino distinto del original, que la justificaba por velocidad.
 
 **Suficiente medición.** Cinco diagnósticos pedidos a Edgar; el instrumento ya dio lo que podía dar con este binario. Seguir midiendo sin cambiar nada sería una cinta de correr.
+
+### CORRECCIÓN: no hay degradación monótona, y el motor ACELERA (corrida 4, 2026-08-03)
+
+Cuarta corrida, b18 con reparto normal (6×20):
+
+```
+arranque del motor: 7036 ms
+tanda 1: 20 visitas en 22221 ms (0.9 v/s) · acumulado 20
+tanda 2: 20 visitas en 15355 ms (1.3 v/s) · acumulado 40
+tanda 3: 20 visitas en 12870 ms (1.6 v/s) · acumulado 60
+tanda 4: 20 visitas en 17373 ms (1.2 v/s) · acumulado 80
+desaceleración última mitad / primera mitad: 0.80×
+```
+
+**Dos correcciones a lo escrito arriba, las dos importantes:**
+
+1. **El motor NO se frena: se acelera.** 0,80× significa que la segunda mitad va MÁS RÁPIDO que la primera — la tanda 1 es la más lenta de todas (22,2 s) y después baja a 12,9. Es el patrón normal de un motor calentando caches y shaders compilados. **La hipótesis de "algo se degrada progresivamente" queda descartada por medición.**
+2. **La "degradación monótona" era un artefacto de tres puntos.** Esta corrida completó **80 inferencias**, la mejor de las cuatro, y vino justo DESPUÉS de la peor (la que murió en el arranque). El orden decreciente 20 → <5 → 0 era casualidad.
+
+**El patrón real: supervivencia ERRÁTICA entre 0 y 80 inferencias**, con el mismo binario y el mismo dispositivo. Eso no es una fuga con tendencia ni un techo fijo: es un proceso que vive cerca del límite y muere cuando el sistema decide, según presión externa que no controlamos (otras apps, estado térmico, humor del allocator).
+
+Velocidad estable en ~1,2 visitas/s cuando corre.
+
+### El arreglo barato NO existe: verificado en el código de ORT instalado
+
+La sospecha era el doble buffer de `appFactory.ts` (`readArrayBuffer` materializa el ONNX completo en un `ArrayBuffer` de JS y ORT lo copia a su heap WASM: ~232 MB vivos a la vez). La pregunta era si ORT 1.27 admite una carga sin copia. **No, para este tamaño.** En `ort.min.mjs`:
+
+```js
+if (r < 1073741824) return new Uint8Array(await t.arrayBuffer());
+```
+
+El camino de streaming (leer por chunks a un `ArrayBuffer` preasignado) sólo se activa para archivos de **1 GB o más**. Con 115,8 MB caemos siempre en `arrayBuffer()`. Y el `else` final hace lo mismo con un `Blob`. Así que **da igual pasar OPFS→ArrayBuffer, una URL, o un Blob: el pico de 2× es inherente a la API con un modelo de este tamaño.**
+
+**Consecuencia:** el único camino que reduce ese pico es **un modelo más chico**. b10c128 bajaría el pico de ~232 MB a ~40 MB y además correría bastante más rápido que 1,2 v/s. Es el trabajo más incierto del plan (falta convertirla), pero ya no es una apuesta por velocidad: es la única palanca que queda sobre el pico de carga.
