@@ -13,3 +13,6 @@ gtp_logs/
 *.onnx
 *.onnx.part
 packages/engine/models/
+
+# Salida del duelo de calibración (packages/engine/scripts/duel.ts) — herramienta local
+duel-out/
