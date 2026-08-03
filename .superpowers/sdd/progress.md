@@ -811,3 +811,114 @@ Ninguna salió de leer documentación: salieron de que el error se movía.
 El pico de carga (inherente a ORT, que sólo streamea archivos ≥1 GB) baja de **~232 MB a ~110 MB** con el mismo modelo y la misma fuerza de juego. **b10c128 deja de ser necesaria** salvo que la mitad no alcance: no hay que convertir una red nueva ni degradar cómo juega la IA. Lo que queda por construir es exactamente lo que Edgar propuso — el perfil por dispositivo — más subir los mixed16 a R2 y añadirlos al manifest.
 
 Pendiente antes de servirlos: validar humanv0, medir velocidad (el fp16 podría ser más rápido en la GPU del A14, que declara `shader-f16`), y el gate manual en WebGPU real — el gate de referencia corre en WASM/Node.
+
+---
+
+## Human SL validado y los mixtos servidos por dispositivo (2026-08-03)
+
+Cierra la entrada anterior: humanv0 quedó **validado** y las dos redes se sirven por perfil de
+dispositivo. Commits `129e959` (implementación) y `aec31a9` (arreglo del alcance de la limpieza).
+
+### Corrección de la tabla anterior
+
+Los tamaños de la entrada previa estaban redondeados hacia abajo. Los valores medidos con
+`stat -f%z` —que son los que van al manifest, porque `ensureModel` rechaza ante UN byte de
+diferencia— son:
+
+| red | fp32 | mixed16 | ratio | validación |
+|---|---|---|---|---|
+| b18 kata | 115.800.125 | **58.093.573** | 50,2 % | **10/10 fixtures `kata-raw-nn`** ✅ (re-verificado, no heredado) |
+| humanv0 | 108.040.143 | **54.194.233** | 50,2 % | **4/4 casos contra su propio fp32** ✅ |
+
+### Cómo se validó Human SL, y por qué el criterio del plan medía la magnitud equivocada
+
+`scripts/validate-humanv0-mixed.ts` compara la red contra su propia versión fp32 con el mismo input,
+incluido el `meta_input[192]` — la ruta que b18 ni siquiera tiene y donde el fp16 ciego daba NaN.
+Cuatro casos: tablero vacío y medio juego, 19×19 y 9×9, rangos 5k/5d/9d (el termómetro de rango
+cambia el contenido de `meta_input`, así que un overflow podría depender de él).
+
+El plan pedía "diferencia de logit del orden de 1e-2 o menor". Aplicado literalmente, un caso
+FALLABA: `endgame @ 5k` daba 1,26e-2. Bajar el umbral para que pasara habría sido hacer trampa; la
+salida correcta fue notar que **el logit crudo es la magnitud equivocada para esta red**.
+
+Human SL no toma el argmax: `sampleHumanMove` MUESTREA con una temperatura que depende del rango
+(0,85 en 20k → 0,30 en 9d). Una temperatura < 1 **divide** el logit, o sea que amplifica cualquier
+diferencia en el exponente — un umbral sobre logits crudos es laxo y estricto a la vez según el
+rango. La métrica que traduce a comportamiento es la **distancia de variación total**,
+TV = ½·Σ|p−q|, que es exactamente la cota superior de la probabilidad de que las dos versiones
+elijan jugadas distintas.
+
+Con esa métrica, el caso "que fallaba" da TV = 1,08e-3: **eligen distinto el 0,11 % de las veces.**
+El logit exageraba en un orden de magnitud lo que significaba en la práctica. Los 4 casos: cero NaN,
+misma jugada, top-5 idéntico y en el mismo orden, TV máxima 1,08e-3, diferencia de probabilidad
+post-softmax máxima 6,4e-4 (el gate de b18 tolera 0,06 contra otra implementación entera).
+
+Dato secundario que confirma el mecanismo: el caso de **9d** (T=0,30) da la TV más baja de todas,
+2,0e-5. Una temperatura baja concentra la masa en la mejor jugada, así que aplasta las diferencias
+numéricas — la conversión es *más* segura justo en los rangos fuertes.
+
+### El riesgo real de esta fase no era la conversión, era la divergencia
+
+La variante hace falta en dos scopes que no comparten memoria: el hilo principal descarga
+(`ModelGate` → `ensureModel`) y el worker lee de OPFS por `opfsName` (`appFactory`). Si resuelven
+distinto, **el worker busca un archivo que nadie descargó** y el motor no arranca — sólo en los
+dispositivos donde el criterio dé distinto, o sea invisible en desarrollo y seguro en producción.
+
+Se cierra por construcción, no por convención: `currentModelVariant()` es el único punto que lee el
+global, los dos lados la llaman **sin argumentos** (no hay input que se pueda pasar mal), y depende
+sólo de `navigator.userAgent`.
+
+**La trampa concreta que se evitó:** el plan proponía usar `summarizeUserAgent` con
+`iPadOsSuspected`, que sale de `maxTouchPoints`. `WorkerNavigator` **no expone `maxTouchPoints`** →
+en el worker daría `undefined ?? 0` → `false`. En un iPad: hilo principal mixto, worker fp32,
+divergencia. Y `tsc` no lo agarra porque apps/web tipa `navigator` con la lib DOM. Costo aceptado:
+un iPad disfrazado de Mac cae en fp32, que es lo que ya hace hoy.
+
+### El eje de variante de la sonda, sin tocar `packages/engine`
+
+El plan descartó pasar la variante por el `init` del worker porque cambiaría el contrato `Engine`.
+Verificado: es cierto, cascadearía por `types.ts`, `protocol.ts`, `engine.ts` y `handler.ts`. Pero
+hay una tercera vía que el plan no consideró — `apps/web/src/engine.worker.ts` es de la app y ya
+posee su propio `addEventListener`, así que puede atender un mensaje propio
+(`engine/variantMessage.ts`) y retornar antes de delegar en `createWorkerHandler`. El motor nunca lo
+ve.
+
+Dos detalles de los que depende que funcione: el mensaje viaja en la **closure** de la factory
+(`() => createWorkerManagedEngine({ variant })`) porque `EngineManager` reconstruye el worker ante un
+crash — con un `postMessage` suelto, el worker reconstruido volvería a la variante del dispositivo y
+la corrida cambiaría de sujeto justo en el tramo donde el aparato empieza a fallar. Y la resolución
+ahí es **estricta** (`requireManifestEntry`), al revés que en producción (`resolveManifestEntry`, con
+fallback a fp32): un fallback silencioso rotularía "mixto" una medición del fp32, y es la medición
+que decide si hace falta convertir b10c128.
+
+### El bug que introdujo la limpieza, y dónde vive ahora
+
+Primera versión: `pruneOtherModelVariants` corría dentro de `ensureModel`. Pero la prueba del motor
+también llama a `ensureModel`, con una variante ELEGIDA — así que medir el fp32 en el iPhone
+**borraba el mixto activo**. La app quedaba sin su modelo, y en un aparato a 252,6 MB de uso la sonda
+podía ni entrar, dejándolo sin ninguna de las dos. Un diagnóstico que rompe lo que viene a
+diagnosticar.
+
+Ahora la limpieza es explícita y la llama **sólo `ModelGate`**: es política de producción, no parte
+de "garantizá que este archivo esté". Corre **antes** de descargar, que es lo único que libera
+espacio a tiempo — el trade-off aparente ("si la descarga falla te quedaste sin la variante vieja")
+se disuelve porque `ModelGate` exige la variante activa y un fallo bloquea igual; conservar el
+archivo viejo no da un camino de vuelta, sólo ocupa los MB que hacían falta. Un test fija el límite.
+
+### Verificado
+
+`npm run typecheck` · **852 tests** (eran 818) · `npm run build -w @tengen/web` · `test:nn` **10/10
+con el fp32 por defecto** (el binario del escritorio no se toca) y **10/10 con el mixto de b18**.
+
+### Lo que falta, y no lo puede hacer un LLM
+
+1. **Subir los dos mixtos a R2** (los `wrangler r2 object put` están en el handoff) y verificar el
+   `content-length` exacto contra 58093573 / 54194233. Los fp32 se quedan: los sirve el escritorio.
+2. **Gate manual en el iPhone**, que es el único camino que ninguna prueba automática cubre —
+   `test:nn` corre en WASM/Node y el fallo es de WebGPU en iOS. La pregunta a responder: **¿completa
+   las 6 tandas (120 inferencias) donde el fp32 moría en ~80?** Si también muere, la mitad no
+   alcanzó y ese dato reabre b10c128 con evidencia. `/diagnostico` ahora tiene el selector de
+   variante para correr el A/B en el mismo aparato.
+
+No se tocó `numThreads` (es un paliativo de otra variable — pie base, no pico de carga — y mezclarlo
+impediría atribuir la mejora) ni el escritorio (mismo modelo, mismo binario, mismo comportamiento).
