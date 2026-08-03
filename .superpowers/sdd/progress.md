@@ -952,3 +952,77 @@ principal Y el worker del motor coincidan es la comprobación que importa: si s�
 lógica nueva, sería exactamente la divergencia hilo-principal/worker que el diseño evita.
 
 **Queda SOLO el gate manual en el iPhone.**
+
+### Primera corrida en el iPhone con el mixto: el criterio NO se cumplió (2026-08-03)
+
+Volcado de Edgar, iPhone 12 Pro Max, **Chrome iOS 150.0.7871.113 sobre iOS 26.5.2**, build `ea024ff`.
+
+**Lo que quedó confirmado funcionando:**
+
+- **WebGPU en Chrome iOS**, adapter y device OK **en los dos scopes** (`vendor=apple`, `shader-f16`
+  presente, `maxBufferSize` 1,1 GB, `crossOriginIsolated: sí`). Confirma la predicción de CLAUDE.md:
+  WKWebView expone WebGPU desde iOS 26. El bloqueo móvil que la memoria arrastraba desde julio está
+  levantado.
+- **El perfil por dispositivo funciona:** `variante de este dispositivo: mixed16`, y las dos redes
+  figuran con su fila `mixed16 (activa)` / `fp32 (inactiva)`.
+- **Cero divergencia hilo-principal/worker:** el motor ARRANCÓ (5.063 ms). Si los dos scopes hubieran
+  resuelto distinto, `appFactory` habría lanzado "no está en OPFS" y no habría habido ninguna tanda.
+
+**El resultado, que es negativo:** murió tras **3 tandas / 60 inferencias**. El criterio del plan era
+completar 6 tandas / 120. **No se cumplió.**
+
+| | fp32 (Chrome iOS, corrida previa) | mixto (esta corrida) |
+|---|---|---|
+| arranque | 3.563 ms | **5.063 ms** |
+| visitas/s | 1,5 | 1,5 → 1,8 → **1,9** |
+| aguantó | ~80 inferencias | **60 inferencias** |
+
+**Advertencia sobre esta comparación, que hay que leer antes de sacar conclusiones:**
+
+1. **No está PROBADO que la corrida fuera del mixto.** El volcado de ese build no reportaba la
+   variante medida (defecto corregido en el commit siguiente). Es muy probable que sí —el selector
+   arranca en la variante del dispositivo, que es `mixed16`—, pero es inferencia, no dato.
+2. **Una sola corrida por lado, y la varianza documentada es enorme:** las corridas de fp32 dieron
+   "murió en el arranque" *y* "80 inferencias". Con esa dispersión, 60-contra-80 **no sostiene** que
+   el mixto sea peor.
+
+**Lo que sí se puede concluir, y es lo importante:** reducir el modelo a la mitad **no movió el
+techo de forma apreciable**. De ahí se sigue algo que contradice el supuesto del plan — **los pesos
+no son el consumo dominante.**
+
+Tres observaciones lo refuerzan:
+
+- **Sobrevivió al arranque y murió después.** Si el pico de carga (~232 MB → ~116 MB) fuera la causa
+  dominante, el efecto de partirlo al medio se vería justamente ahí. Arrancó bien y murió durante
+  inferencia sostenida.
+- **Arrancó MÁS LENTO con un archivo de la mitad** (5.063 vs 3.563 ms). Contraintuitivo, y sugiere
+  que el grafo mixto le cuesta más a ORT: `keep_io_types=True` más el `gpool` en fp32 dejan muchas
+  fronteras `Cast` fp32↔fp16. Más nodos de conversión pueden significar más buffers intermedios en
+  la GPU — o sea, achicamos el ARCHIVO y quizá le agregamos trabajo al RUNTIME.
+- **Acelera en vez de degradarse** (1,5 → 1,9 v/s). Dentro de la ventana medida no hay fuga
+  monótona: muere de golpe. Es firma de TECHO más que de acumulación, aunque con 3 puntos es débil.
+
+Todo esto encaja con el sospechoso que el propio `engineProbe.ts` ya citaba: el bug de onnxruntime en
+modo JSEP sobre WebKit (microsoft/onnxruntime#26827, memoria creciendo hasta matar el proceso), que
+es del RUNTIME y no del tamaño del modelo.
+
+**Dos variables de confusión que se eliminan gratis y no se eliminaron:**
+
+- **La PWA no estaba instalada** (`modo de display: browser`, `persistente: no`). El plan lo pedía
+  explícitamente. Una pestaña tiene un presupuesto de memoria más ajustado que una app instalada, así
+  que puede ser la variable dominante — y controlarla no cuesta nada.
+- **Los 223,8 MB de fp32 siguen en OPFS** (uso total: 364,9 MB). Es el comportamiento ESPERADO: la
+  limpieza la dispara sólo `ModelGate`, o sea entrar a Jugar/Analizar, y la sesión fue directo a
+  `/diagnostico`. Es disco y no RAM, pero conviene descartarlo.
+
+**Próximo experimento, que ya está implementado y es más barato que convertir otra red:** el preset
+**"Fina"** (5 visitas × 12 tandas = 60 acumulado) contra **"Normal"** (20 × 6). Es el experimento
+para el que se diseñaron los presets: si con tandas chicas pasa de 60, el mecanismo es **techo por
+tanda** y el arreglo es bajar las visitas por llamada, no achicar la red; si muere cerca de 60 igual,
+es **acumulación**.
+
+**Por eso NO se reabre b10c128 todavía**, pese a que el criterio del plan lo habilitaría: si el
+mecanismo es techo por tanda o una fuga del runtime, una red más chica volvería a correr el crash
+unas inferencias más allá sin resolverlo — que es exactamente lo que acaba de pasar al partir el
+modelo al medio. Convertir otra red antes de saber el mecanismo es repetir el experimento que ya
+salió negativo.
