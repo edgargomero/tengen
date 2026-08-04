@@ -83,16 +83,32 @@ function placeHandicap(stones: Uint8Array, n: number, handicap: number): void {
   }
 }
 
+// Piedras de setup (SGF AB/AW): se escriben directo en el tablero inicial, tras el handicap y
+// ANTES del bucle de jugadas. Así los buffers de historial (`prevStones`/`prevPrevStones`, que se
+// copian de `initial`) las ven como "siempre estuvieron ahí" y `recentMoves` queda intacto — no se
+// fabrica historial falso para featuresV7. Colocar no es jugar: sin capturas, sin ko.
+function placeSetup(stones: Uint8Array, n: number, setup: NonNullable<Position['setup']>): void {
+  for (const [vertices, color] of [
+    [setup.black, BLACK],
+    [setup.white, WHITE],
+  ] as const) {
+    for (const v of vertices) {
+      if (v === 'pass') throw new Error('setup no admite pass: solo vértices del tablero')
+      stones[v.y * n + v.x] = color
+    }
+  }
+}
+
 /**
- * Construye el `GameState` a partir de una `Position`. Coloca las piedras de handicap, aplica las
- * jugadas en orden con `playMove` (deja que un registro ilegal lance — no se traga la excepción,
- * ver `decisiones-adaptacion.md §7`), y captura los tableros de hace 1/2 turnos.
+ * Construye el `GameState` a partir de una `Position`. Coloca las piedras de handicap y de setup,
+ * aplica las jugadas en orden con `playMove` (deja que un registro ilegal lance — no se traga la
+ * excepción, ver `decisiones-adaptacion.md §7`), y captura los tableros de hace 1/2 turnos.
  *
  * Convenciones (documentadas en el reporte de Task 5):
  * - `prevStones`/`prevPrevStones` al inicio de la partida (menos de 1/2 jugadas): copias del tablero
- *   inicial (tras handicap). No repite el tablero actual como hace el fallback de web-katrain.
- * - `currentPlayer`: opuesto del color de la última jugada del registro; sin jugadas, White si hubo
- *   piedras de handicap (handicap ≥ 2), si no Black.
+ *   inicial (tras handicap + setup). No repite el tablero actual como hace el fallback de web-katrain.
+ * - `currentPlayer`: opuesto del color de la última jugada del registro; sin jugadas,
+ *   `initialTurn` si viene, si no White con handicap ≥ 2 y Black en el resto.
  * - `koPoint`: el que deja el último `playMove` (−1 si no hay jugadas).
  */
 export function buildGameState(pos: Position): GameState {
@@ -102,6 +118,7 @@ export function buildGameState(pos: Position): GameState {
 
   const initial = new Uint8Array(area)
   placeHandicap(initial, n, pos.handicap)
+  if (pos.setup) placeSetup(initial, n, pos.setup)
 
   const simPos: SimPosition = { stones: initial, koPoint: -1 }
   const captureStack: number[] = []
@@ -125,9 +142,7 @@ export function buildGameState(pos: Position): GameState {
   const lastMove = pos.moves.length > 0 ? pos.moves[pos.moves.length - 1] : undefined
   const currentPlayer: Player = lastMove
     ? getOpponent(lastMove.color)
-    : pos.handicap >= 2
-      ? 'white'
-      : 'black'
+    : (pos.initialTurn ?? (pos.handicap >= 2 ? 'white' : 'black'))
 
   return {
     boardSize: n,

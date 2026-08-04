@@ -74,6 +74,11 @@ export type Position = {
   rules: Rules
   handicap: number // piedras de handicap colocadas (0 = sin handicap)
   moves: Move[] // desde el inicio (tras handicap), en orden
+  /** Piedras colocadas (semántica SGF AB/AW): entran al tablero inicial, sin jugarse ni capturar. */
+  setup?: { black: Vertex[]; white: Vertex[] }
+  /** Color al turno cuando `moves` está vacío (tsumego "juegan blancas"). Con jugadas se ignora:
+   *  el turno se deriva de la última jugada. Ausente: white si handicap ≥ 2, si no black. */
+  initialTurn?: StoneColor
 }
 export type MoveAnalysis = {
   vertex: Vertex

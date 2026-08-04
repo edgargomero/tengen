@@ -80,3 +80,71 @@ describe('buildGameState: historial S_k / S_{k-1} / S_{k-2}', () => {
     expect(state.currentPlayer).toBe('white')
   })
 })
+
+// Fase Aprender T1: piedras de setup (semántica SGF AB/AW: se colocan, no se juegan) + initialTurn
+// (tsumego "juegan blancas" con 0 jugadas). El setup se escribe en el tablero inicial ANTES del
+// bucle de jugadas, así que para el encoder V7 esas piedras "siempre estuvieron ahí": aparecen en
+// stones/prevStones/prevPrevStones y NO fabrican historial en recentMoves.
+describe('buildGameState: setup + initialTurn', () => {
+  const SETUP = {
+    black: [
+      { x: 4, y: 4 },
+      { x: 5, y: 4 },
+    ],
+    white: [{ x: 4, y: 5 }],
+  }
+
+  it('setup sin jugadas: piedras presentes en stones Y en prevStones/prevPrevStones; recentMoves vacío', () => {
+    setBoardSize(N)
+    const state = buildGameState({ ...basePosition([]), setup: SETUP })
+    for (const buf of [state.stones, state.prevStones, state.prevPrevStones]) {
+      expect(buf[idx(4, 4)]).toBe(BLACK)
+      expect(buf[idx(5, 4)]).toBe(BLACK)
+      expect(buf[idx(4, 5)]).toBe(WHITE)
+    }
+    expect(state.recentMoves).toEqual([])
+  })
+
+  it('setup + 1 jugada: la jugada NO está en prevStones, el setup sí (historial honesto)', () => {
+    setBoardSize(N)
+    const state = buildGameState({ ...basePosition([A]), setup: SETUP })
+    expect(state.stones[idx(2, 2)]).toBe(BLACK) // A jugada
+    expect(state.prevStones[idx(2, 2)]).toBe(EMPTY) // A aún no existía hace 1 turno
+    expect(state.prevStones[idx(4, 4)]).toBe(BLACK) // el setup "siempre estuvo"
+    expect(state.recentMoves).toHaveLength(1)
+  })
+
+  it('initialTurn white con 0 jugadas y sin handicap → currentPlayer white', () => {
+    setBoardSize(N)
+    const state = buildGameState({ ...basePosition([]), setup: SETUP, initialTurn: 'white' })
+    expect(state.currentPlayer).toBe('white')
+  })
+
+  it('setup sin initialTurn, 0 jugadas, handicap 0 → currentPlayer black (derivación de siempre)', () => {
+    setBoardSize(N)
+    const state = buildGameState({ ...basePosition([]), setup: SETUP })
+    expect(state.currentPlayer).toBe('black')
+  })
+
+  it('con jugadas, initialTurn NO pisa la derivación: currentPlayer = opuesto de la última jugada', () => {
+    setBoardSize(N)
+    const state = buildGameState({ ...basePosition([C, B, A]), initialTurn: 'black' })
+    expect(state.currentPlayer).toBe('white') // última jugada Negro → Blanco, initialTurn irrelevante
+  })
+
+  it('regresión: setup vacío e initialTurn ausente → GameState byte-idéntico al de una Position sin los campos', () => {
+    setBoardSize(N)
+    const before = buildGameState(basePosition([C, B, A]))
+    const after = buildGameState({
+      ...basePosition([C, B, A]),
+      setup: { black: [], white: [] },
+      initialTurn: undefined,
+    })
+    expect(Array.from(after.stones)).toEqual(Array.from(before.stones))
+    expect(Array.from(after.prevStones)).toEqual(Array.from(before.prevStones))
+    expect(Array.from(after.prevPrevStones)).toEqual(Array.from(before.prevPrevStones))
+    expect(after.koPoint).toBe(before.koPoint)
+    expect(after.currentPlayer).toBe(before.currentPlayer)
+    expect(after.recentMoves).toEqual(before.recentMoves)
+  })
+})
