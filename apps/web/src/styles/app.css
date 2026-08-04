@@ -1312,6 +1312,18 @@ textarea:focus-visible {
   padding: 0 0.15em;
 }
 
+/* Línea de la solución numerada (Aprender): los números caen SOBRE piedras (la línea ya está
+   jugada en el tablero), así que llevan burbuja — misma técnica que la burbuja de pérdida, pero
+   con el acento del sistema: la solución ES lo correcto, y kaya + tinta oscura pasa AA (6.19)
+   en ambos temas. Atrapado por contrast-audit: el label crudo sobre piedra negra daba 1.59. */
+.study-board--solution .shudan-marker_label.shudan-sign_1 .shudan-marker,
+.study-board--solution .shudan-marker_label.shudan-sign_-1 .shudan-marker {
+  background: var(--kaya);
+  color: var(--kaya-on);
+  border-radius: 0.4em;
+  padding: 0 0.15em;
+}
+
 /* ═══ Nivel 4: TEMPLATE "marco de app" ═════════════════════════════════════════════════════════
    El esqueleto que envuelve a TODOS los demás. Lo monta `AppFrame` una sola vez alrededor del
    router, así que toda ruta presente y futura lo hereda sin hacer nada.
@@ -1497,8 +1509,11 @@ textarea:focus-visible {
   color: var(--ink-3);
 }
 
+/* También --ink-3, no --ink-4: "pendiente" es información (el estado del problema), no un
+   placeholder — y el muted daba 2.91 sobre el fondo del botón en oscuro (atrapado por
+   contrast-audit). La distinción con "intentado" la carga el glifo (· vs ○), no el color. */
 .exercise-state--pendiente {
-  color: var(--ink-4);
+  color: var(--ink-3);
 }
 
 .exercise-row-label {

@@ -15,8 +15,12 @@ import type { ReviewScheduler } from '../analysis/reviewScheduler'
 
 export const LEARN_ANALYSIS_GROUP = 'learn'
 
-/** Arranque conservador (mínimo real del scheduler: CHUNK=32). Se calibra en T7 con motor real. */
-export const REFUTE_VISITS = 64
+/** Calibrado en T7 con motor real (Chrome/WebGPU, M1): a ~2.6 visitas/s, 64 visitas costaban
+ *  ~25 s por análisis (~50 s el primer veredicto, que necesita baseline + posición nueva). Con 32
+ *  (el mínimo real: CHUNK=32) y el baseline precalentado al montar (ver ExercisePlayer), el caso
+ *  típico queda en UN análisis de ~12 s. Los gaps de un tsumego real son de 8–19 pts (medidos en
+ *  el spot-check), así que el ruido de 32 visitas no cambia el veredicto warning/danger. */
+export const REFUTE_VISITS = 32
 
 /** Umbral de puntos para pasar de `warning` a `danger`. Se calibra en T7 con motor real. */
 export const REFUTE_DANGER_POINTS = 6

@@ -16,3 +16,6 @@ packages/engine/models/
 
 # Salida del duelo de calibración (packages/engine/scripts/duel.ts) — herramienta local
 duel-out/
+
+# Logs del analysis engine de KataGo desktop (los escribe el spot-check local de Aprender)
+analysis_logs/

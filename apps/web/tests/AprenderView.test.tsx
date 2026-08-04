@@ -65,6 +65,7 @@ function demoExercise(id: string): Exercise {
     toPlay: 'black',
     objective: 'matar',
     tree: n({
+      comment: 'Las blancas viven o mueren en la esquina.',
       children: [
         n({ move: B(0, 1), correct: true, comment: 'Captura limpia' }),
         n({ move: B(6, 6), correct: false, comment: 'Deja vivir', children: [n({ move: W(7, 7) })] }),
@@ -120,7 +121,7 @@ function clickVertex(x: number, y: number): void {
 }
 
 describe('ExercisePlayer', () => {
-  it('la jugada correcta resuelve SIN tocar el motor y escribe el progreso', async () => {
+  it('la jugada correcta resuelve sin consultar la jugada al motor y escribe el progreso', async () => {
     const storage = memoryStorage()
     const scheduler = mockScheduler(analysis(0), analysis(0))
     render(
@@ -135,9 +136,46 @@ describe('ExercisePlayer', () => {
     clickVertex(0, 1)
     expect(await screen.findByText(/resuelto/i)).toBeInTheDocument()
     expect(screen.getByText(/captura limpia/i)).toBeInTheDocument()
-    expect(scheduler.analyzePosition).not.toHaveBeenCalled()
+    // El único tráfico al motor permitido acá es el PRECALENTAMIENTO del baseline (posición raíz,
+    // 0 jugadas): la validación de la jugada en sí nunca consulta al motor.
+    for (const call of scheduler.analyzePosition.mock.calls) {
+      expect(call[0].pos.moves).toEqual([])
+    }
     const saved = JSON.parse(storage.getItem(PROGRESS_KEY) ?? '{}') as Record<string, { estado: string }>
     expect(saved['demo-001']?.estado).toBe('resuelto')
+  })
+
+  it('muestra el enunciado del problema (comentario raíz) mientras no hay feedback, y lo cede al feedback', async () => {
+    render(
+      <ExercisePlayer
+        exercise={demoExercise('demo-001')}
+        storage={memoryStorage()}
+        scheduler={mockScheduler(analysis(0), analysis(0))}
+        boardBounds={BOUNDS}
+        onBackToList={() => {}}
+      />,
+    )
+    expect(screen.getByText(/las blancas viven o mueren/i)).toBeInTheDocument()
+    clickVertex(0, 1)
+    await screen.findByText(/resuelto/i)
+    expect(screen.queryByText(/las blancas viven o mueren/i)).not.toBeInTheDocument()
+  })
+
+  it('al montar precalienta el baseline de la raíz con prioridad review (el primer veredicto cuesta UN análisis)', async () => {
+    const scheduler = mockScheduler(analysis(5), analysis(2))
+    render(
+      <ExercisePlayer
+        exercise={demoExercise('demo-001')}
+        storage={memoryStorage()}
+        scheduler={scheduler}
+        boardBounds={BOUNDS}
+        onBackToList={() => {}}
+      />,
+    )
+    await waitFor(() => expect(scheduler.analyzePosition).toHaveBeenCalledTimes(1))
+    const args = scheduler.analyzePosition.mock.calls[0]![0]
+    expect(args).toMatchObject({ priority: 'review', group: 'learn' })
+    expect(args.pos.moves).toEqual([])
   })
 
   it('una jugada incorrecta DEL árbol muestra la refutación y registra el intento', async () => {

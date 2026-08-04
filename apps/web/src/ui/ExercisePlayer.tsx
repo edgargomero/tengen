@@ -12,7 +12,13 @@ import type { GhostStone, Marker } from '@sabaki/shudan'
 import type { Move } from '@tengen/engine'
 import { createExerciseSession, type AttemptResult } from '../learn/exerciseSession'
 import type { Exercise } from '../learn/exercise'
-import { LEARN_ANALYSIS_GROUP, refuteOutOfTree, type Refutation, type RefutationScheduler } from '../learn/engineRefutation'
+import {
+  LEARN_ANALYSIS_GROUP,
+  REFUTE_VISITS,
+  refuteOutOfTree,
+  type Refutation,
+  type RefutationScheduler,
+} from '../learn/engineRefutation'
 import { recordResult } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'
 import { signMapOf } from '../game/rules'
@@ -83,6 +89,35 @@ export function ExercisePlayer({
   const measuredRef = useRef<HTMLDivElement | null>(null)
   const measured = useBoundedBoardSize(measuredRef)
   const bounds = boardBounds ?? measured
+
+  // Precalentamiento del baseline (calibración T7): el primer veredicto fuera-de-árbol necesita
+  // DOS análisis (~12 s cada uno a 32 visitas en el M1 de referencia). Pedir el de la posición
+  // inicial apenas el motor está listo — con prioridad 'review', que no compite con nada
+  // interactivo — deja el caso típico en UN análisis. Si el usuario juega antes de que termine,
+  // refuteOutOfTree pide el suyo con prioridad interactiva: trabajo duplicado pero correcto.
+  // Guard con flag propio (no con epochRef): el baseline de la RAÍZ sigue siendo válido tras
+  // cualquier reintento.
+  useEffect(() => {
+    if (booting) return
+    let live = true
+    const rootId = session.tree.root.id
+    scheduler
+      .analyzePosition({
+        pos: session.tree.positionAt(session.tree.root),
+        visits: REFUTE_VISITS,
+        priority: 'review',
+        group: LEARN_ANALYSIS_GROUP,
+      })
+      .then((a) => {
+        if (live && !baselineCache.current.has(rootId)) baselineCache.current.set(rootId, a.scoreLead)
+      })
+      .catch(() => {
+        // Cancelado (cambio de ejercicio) o error: el precalentamiento es oportunista, no un fallo.
+      })
+    return () => {
+      live = false
+    }
+  }, [booting, session, scheduler])
 
   function applyResult(result: AttemptResult): void {
     switch (result.kind) {
@@ -220,7 +255,7 @@ export function ExercisePlayer({
   return (
     <div class="study-shell">
       <div class="study-main">
-        <div class="study-board" ref={measuredRef}>
+        <div class={showingSolution ? 'study-board study-board--solution' : 'study-board'} ref={measuredRef}>
           {bounds && (
             <BoundedGoban
               signMap={signMap}
@@ -243,6 +278,11 @@ export function ExercisePlayer({
               </span>
             </div>
             {booting && <p class="hint">Preparando motor… (puedes jugar: el árbol de la solución no lo necesita)</p>}
+            {/* El enunciado del problema (comentario raíz del SGF) ocupa la franja hasta que el
+                primer feedback lo reemplaza — la franja es UNA, no una pila de mensajes. */}
+            {feedback === null && !showingSolution && exercise.tree.comment !== undefined && (
+              <p class="notice notice--quote">{exercise.tree.comment}</p>
+            )}
             {feedback !== null && (
               <p
                 class={

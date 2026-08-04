@@ -112,8 +112,10 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
 - **`.eyebrow`** — etiqueta que nombra un dato sin competir con él: xs + caja alta + tracking + `--ink-3`.
   Es el eje que faltaba: la jerarquía no la carga el tamaño solo.
 - **`.stat` / `.stat-value`** — la cifra que el usuario mira: lg, semibold, tabular.
-- **`.notice`** (+ `--accent` / `--danger` / `--quote`) — UN átomo para todo mensaje en caja. Reemplaza
-  a `.play-error` / `.play-exploring` / `.analyze-editing` / `.play-result` / `.form-error` / `.analyze-comment`.
+- **`.notice`** (+ `--accent` / `--danger` / `--quote` / **`--warning`**) — UN átomo para todo mensaje en
+  caja. Reemplaza a `.play-error` / `.play-exploring` / `.analyze-editing` / `.play-result` / `.form-error`
+  / `.analyze-comment`. `--warning` (fase Aprender) es el veredicto intermedio de la refutación del motor:
+  texto en `--tone-warning` sobre la caja neutra, sin fondo tintado propio — la gravedad la dice el texto.
 - **`.hint`** — texto de apoyo y estados vacíos. Reemplaza a seis clases casi idénticas.
 - **Pill de tono** (`.tone-*`): calidad de jugada.
 - **Glifo de piedra** (● / ○): motivo recurrente ("Tú: ● Negro", "● 0 · ○ 0", "WINRATE ●").
@@ -137,6 +139,12 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
 - **BrandNav** (`.topbar-brand`) — marca (home) + `·` + ubicación.
 - **`.field-row`** — campos que comparten fila (komi + handicap; los tres números del reloj). Reparto
   parejo con `wrap`: en un teléfono angosto la fila se parte sola, sin media query.
+- **`.exercise-row`** (fase Aprender) — fila-botón de la lista de tsumegos: hereda TODOS los estados del
+  átomo botón y solo ajusta la anatomía interna (glifo de estado + nombre + objetivo como metadata en caja
+  alta). La FIRMA de la sección es el estado como el motivo ●○ del sistema: `●` resuelto (`--tone-success`
+  — success acá es un hecho consumado del usuario, no una promesa del motor), `○` intentado y `·` pendiente
+  (ambos `--ink-3`: **"pendiente" es información, no un placeholder** — con `--ink-4` daba 2.91 en oscuro,
+  atrapado por contrast-audit; la distinción intentado/pendiente la carga el glifo, no el color).
 - **`.form-details`** — la liturgia con defaults correctos, plegada. `<details>` nativo (teclado,
   lector de pantalla y estado gratis) con DOS voces en el summary: el nombre (eyebrow) y el estado
   actual de lo plegado (`.form-details-current`) — **cerrado sigue siendo honesto** sobre con qué se
@@ -262,6 +270,24 @@ principio de una pantalla larga.
 envuelve el `<Router>`, así que cubre *rutas*. `/diagnostico` y el cartel de sin-WebGPU viven fuera
 del router para poder abrir en un aparato donde la app no arranca; "Detectando WebGPU…" y el fallback
 del `ErrorBoundary` se pintan por encima de `ModeApp`. Las cuatro conservan su propia salida.
+
+## Sección Aprender (fase Aprender, 2026-08-04)
+
+Cuarto destino del marco (`navDestinations`: las dos formas lo heredaron sin tocar nada — la prueba de
+que el marco funciona como template). Dos niveles con estado interno, sin sub-rutas:
+
+- **Lista** — `.card-screen.aprender-list` (32rem), misma superficie que el menú y Mis partidas. SIN
+  ModelGate: navegar la lista no descarga ningún modelo. Filas `.exercise-row` (ver molécula).
+- **Player** — reusa el template "estudio de tablero" ENTERO (tablero héroe + rail): la franja de
+  feedback vive en el `.rail-header` y es UNA (enunciado `--quote` → feedback del intento → veredicto
+  del motor), nunca una pila de mensajes. El veredicto del motor jamás usa `success` (sin ownership no
+  se afirma vida/muerte; se dice cuántos puntos costó).
+- **Burbuja de la solución numerada** (`.study-board--solution`): los números de la línea principal caen
+  SOBRE piedras, así que llevan burbuja — misma técnica que la burbuja de pérdida de Analizar, pero con
+  el acento (`--kaya` + `--kaya-on`, AA 6.19 en ambos temas): la solución ES lo que el acento significa.
+  Atrapado por contrast-audit: el label crudo sobre piedra negra daba 1.59.
+- Contraste auditado sobre el DOM pintado: lista + player en los 6 estados de la franja × 2 temas,
+  **cero fallos** (tras las dos correcciones de arriba, ambas atrapadas midiendo, no mirando).
 
 ## Nivel 4 — Template "estudio de tablero"
 
