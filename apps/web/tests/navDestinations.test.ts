@@ -11,11 +11,20 @@ import {
   normalizePath,
 } from '../src/ui/navDestinations'
 
+describe('destino Aprender (fase Aprender T6)', () => {
+  it('/aprender es un destino del marco, con etiqueta propia', () => {
+    const destination = activeDestinationFor('/aprender')
+    expect(destination).toBeDefined()
+    expect(destination?.label).toBe('Aprender')
+  })
+})
+
 describe('locationLabelFor', () => {
   it.each([
     ['/', 'Inicio'],
     ['/jugar', 'Jugar'],
     ['/analizar', 'Analizar'],
+    ['/aprender', 'Aprender'],
     ['/partidas', 'Mis partidas'],
     ['/diagnostico', 'Diagnóstico'],
   ])('%s → %s', (path, label) => {

@@ -372,6 +372,13 @@ textarea:focus-visible {
   color: var(--tone-danger);
 }
 
+/* Advertencia — el veredicto intermedio de la refutación del motor (fase Aprender): costó puntos
+   pero no es un desastre. Texto en el tono warning (AA verificado sobre inset en la auditoría de
+   contraste) sobre la caja neutra: sin fondo tintado propio, la gravedad la dice el texto. */
+.notice--warning {
+  color: var(--tone-warning);
+}
+
 /* Cita del comentario autorado del nodo: texto del usuario, se respeta tal cual lo escribió. */
 .notice--quote {
   color: var(--ink-1);
@@ -1436,6 +1443,80 @@ textarea:focus-visible {
 
 /* Los enlaces del menú son botones semánticamente: llevan `.link-button` en el markup (el átomo está
    definido arriba, junto a `button`/`.primary`/`.ghost`). Acá no hay nada que agregar. */
+
+/* ── Aprender: lista de ejercicios (fase Aprender) ──────────────────────────────────────────────
+   La lista es una `.card-screen` (misma superficie que el menú y Mis partidas). La firma de la
+   sección es el estado de cada problema como el motivo ●○ del sistema: piedra colocada = resuelto,
+   piedra hueca = intentado, punto = pendiente. El color solo comunica estado consumado (success en
+   la lista es un hecho del usuario, no una promesa del motor). */
+.aprender-list {
+  max-width: 32rem;
+}
+
+.aprender-collection {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.aprender-collection h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.exercise-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+
+/* Fila-botón: hereda estados del átomo botón; solo se ajusta la anatomía interna (glifo de estado +
+   nombre + objetivo). `width: 100%` por la misma trampa flex-item documentada en `.card-screen`. */
+.exercise-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  text-align: left;
+}
+
+.exercise-state {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+
+.exercise-state--resuelto {
+  color: var(--tone-success);
+}
+
+.exercise-state--intentado {
+  color: var(--ink-3);
+}
+
+.exercise-state--pendiente {
+  color: var(--ink-4);
+}
+
+.exercise-row-label {
+  flex: 1;
+}
+
+.exercise-row-meta {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+}
+
+/* El error de arranque del motor se pinta ENCIMA del player (que sigue siendo usable: el árbol de
+   la solución no necesita motor); mismo margen lateral que el contenido del marco. */
+.aprender-engine-error {
+  margin: var(--sp-3) var(--sp-4) 0;
+}
 
 /* Pie del menú — la zona que habla del PROGRAMA (quién sos, qué versión corre), separada del contenido
    por una línea. Dos usos con el mismo tratamiento: identidad/login y versión/actualizar. Una sola

@@ -23,6 +23,7 @@ export interface NavDestination {
 export const NAV_DESTINATIONS: readonly NavDestination[] = [
   { id: 'jugar', label: 'Jugar', path: '/jugar' },
   { id: 'analizar', label: 'Analizar', path: '/analizar' },
+  { id: 'aprender', label: 'Aprender', path: '/aprender' },
   { id: 'partidas', label: 'Mis partidas', path: '/partidas' },
 ]
 
@@ -33,6 +34,7 @@ const LOCATION_LABELS: Readonly<Record<string, string>> = {
   '/': 'Inicio',
   '/jugar': 'Jugar',
   '/analizar': 'Analizar',
+  '/aprender': 'Aprender',
   '/partidas': 'Mis partidas',
   '/diagnostico': 'Diagnóstico',
 }

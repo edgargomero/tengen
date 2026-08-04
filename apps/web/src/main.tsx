@@ -39,6 +39,7 @@ import { AppVersionFooter } from './ui/AppVersionFooter'
 import { DiagnosticoView } from './ui/DiagnosticoView'
 import { NewGameForm } from './ui/NewGameForm'
 import { PartidasView } from './ui/PartidasView'
+import { AprenderView } from './ui/AprenderView'
 import { PlayView } from './ui/PlayView'
 import { detectWebGpu } from './webgpu'
 import type { WebGpuDetection } from './webgpu'
@@ -271,6 +272,7 @@ function ModeApp() {
         <ModeMenu path="/" default />
         <PlayApp path="/jugar" onBack={() => route('/')} />
         <AnalyzeView path="/analizar" onBack={() => route('/')} />
+        <AprenderView path="/aprender" />
         <PartidasView path="/partidas" />
       </Router>
     </AppFrame>
@@ -293,6 +295,9 @@ function ModeMenu(_props: RoutableProps) {
       </Link>
       <Link class="link-button" href="/analizar">
         Analizar
+      </Link>
+      <Link class="link-button" href="/aprender">
+        Aprender
       </Link>
       {user !== null && (
         <Link class="link-button" href="/partidas">
