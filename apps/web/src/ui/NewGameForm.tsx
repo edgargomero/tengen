@@ -119,41 +119,53 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
     }
   }
 
+  // Lo que el pliegue muestra CERRADO: el estado real de lo que hay dentro. Un disclosure que
+  // sólo dice "Reglas y reloj" obliga a abrirlo para saber con qué se va a jugar; con el resumen,
+  // el formulario entero es honesto sin scrollear. Se recalcula en cada render — es concatenar
+  // cinco strings.
+  const ajustesResumen = [
+    rules === 'chinese' ? 'chinas' : 'japonesas',
+    `komi ${komi}`,
+    handicap === 0 ? 'sin handicap' : `${handicap} piedras`,
+    clockEnabled ? `${mainTimeMin} min + ${byoyomiPeriods}×${byoyomiSeconds} s` : 'sin reloj',
+  ].join(' · ')
+
   return (
     <form class="card-screen new-game-form" onSubmit={handleSubmit}>
-      <h1>tengen</h1>
-      <p class="new-game-subtitle">Nueva partida contra la IA.</p>
+      {/* "Nueva partida" y no "tengen": la marca ya vive en el marco (arriba dice tengen · Jugar),
+          y repetirla acá era un segundo membrete ocupando el primer golpe de vista. El título dice
+          qué HACE esta pantalla; con eso el subtítulo tampoco hace falta. */}
+      <h1>Nueva partida</h1>
 
+      {/* Las CUATRO decisiones reales (tamaño, oponente, fuerza/nivel, color), todas con la misma
+          molécula: `.choice-row` con las opciones a la vista. Los select se fueron de este bloque —
+          un dropdown esconde 2–3 opciones detrás de un clic y las revela en el chrome del sistema
+          operativo, que es exactamente lo contrario de "preparar el tablero". Todo lo que tiene
+          default correcto (reglas, komi, handicap, reloj) baja al pliegue de abajo. */}
       <div class="field-group">
-        <label class="field">
-          Tamaño del tablero
-          <select
-            value={boardSize}
-            onChange={(e) => handleBoardSizeChange(Number((e.target as HTMLSelectElement).value) as BoardSize)}
-          >
-            {BOARD_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size}×{size}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Antes eran dos radios, cada uno con un <select> que se montaba y desmontaba debajo: el
-            layout saltaba al cambiar de oponente y la relación radio↔select se leía por proximidad y
-            nada más. `.choice-row` es la molécula del sistema para elegir un AJUSTE —el elegido va en
-            kaya tenue, "encendido", nunca elevado como una pestaña—, la misma que ya usan Analizar y
-            el diagnóstico. `role="group"` + `aria-labelledby` reponen la agrupación semántica que el
-            <fieldset>/<legend> daba gratis.
-
-            El REPARTO DE ESPACIO es la decisión de diseño de este bloque, y usa las dos escalas que
-            ya existen: la pista vive DENTRO del campo (`.field`, gap --sp-1 = agrupa: es el tercer
-            slot que `.field` define, igual que "Solo disponible en 19×19" en Handicap), y el nivel
-            —fuerza o rango— es HERMANO en el `.field-group` (gap --sp-3 = separa). Ese contraste 4px
-            adentro / 12px afuera es lo único que dice a qué fila pertenece el eyebrow: con el mismo
-            gap arriba y abajo, "FUERZA" queda equidistante y la agrupación no se lee. */}
         <div class="field">
-          <span id="new-game-opponent-label">Oponente</span>
+          <span class="eyebrow" id="new-game-size-label">Tamaño</span>
+          <div class="choice-row" role="group" aria-labelledby="new-game-size-label">
+            {BOARD_SIZES.map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-pressed={boardSize === size}
+                class={boardSize === size ? 'active' : ''}
+                onClick={() => handleBoardSizeChange(size)}
+              >
+                {size}×{size}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* El REPARTO DE ESPACIO es la decisión de diseño de este bloque, y usa las dos escalas que
+            ya existen: la pista vive DENTRO del campo (`.field`, gap --sp-1 = agrupa) y el nivel
+            —fuerza o rango— es HERMANO en el `.field-group` (gap --sp-3 = separa). Ese contraste
+            4px adentro / 12px afuera es lo único que dice a qué fila pertenece cada eyebrow. */}
+        <div class="field">
+          <span class="eyebrow" id="new-game-opponent-label">Oponente</span>
           <div class="choice-row" role="group" aria-labelledby="new-game-opponent-label">
             <button
               type="button"
@@ -224,140 +236,165 @@ export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
           </label>
         )}
 
-        <fieldset class="field">
-          <legend>Tu color</legend>
-          <label class="radio-option">
-            <input
-              type="radio"
-              name="colorChoice"
-              checked={colorChoice === 'black'}
+        {/* Los glifos ●/○ son el motivo del sistema ("Tú: ● Negro", "● 0 · ○ 0"), y acá es donde
+            más literales son: elegís la piedra que vas a tener en la mano. El nombre accesible es
+            la palabra sola — para un lector de pantalla el glifo es ruido ("black circle"). */}
+        <div class="field">
+          <span class="eyebrow" id="new-game-color-label">Tu color</span>
+          <div class="choice-row" role="group" aria-labelledby="new-game-color-label">
+            <button
+              type="button"
+              aria-pressed={colorChoice === 'black'}
+              aria-label="Negro"
               disabled={colorLocked}
-              onChange={() => setColorChoice('black')}
-            />
-            Negro (yo)
-          </label>
-          <label class="radio-option">
-            <input
-              type="radio"
-              name="colorChoice"
-              checked={colorChoice === 'white'}
+              class={colorChoice === 'black' ? 'active' : ''}
+              onClick={() => setColorChoice('black')}
+            >
+              ● Negro
+            </button>
+            <button
+              type="button"
+              aria-pressed={colorChoice === 'white'}
+              aria-label="Blanco"
               disabled={colorLocked}
-              onChange={() => setColorChoice('white')}
-            />
-            Blanco (yo)
-          </label>
-          <label class="radio-option">
-            <input
-              type="radio"
-              name="colorChoice"
-              checked={colorChoice === 'nigiri'}
+              class={colorChoice === 'white' ? 'active' : ''}
+              onClick={() => setColorChoice('white')}
+            >
+              ○ Blanco
+            </button>
+            <button
+              type="button"
+              aria-pressed={colorChoice === 'nigiri'}
+              aria-label="Nigiri, color al azar"
               disabled={colorLocked}
-              onChange={() => setColorChoice('nigiri')}
-            />
-            Nigiri (al azar)
-          </label>
+              class={colorChoice === 'nigiri' ? 'active' : ''}
+              onClick={() => setColorChoice('nigiri')}
+            >
+              Nigiri
+            </button>
+          </div>
           {colorLocked && <span class="field-hint">Con handicap juegas Negro</span>}
-        </fieldset>
+        </div>
       </div>
 
-      <div class="field-group">
-        <label class="field">
-          Reglas
-          <select value={rules} onChange={(e) => handleRulesChange((e.target as HTMLSelectElement).value as Rules)}>
-            <option value="chinese">Chinas</option>
-            <option value="japanese">Japonesas</option>
-          </select>
-        </label>
+      {/* La liturgia, plegada. Reglas, komi, handicap y reloj tienen defaults correctos — quien no
+          los toca no debería pagar su espacio: eran dos tercios del scroll (1325px de documento para
+          cuatro decisiones). <details> nativo: teclado, lector de pantalla y estado sin un solo
+          handler. El resumen del summary mantiene el formulario honesto cerrado. */}
+      <details class="form-details">
+        <summary>
+          <span class="eyebrow">Reglas y reloj</span>
+          <span class="form-details-current">{ajustesResumen}</span>
+        </summary>
+        <div class="form-details-body">
+          <div class="field">
+            <span class="eyebrow" id="new-game-rules-label">Reglas</span>
+            <div class="choice-row" role="group" aria-labelledby="new-game-rules-label">
+              <button
+                type="button"
+                aria-pressed={rules === 'chinese'}
+                class={rules === 'chinese' ? 'active' : ''}
+                onClick={() => handleRulesChange('chinese')}
+              >
+                Chinas
+              </button>
+              <button
+                type="button"
+                aria-pressed={rules === 'japanese'}
+                class={rules === 'japanese' ? 'active' : ''}
+                onClick={() => handleRulesChange('japanese')}
+              >
+                Japonesas
+              </button>
+            </div>
+          </div>
 
-        <label class="field">
-          Komi
-          <input
-            type="number"
-            step="0.5"
-            value={komi}
-            onChange={(e) => {
-              setKomiTouched(true)
-              setKomi(Number((e.target as HTMLInputElement).value))
-            }}
-          />
-        </label>
-
-        <label class="field">
-          Handicap
-          <select
-            value={handicap}
-            disabled={!handicapAllowed}
-            onChange={(e) => setHandicap(Number((e.target as HTMLSelectElement).value))}
-          >
-            {(handicapAllowed ? HANDICAP_OPTIONS_19 : [0]).map((n) => (
-              <option key={n} value={n}>
-                {n === 0 ? 'Sin handicap' : `${n} piedras`}
-              </option>
-            ))}
-          </select>
-          {!handicapAllowed && <span class="field-hint">Solo disponible en 19×19</span>}
-        </label>
-      </div>
-
-      <div class="field-group">
-        <label class="radio-option">
-          <input
-            type="checkbox"
-            checked={!clockEnabled}
-            onChange={(e) => setClockEnabled(!(e.target as HTMLInputElement).checked)}
-          />
-          Sin reloj
-        </label>
-
-        {clockEnabled && (
-          <>
+          <div class="field-row">
             <label class="field">
-              Tiempo principal (minutos)
+              <span class="eyebrow">Komi</span>
               <input
                 type="number"
-                min="0"
-                step="1"
-                value={mainTimeMin}
+                step="0.5"
+                value={komi}
                 onChange={(e) => {
-                  setClockTouched(true)
-                  setMainTimeMin(Number((e.target as HTMLInputElement).value))
+                  setKomiTouched(true)
+                  setKomi(Number((e.target as HTMLInputElement).value))
                 }}
               />
             </label>
 
             <label class="field">
-              Byoyomi: períodos
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={byoyomiPeriods}
-                onChange={(e) => setByoyomiPeriods(Number((e.target as HTMLInputElement).value))}
-              />
+              <span class="eyebrow">Handicap</span>
+              <select
+                value={handicap}
+                disabled={!handicapAllowed}
+                onChange={(e) => setHandicap(Number((e.target as HTMLSelectElement).value))}
+              >
+                {(handicapAllowed ? HANDICAP_OPTIONS_19 : [0]).map((n) => (
+                  <option key={n} value={n}>
+                    {n === 0 ? 'Sin handicap' : `${n} piedras`}
+                  </option>
+                ))}
+              </select>
+              {!handicapAllowed && <span class="field-hint">Solo disponible en 19×19</span>}
             </label>
+          </div>
 
-            <label class="field">
-              Byoyomi: segundos por período
-              <input
-                type="number"
-                min="0"
-                step="5"
-                value={byoyomiSeconds}
-                onChange={(e) => setByoyomiSeconds(Number((e.target as HTMLInputElement).value))}
-              />
-            </label>
-          </>
-        )}
-      </div>
+          <label class="radio-option">
+            <input
+              type="checkbox"
+              checked={!clockEnabled}
+              onChange={(e) => setClockEnabled(!(e.target as HTMLInputElement).checked)}
+            />
+            Sin reloj
+          </label>
+
+          {clockEnabled && (
+            <div class="field-row">
+              <label class="field">
+                <span class="eyebrow">Tiempo (min)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={mainTimeMin}
+                  onChange={(e) => {
+                    setClockTouched(true)
+                    setMainTimeMin(Number((e.target as HTMLInputElement).value))
+                  }}
+                />
+              </label>
+
+              <label class="field">
+                <span class="eyebrow">Byoyomi: períodos</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={byoyomiPeriods}
+                  onChange={(e) => setByoyomiPeriods(Number((e.target as HTMLInputElement).value))}
+                />
+              </label>
+
+              <label class="field">
+                <span class="eyebrow">Byoyomi: seg.</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="5"
+                  value={byoyomiSeconds}
+                  onChange={(e) => setByoyomiSeconds(Number((e.target as HTMLInputElement).value))}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+      </details>
 
       {errorMsg && <p class="notice notice--danger">{errorMsg}</p>}
 
-      {/* La acción que lidera va al final; la de al lado se apaga — antes encabezaba el formulario
-          a ancho completo, compitiendo con el título.
-          Dejó de decir "Volver" y de ser una acción apilada: con el marco de navegación arriba, la
-          SALIDA ya está siempre visible, así que este botón no es navegación — es CANCELAR el
-          formulario que estás llenando. Por eso comparte fila con el primario (`.action-row`) en vez
-          de colgar debajo, que es donde vivía a 1196px de scroll en un teléfono. */}
+      {/* La acción que lidera cierra el formulario; "Cancelar" se apaga al lado — la SALIDA de
+          navegación vive en el marco, siempre visible, así que esto no es navegación. */}
       <div class="action-row">
         <button type="submit" class="primary">
           Empezar partida

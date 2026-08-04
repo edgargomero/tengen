@@ -523,10 +523,76 @@ textarea:focus-visible {
   color: var(--ink-3);
 }
 
-fieldset.field {
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-sm);
+/* Campos que comparten fila (komi + handicap; los tres números del reloj). Reparto parejo con
+   `wrap`: en un teléfono angosto la fila se parte sola sin media query. */
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.field-row .field {
+  flex: 1 1 8rem;
+}
+
+/* Disclosure de formulario — la liturgia con defaults correctos, plegada. <details> nativo: el
+   estado, el teclado y el lector de pantalla vienen gratis. El summary lleva DOS voces: el nombre
+   (eyebrow) y el estado actual de lo plegado (`--current`) — cerrado sigue siendo honesto sobre
+   con qué se va a jugar. Borde-susurro y sin sombra: no flota, agrupa. */
+.form-details {
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
   padding: var(--sp-3);
+}
+
+.form-details summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  /* `display: flex` saca al summary del modo list-item y el navegador DEJA DE PINTAR el marcador
+     nativo — el pliegue quedaba sin ningún indicio de que se abre. El ::before lo repone a mano,
+     con los mismos glifos del disclosure nativo y en tinta terciaria: señala, no es el dato. */
+  list-style: none;
+}
+
+.form-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-details summary::before {
+  content: '▸';
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.form-details[open] summary::before {
+  content: '▾';
+}
+
+.form-details summary .eyebrow {
+  white-space: nowrap;
+}
+
+.form-details summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.form-details-current {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
 }
 
 .radio-option {
@@ -1420,13 +1486,11 @@ fieldset.field {
   border-radius: 50%;
 }
 
+/* El gap baja un paso respecto del resto de tarjetas (--sp-4): un formulario es una LISTA de
+   decisiones, no párrafos — la densidad acá es workbench, no folleto. */
 .new-game-form {
   max-width: 28rem;
-  gap: var(--sp-5);
-}
-
-.new-game-subtitle {
-  color: var(--ink-2);
+  gap: var(--sp-4);
 }
 
 .analyze-picker {

@@ -143,3 +143,53 @@ describe('NewGameForm — el selector de oponente', () => {
     expect(screen.getByRole('group', { name: 'Oponente' })).toBeInTheDocument()
   })
 })
+
+describe('NewGameForm — rediseño compacto (crítica 2026-08-03)', () => {
+  it('el tamaño se elige con botones a la vista y emite el elegido', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = renderForm()
+    fireEvent.click(screen.getByRole('button', { name: '19×19' }))
+    expect(empezar(onStart).boardSize).toBe(19)
+  })
+
+  it('el color se elige con la piedra en la mano: "○ Blanco" emite white', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = renderForm()
+    // El nombre accesible es la palabra sola: el glifo es ruido para un lector de pantalla.
+    fireEvent.click(screen.getByRole('button', { name: 'Blanco' }))
+    expect(empezar(onStart).humanColor).toBe('white')
+  })
+
+  it('negro es el default y queda encendido al abrir', () => {
+    conUserAgent(CHROME_MAC)
+    renderForm()
+    expect(screen.getByRole('button', { name: 'Negro' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Blanco' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('la liturgia plegada resume su estado sin abrirse', () => {
+    // El summary del <details> tiene que decir con qué se va a jugar aunque nadie lo abra:
+    // defaults = chinas · komi 7 · sin handicap · 10 min + 5×30 s (9×9).
+    conUserAgent(CHROME_MAC)
+    renderForm()
+    expect(screen.getByText('chinas · komi 7 · sin handicap · 10 min + 5×30 s')).toBeInTheDocument()
+  })
+
+  it('cambiar las reglas dentro del pliegue actualiza komi y resumen', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = renderForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Japonesas' }))
+    expect(screen.getByText(/japonesas · komi 6\.5/)).toBeInTheDocument()
+    const config = empezar(onStart)
+    expect(config.rules).toBe('japanese')
+    expect(config.komi).toBe(6.5)
+  })
+
+  it('la marca no se duplica: el título dice qué hace la pantalla, no tengen', () => {
+    // El marco ya muestra "tengen · Jugar" arriba; el h1 del formulario dejó de repetirlo.
+    conUserAgent(CHROME_MAC)
+    renderForm()
+    expect(screen.getByRole('heading', { name: 'Nueva partida' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'tengen' })).not.toBeInTheDocument()
+  })
+})

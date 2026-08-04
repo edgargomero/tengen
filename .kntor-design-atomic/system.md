@@ -135,6 +135,16 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
   alternativa era duplicar su tratamiento con otro nombre. Variantes: `--session` (reserva alto mientras
   el get-session vuela) y `--stacked` (segundo renglón para el resultado del chequeo).
 - **BrandNav** (`.topbar-brand`) — marca (home) + `·` + ubicación.
+- **`.field-row`** — campos que comparten fila (komi + handicap; los tres números del reloj). Reparto
+  parejo con `wrap`: en un teléfono angosto la fila se parte sola, sin media query.
+- **`.form-details`** — la liturgia con defaults correctos, plegada. `<details>` nativo (teclado,
+  lector de pantalla y estado gratis) con DOS voces en el summary: el nombre (eyebrow) y el estado
+  actual de lo plegado (`.form-details-current`) — **cerrado sigue siendo honesto** sobre con qué se
+  va a jugar. Trampa aprendida: `display: flex` en el summary lo saca del modo list-item y el
+  navegador deja de pintar el marcador nativo — el pliegue queda sin ningún indicio de que se abre;
+  el `::before` (▸/▾, tinta terciaria) lo repone. Nació en Nueva partida: 1325px de documento para
+  CUATRO decisiones reales (tamaño, rival, fuerza, color) → con la liturgia plegada, el formulario
+  entero entra en un viewport de teléfono (844px) con la acción primaria visible sin scrollear.
 
 ## Nivel 3 — Organismos
 
