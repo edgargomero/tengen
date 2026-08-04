@@ -1,31 +1,59 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <!-- Piedra negra: gradiente idéntico al stone_1.svg de @sabaki/shudan (misma piedra que dibuja
-       el tablero real), reescalada sobre un fondo circular color madera (acento de marca). -->
+  <!-- La marca es el JUEGO, no una pieza: piedra negra y blanca sobre el disco de madera kaya.
+       Negra arriba-izquierda (negro juega primero), blanca DELANTE abajo-derecha (acaba de
+       responder) — una partida viva. Los gradientes son los de stone_1.svg y stone_-1.svg de
+       @sabaki/shudan, las mismas piedras que dibuja el tablero real; el disco es el acento kaya.
+       Los PNG de public/icons/ y apple-touch-icon.png se rasterizan DE esta composición (fondo
+       según variante) — si esto cambia, se regeneran los cuatro. -->
   <defs>
-    <linearGradient id="tengen-stone-body">
+    <linearGradient id="tengen-black-body">
       <stop offset="0" stop-color="#0b0b0b" />
       <stop offset="1" stop-color="#443432" />
     </linearGradient>
-    <linearGradient id="tengen-stone-sheen">
+    <linearGradient id="tengen-black-sheen">
       <stop offset="0" stop-color="#636363" stop-opacity=".4" />
       <stop offset="1" stop-color="#636363" stop-opacity="0" />
     </linearGradient>
     <linearGradient
-      id="tengen-stone-body-v"
+      id="tengen-black-body-v"
       x1="0" x2="0" y1="43" y2="0"
-      href="#tengen-stone-body"
+      href="#tengen-black-body"
       gradientUnits="userSpaceOnUse"
     />
     <linearGradient
-      id="tengen-stone-sheen-v"
+      id="tengen-black-sheen-v"
       x1="0" x2="0" y1="2.38" y2="19.27"
-      href="#tengen-stone-sheen"
+      href="#tengen-black-sheen"
+      gradientUnits="userSpaceOnUse"
+    />
+    <linearGradient id="tengen-white-body">
+      <stop offset="0" stop-color="#C9D1FF" />
+      <stop offset="1" stop-color="#fff" />
+    </linearGradient>
+    <linearGradient id="tengen-white-sheen">
+      <stop offset="0" stop-color="#eee" stop-opacity=".8" />
+      <stop offset="1" stop-color="#eee" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient
+      id="tengen-white-body-v"
+      x1="0" x2="0" y1="43" y2="0"
+      href="#tengen-white-body"
+      gradientUnits="userSpaceOnUse"
+    />
+    <linearGradient
+      id="tengen-white-sheen-v"
+      x1="0" x2="0" y1="40.65" y2="30.65"
+      href="#tengen-white-sheen"
       gradientUnits="userSpaceOnUse"
     />
   </defs>
   <circle cx="32" cy="32" r="32" fill="#ca933a" />
-  <g transform="translate(32,32) scale(1.1707) translate(-21.5,-21.5)">
-    <circle cx="21.5" cy="21.5" r="20.5" fill="url(#tengen-stone-body-v)" stroke="#000" stroke-width="1" />
-    <circle cx="21.5" cy="21.5" r="18.5" fill="url(#tengen-stone-sheen-v)" />
+  <g transform="translate(23,23) scale(.79) translate(-21.5,-21.5)">
+    <circle cx="21.5" cy="21.5" r="20.5" fill="url(#tengen-black-body-v)" stroke="#000" stroke-width="1" />
+    <circle cx="21.5" cy="21.5" r="18.5" fill="url(#tengen-black-sheen-v)" />
+  </g>
+  <g transform="translate(41,41) scale(.79) translate(-21.5,-21.5)">
+    <circle cx="21.5" cy="21.5" r="20.5" fill="url(#tengen-white-body-v)" stroke="#c3c3c3" stroke-width="1" />
+    <circle cx="21.5" cy="21.5" r="18.5" fill="url(#tengen-white-sheen-v)" />
   </g>
 </svg>

@@ -343,10 +343,16 @@ del lienzo.
 El sistema tiene que sostenerse también fuera de la pestaña, porque tengen se instala y arranca sin
 conexión (service worker en `apps/web/src/sw.ts`). Tres puntos donde eso toca al diseño:
 
-- **Los iconos son piezas del sistema, no un export.** El `favicon.svg` es un círculo dorado a
-  sangre, y como *maskable* funcionaría mal: Android recorta con una máscara arbitraria y le comería
-  el borde al propio círculo. Por eso el maskable es una variante distinta —oro a sangre en todo el
-  cuadrado, piedra al ~58% dentro de la zona segura— y no una reescalada del favicon.
+- **Los iconos son piezas del sistema, no un export.** La marca es el JUEGO, no una pieza: piedra
+  negra y blanca sobre el disco kaya — negra arriba-izquierda (negro juega primero), blanca DELANTE
+  abajo-derecha (acaba de responder). Los gradientes son los de `stone_1.svg`/`stone_-1.svg` de
+  @sabaki/shudan, las mismas piedras que dibuja el tablero real; legibilidad verificada a 16px (el
+  tamaño de pestaña) sobre franja clara y oscura. El `favicon.svg` (disco a sangre) es la fuente:
+  los cuatro PNG (`icons/icon-192/512`, `icon-maskable-512`, `apple-touch-icon`) se rasterizan de la
+  misma composición vía canvas de Chrome — no hay script committeado; si el SVG cambia, se regeneran
+  los cuatro. El *maskable* sigue siendo variante distinta y no una reescalada: Android recorta con
+  máscara arbitraria y le comería el borde al disco, así que va oro a sangre en todo el cuadrado con
+  la composición al ~58% (zona segura); el de iOS, al ~64%.
 - **El color del chrome del sistema sale de los tokens.** Dos `<meta name="theme-color">` con
   `prefers-color-scheme` llevan el `--canvas` de cada tema a la barra del navegador y a la ventana de
   la app instalada. Sin eso, la app queda enmarcada en un color que no es de la paleta.
