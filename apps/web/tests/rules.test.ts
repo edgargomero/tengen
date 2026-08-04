@@ -229,3 +229,47 @@ describe('capturesOf', () => {
     expect(capturesOf(GoBoard.fromDimensions(9))).toEqual({ black: 0, white: 0 })
   })
 })
+
+// Fase Aprender T2: piedras de setup (SGF AB/AW, se colocan sin capturar) e initialTurn (tsumego
+// "juegan blancas" con 0 jugadas).
+describe('boardFromMoves con setup + currentTurn con initialTurn', () => {
+  it('coloca el setup SIN capturar: una blanca sin libertades colocada como setup se queda', () => {
+    // Blanca en (0,0) rodeada por negras en (1,0) y (0,1): jugada sería ilegal; colocada, se queda.
+    const board = boardFromMoves(9, 0, [], {
+      black: [
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+      ],
+      white: [{ x: 0, y: 0 }],
+    })
+    expect(board.get([0, 0])).toBe(-1)
+    expect(board.get([1, 0])).toBe(1)
+    expect(board.get([0, 1])).toBe(1)
+  })
+
+  it('una jugada real SÍ captura piedras de setup', () => {
+    // Blanca en (0,0) con negra en (1,0); Negro juega (0,1) → la blanca queda sin libertades.
+    const board = boardFromMoves(9, 0, [{ color: 'black', vertex: { x: 0, y: 1 } }], {
+      black: [{ x: 1, y: 0 }],
+      white: [{ x: 0, y: 0 }],
+    })
+    expect(board.get([0, 0])).toBe(0) // capturada por la jugada real
+  })
+
+  it('sin setup, boardFromMoves se comporta exactamente igual que siempre (regresión)', () => {
+    const conSetupVacio = boardFromMoves(9, 0, [{ color: 'black', vertex: { x: 2, y: 2 } }], { black: [], white: [] })
+    const deSiempre = boardFromMoves(9, 0, [{ color: 'black', vertex: { x: 2, y: 2 } }])
+    expect(signMapOf(conSetupVacio)).toEqual(signMapOf(deSiempre))
+  })
+
+  it('currentTurn respeta initialTurn con 0 jugadas y lo ignora cuando hay jugadas', () => {
+    expect(currentTurn(0, [], 'white')).toBe('white')
+    expect(currentTurn(0, [], 'black')).toBe('black')
+    expect(currentTurn(0, [{ color: 'black', vertex: { x: 2, y: 2 } }], 'black')).toBe('white')
+  })
+
+  it('currentTurn sin initialTurn conserva la derivación de siempre', () => {
+    expect(currentTurn(0, [])).toBe('black')
+    expect(currentTurn(2, [])).toBe('white')
+  })
+})

@@ -10,11 +10,16 @@
 // INVARIANTE DE HANDICAP: `HA[n]` ↔ `meta.handicap`; las `AB[..]` (piedras de handicap) se REGENERAN
 // en el export desde `handicapVertices(boardSize, handicap)` y NUNCA se guardan ni se leen como
 // jugadas. Al importar, los `AB` se ignoran (el handicap ya está en `HA`): así no se filtran a `moves`.
+//
+// SETUP (fase Aprender): la otra mitad del invariante — SIN `HA` (handicap 0/1), `AB`/`AW` del raíz
+// son piedras COLOCADAS (`meta.setup`) y `PL` fija el turno inicial (`meta.initialTurn`). Tampoco son
+// jugadas: viven en la meta y el export las emite tal cual (AB, AW, PL, tras RU/TGHC). Un tsumego
+// estándar deja de importarse como tablero vacío.
 import type { BoardSize, Move, Rules, StoneColor } from '@tengen/engine'
 import sgf from '@sabaki/sgf'
 import type { SgfNode } from '@sabaki/sgf'
 import { GameTree, type GameNode } from './gameTree'
-import { handicapVertices } from './rules'
+import { handicapVertices, type SetupStones } from './rules'
 
 /** Vértice del motor {x,y} → coordenada SGF de 2 letras (columna=x primero, a=0). */
 export function vertexToSgf(v: { x: number; y: number }): string {
@@ -67,6 +72,34 @@ function moveFromData(data: Record<string, string[]>, boardSize: BoardSize): Mov
   return readColor('B', 'black') ?? readColor('W', 'white')
 }
 
+/** Piedras de setup del nodo raíz (AB/AW), para SGF SIN handicap. Expande listas comprimidas FF[4]
+ * (`ab:cd` = rectángulo inclusivo, común en colecciones de tsumego) y descarta coordenadas fuera
+ * del tablero. undefined si no hay ninguna piedra (la meta no gana la clave). */
+function setupFromData(data: Record<string, string[]>, boardSize: BoardSize): SetupStones | undefined {
+  const expand = (raw: string): { x: number; y: number }[] => {
+    const [from, to] = raw.split(':')
+    if (from === undefined || from.length < 2) return []
+    const a = sgfToVertex(from)
+    if (to === undefined) return [a]
+    const b = sgfToVertex(to)
+    const points: { x: number; y: number }[] = []
+    for (let y = Math.min(a.y, b.y); y <= Math.max(a.y, b.y); y++) {
+      for (let x = Math.min(a.x, b.x); x <= Math.max(a.x, b.x); x++) {
+        points.push({ x, y })
+      }
+    }
+    return points
+  }
+  const read = (key: string): { x: number; y: number }[] =>
+    (data[key] ?? [])
+      .flatMap(expand)
+      .filter((v) => v.x >= 0 && v.x < boardSize && v.y >= 0 && v.y < boardSize)
+  const black = read('AB')
+  const white = read('AW')
+  if (black.length === 0 && white.length === 0) return undefined
+  return { black, white }
+}
+
 /** Callback opcional: datos extra a fusionar en las propiedades SGF de UN nodo (p.ej. análisis
  * cacheado — ver `analysis/sgfAnalysisCodec.ts`). `undefined` = sin datos extra para ese nodo. */
 type ExtraDataGetter = (node: GameNode) => Record<string, string[]> | undefined
@@ -114,6 +147,13 @@ export function exportSgf(tree: GameTree, getExtraData?: ExtraDataGetter): strin
   if (handicap >= 2) {
     rootData.HA = [String(handicap)]
     rootData.AB = handicapVertices(boardSize, handicap).map(([x, y]) => vertexToSgf({ x, y }))
+  } else {
+    // Setup (fase Aprender): AB/AW/PL solo existen SIN handicap — con HA≥2 la clave AB ya es del
+    // handicap (regenerada arriba) y el import de un SGF así descarta setup/initialTurn igual.
+    const { setup, initialTurn } = tree.meta
+    if (setup && setup.black.length > 0) rootData.AB = setup.black.map(vertexToSgf)
+    if (setup && setup.white.length > 0) rootData.AW = setup.white.map(vertexToSgf)
+    if (initialTurn !== undefined) rootData.PL = [initialTurn === 'black' ? 'B' : 'W']
   }
   if (result !== undefined) rootData.RE = [result]
 
@@ -157,8 +197,23 @@ export function importSgf(
   // otra cosa (ausente, o un valor inesperado) → 'black', el default de siempre. Nunca lanza.
   const humanColor: StoneColor = data.TGHC?.[0] === 'white' ? 'white' : 'black'
 
-  const meta = { boardSize, komi, rules, handicap, humanColor } as const
-  const tree = new GameTree(data.RE?.[0] !== undefined ? { ...meta, result: data.RE[0] } : meta)
+  // Setup (fase Aprender): SOLO sin handicap — con HA≥2 los AB son las piedras de handicap (se
+  // ignoran; el export las regenera) y PL no aplica. `PL[B]`/`PL[W]` (acepta minúscula); cualquier
+  // otro valor se descarta en silencio.
+  const setup = handicap < 2 ? setupFromData(data, boardSize) : undefined
+  const plRaw = handicap < 2 ? data.PL?.[0]?.toUpperCase() : undefined
+  const initialTurn: StoneColor | undefined = plRaw === 'B' ? 'black' : plRaw === 'W' ? 'white' : undefined
+
+  const tree = new GameTree({
+    boardSize,
+    komi,
+    rules,
+    handicap,
+    humanColor,
+    ...(setup !== undefined ? { setup } : {}),
+    ...(initialTurn !== undefined ? { initialTurn } : {}),
+    ...(data.RE?.[0] !== undefined ? { result: data.RE[0] } : {}),
+  })
   onNodeData?.(tree.root, data)
 
   // Los hijos de la raíz son las jugadas (la raíz sólo lleva game-info + AB, que se ignoran).

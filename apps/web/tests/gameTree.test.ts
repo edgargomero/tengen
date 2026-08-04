@@ -389,3 +389,55 @@ describe('GameTree — fromConfig con reloj', () => {
     expect(t.meta.clock?.state.white.inByoyomi).toBe(true)
   })
 })
+
+// Fase Aprender T2: setup/initialTurn viven en la meta y se propagan a Position/board/turno.
+describe('GameTree — setup + initialTurn', () => {
+  const SETUP = { black: [{ x: 4, y: 4 }], white: [{ x: 5, y: 5 }] }
+
+  function tsumegoTree(): GameTree {
+    return new GameTree({
+      boardSize: 9,
+      komi: 6.5,
+      rules: 'chinese',
+      handicap: 0,
+      humanColor: 'black',
+      setup: SETUP,
+      initialTurn: 'white',
+    })
+  }
+
+  it('positionAt propaga setup e initialTurn al motor', () => {
+    const pos = tsumegoTree().positionAt()
+    expect(pos.setup).toEqual(SETUP)
+    expect(pos.initialTurn).toBe('white')
+  })
+
+  it('positionAt SIN setup no agrega claves nuevas (Position de siempre, regresión)', () => {
+    const pos = tree9().positionAt()
+    expect(pos).toEqual({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, moves: [] })
+    expect('setup' in pos).toBe(false)
+    expect('initialTurn' in pos).toBe(false)
+  })
+
+  it('boardAt pinta las piedras de setup', () => {
+    const board = tsumegoTree().boardAt()
+    expect(board.get([4, 4])).toBe(1)
+    expect(board.get([5, 5])).toBe(-1)
+  })
+
+  it('currentTurnAt respeta initialTurn en la raíz y deriva tras una jugada', () => {
+    const t = tsumegoTree()
+    expect(t.currentTurnAt()).toBe('white')
+    t.addMove(W(3, 3))
+    expect(t.currentTurnAt()).toBe('black')
+  })
+
+  it('findChild encuentra un hijo por jugada (color+vértice) y devuelve null si no existe', () => {
+    const t = tree9()
+    const n1 = t.addMove(B(2, 2))
+    t.toRoot()
+    expect(t.findChild(t.root, B(2, 2))).toBe(n1)
+    expect(t.findChild(t.root, W(2, 2))).toBeNull()
+    expect(t.findChild(t.root, B(3, 3))).toBeNull()
+  })
+})

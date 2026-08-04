@@ -24,16 +24,24 @@ export function handicapVertices(boardSize: BoardSize, handicap: number): [numbe
   return GoBoard.fromDimensions(boardSize).getHandicapPlacement(handicap)
 }
 
+/** Piedras colocadas (SGF AB/AW): vértices concretos por color, nunca 'pass'. */
+export type SetupStones = { black: { x: number; y: number }[]; white: { x: number; y: number }[] }
+
 /**
  * Reconstruye el GoBoard desde cero: arranca de fromDimensions, coloca las piedras de handicap
- * (negras) en los hoshi, y aplica cada jugada real en orden. Los pases ('pass') se ignoran (no
- * cambian el tablero). Un move ilegal en el historial es un bug del caller: se deja que makeMove
- * lance (no se traga el error).
+ * (negras) en los hoshi, escribe las de `setup` con `board.set` (colocar no es jugar: sin capturas
+ * ni ko — una piedra de setup sin libertades se queda), y aplica cada jugada real en orden. Los
+ * pases ('pass') se ignoran (no cambian el tablero). Un move ilegal en el historial es un bug del
+ * caller: se deja que makeMove lance (no se traga el error).
  */
-export function boardFromMoves(boardSize: BoardSize, handicap: number, moves: Move[]): GoBoard {
+export function boardFromMoves(boardSize: BoardSize, handicap: number, moves: Move[], setup?: SetupStones): GoBoard {
   let board = GoBoard.fromDimensions(boardSize)
   for (const vertex of handicapVertices(boardSize, handicap)) {
     board = board.makeMove(1, vertex)
+  }
+  if (setup) {
+    for (const v of setup.black) board = board.set([v.x, v.y], 1)
+    for (const v of setup.white) board = board.set([v.x, v.y], -1)
   }
   for (const move of moves) {
     if (move.vertex === 'pass') continue
@@ -43,13 +51,14 @@ export function boardFromMoves(boardSize: BoardSize, handicap: number, moves: Mo
 }
 
 /**
- * Color al que le toca jugar. Si hay jugadas, es el opuesto a la última; si no, depende del
- * handicap: con handicap >= 2 arranca Blanco (Negro ya "colocó" su ventaja), si no arranca Negro.
+ * Color al que le toca jugar. Si hay jugadas, es el opuesto a la última; si no, `initialTurn` si
+ * viene (tsumego "juegan blancas"), y en su ausencia depende del handicap: con handicap >= 2
+ * arranca Blanco (Negro ya "colocó" su ventaja), si no arranca Negro.
  */
-export function currentTurn(handicap: number, moves: Move[]): StoneColor {
+export function currentTurn(handicap: number, moves: Move[], initialTurn?: StoneColor): StoneColor {
   const last = moves[moves.length - 1]
   if (last) return last.color === 'black' ? 'white' : 'black'
-  return handicap >= 2 ? 'white' : 'black'
+  return initialTurn ?? (handicap >= 2 ? 'white' : 'black')
 }
 
 /**
@@ -77,9 +86,14 @@ export function validateMove(
  * fuera de cualquier try — con la SPA sin error boundary, eso deja la pantalla en blanco. Se usa en
  * `PlayView.handleImportFile`, DENTRO del try, antes de aceptar el árbol importado.
  */
-export function isMoveSequenceLegal(boardSize: BoardSize, handicap: number, moves: Move[]): boolean {
+export function isMoveSequenceLegal(
+  boardSize: BoardSize,
+  handicap: number,
+  moves: Move[],
+  setup?: SetupStones,
+): boolean {
   try {
-    boardFromMoves(boardSize, handicap, moves)
+    boardFromMoves(boardSize, handicap, moves, setup)
     return true
   } catch {
     return false

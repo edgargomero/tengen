@@ -16,7 +16,7 @@ import type { BoardSize, ClockConfig, ClockState, Move, Position, Rules, StoneCo
 import { initialClockState } from '@tengen/engine'
 import type GoBoard from '@sabaki/go-board'
 import type { GameConfig } from './gameConfig'
-import { boardFromMoves, currentTurn } from './rules'
+import { boardFromMoves, currentTurn, type SetupStones } from './rules'
 
 /** Metadata de la partida (subconjunto de GameConfig relevante al árbol + SGF; sin `opponent`). */
 export interface GameTreeMeta {
@@ -35,6 +35,11 @@ export interface GameTreeMeta {
    *  Mutable en el lugar (`tree.meta.clock.state.black = ...`), mismo patrón que `result` — lo muta
    *  `PlayView.tsx` tras cada jugada; se persiste en el SGF vía `game/sgfClockCodec.ts` (Task 7). */
   clock?: { config: ClockConfig; state: { black: ClockState; white: ClockState } }
+  /** Piedras colocadas (SGF AB/AW sin HA — fase Aprender): parten del tablero inicial, no son
+   *  jugadas. Mutuamente excluyente con handicap≥2 en la práctica (un tsumego no tiene handicap). */
+  setup?: SetupStones
+  /** Color al turno con 0 jugadas (SGF PL, tsumego "juegan blancas"). Con jugadas se ignora. */
+  initialTurn?: StoneColor
 }
 
 /** Tipo de marca que se puede pintar sobre una casilla (mapea 1:1 a las propiedades SGF
@@ -120,12 +125,21 @@ export class GameTree {
   }
 
   /**
+   * Hijo de `node` que llega por la MISMA jugada (color+vértice), o null si no existe. Es la única
+   * comparación de jugadas del árbol (la usa `addMove` para no duplicar y el validador de
+   * ejercicios de Aprender para saber si una respuesta está en el árbol de solución).
+   */
+  findChild(node: GameNode, move: Move): GameNode | null {
+    return node.children.find((c) => c.move !== null && sameMove(c.move, move)) ?? null
+  }
+
+  /**
    * Añade una jugada DESDE el cursor. Si ya existe un hijo con la MISMA jugada (color+vértice),
    * navega a él (no duplica); si diverge, crea un hijo nuevo (variación). En ambos casos el cursor
    * queda en el nodo resultante, que se devuelve. NO valida reglas ni turno (eso es del caller).
    */
   addMove(move: Move): GameNode {
-    const existing = this.current.children.find((c) => c.move !== null && sameMove(c.move, move))
+    const existing = this.findChild(this.current, move)
     if (existing) {
       this.current = existing
       return existing
@@ -260,6 +274,7 @@ export class GameTree {
   /**
    * Position que se le pasa al motor: metadata + jugadas del camino raíz→cursor. `handicap` viene
    * de `meta` (las piedras NO están en `moves`). Con handicap≥2, `moves[0]` es de Blanco.
+   * `setup`/`initialTurn` solo entran cuando existen: sin ellos la Position es la de siempre.
    */
   positionAt(cursor: GameNode = this.current): Position {
     return {
@@ -268,19 +283,21 @@ export class GameTree {
       rules: this.meta.rules,
       handicap: this.meta.handicap,
       moves: this.movesTo(cursor),
+      ...(this.meta.setup !== undefined ? { setup: this.meta.setup } : {}),
+      ...(this.meta.initialTurn !== undefined ? { initialTurn: this.meta.initialTurn } : {}),
     }
   }
 
   // ── Helpers de display (delegan en rules.ts) ────────────────────────────────────────────────
 
-  /** GoBoard de display en el cursor (incluye las piedras de handicap). Reusa `boardFromMoves`. */
+  /** GoBoard de display en el cursor (incluye las piedras de handicap y el setup). */
   boardAt(cursor: GameNode = this.current): GoBoard {
-    return boardFromMoves(this.meta.boardSize, this.meta.handicap, this.movesTo(cursor))
+    return boardFromMoves(this.meta.boardSize, this.meta.handicap, this.movesTo(cursor), this.meta.setup)
   }
 
-  /** Color al que le toca jugar en el cursor. Reusa `currentTurn` (respeta el handicap). */
+  /** Color al que le toca jugar en el cursor. Reusa `currentTurn` (handicap + initialTurn). */
   currentTurnAt(cursor: GameNode = this.current): StoneColor {
-    return currentTurn(this.meta.handicap, this.movesTo(cursor))
+    return currentTurn(this.meta.handicap, this.movesTo(cursor), this.meta.initialTurn)
   }
 
   // ── Frente de la partida "viva" (Fase 2, Task 5: modo exploración) ─────────────────────────

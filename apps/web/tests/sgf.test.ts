@@ -270,3 +270,77 @@ describe('exportSgf/importSgf — gancho genérico de datos extra por nodo (Fase
     expect(exportSgf(t2)).toBe(out)
   })
 })
+
+// Fase Aprender T2: AB/AW/PL sin HA → setup/initialTurn. Con HA≥2 nada cambia (AB = handicap).
+describe('setup AB/AW/PL', () => {
+  const SETUP = {
+    black: [
+      { x: 4, y: 4 },
+      { x: 6, y: 4 },
+    ],
+    white: [{ x: 4, y: 5 }],
+  }
+
+  it('import sin HA: AB/AW → meta.setup, PL → initialTurn; NO se convierten en moves', () => {
+    const src = '(;GM[1]FF[4]SZ[9]KM[6.5]RU[Chinese]AB[ee][ge]AW[ef]PL[W];W[cc])'
+    const t = importSgf(src)
+    expect(t.meta.handicap).toBe(0)
+    expect(t.meta.setup).toEqual(SETUP)
+    expect(t.meta.initialTurn).toBe('white')
+    expect(t.mainLine().map((n) => n.move)).toEqual([W(2, 2)])
+  })
+
+  it('import con HA≥2: los AB siguen siendo handicap (ignorados), sin setup', () => {
+    const t = new GameTree({ boardSize: 19, komi: 0.5, rules: 'chinese', handicap: 2, humanColor: 'black' })
+    t.addMove(W(15, 15))
+    const t2 = importSgf(exportSgf(t))
+    expect(t2.meta.setup).toBeUndefined()
+    expect(t2.meta.initialTurn).toBeUndefined()
+  })
+
+  it('export emite AB/AW/PL desde la meta y el round-trip es byte-idéntico', () => {
+    const t = new GameTree({
+      boardSize: 9,
+      komi: 6.5,
+      rules: 'chinese',
+      handicap: 0,
+      humanColor: 'black',
+      setup: SETUP,
+      initialTurn: 'white',
+    })
+    t.addMove(W(2, 2))
+    const out = assertIdempotent(t)
+    expect(out).toContain('AB[ee][ge]')
+    expect(out).toContain('AW[ef]')
+    expect(out).toContain('PL[W]')
+  })
+
+  it('sin setup, el SGF exportado no gana propiedades nuevas (bytes de siempre, regresión)', () => {
+    const t = new GameTree({ boardSize: 9, komi: 6.5, rules: 'chinese', handicap: 0, humanColor: 'black' })
+    t.addMove(B(2, 2))
+    const out = exportSgf(t)
+    expect(out).not.toContain('PL[')
+    expect(out).not.toContain('AW[')
+    expect(out).not.toContain('AB[')
+  })
+})
+
+// Listas de puntos comprimidas de FF[4] (`AB[aa:ac]` = rectángulo inclusivo), comunes en las
+// colecciones clásicas de tsumego. El export siempre emite la forma expandida (canónica).
+describe('setup con listas comprimidas ab:cd', () => {
+  it('AB[aa:ac] expande a la columna {0,0},{0,1},{0,2} y el re-export es expandido e idempotente', () => {
+    const src = '(;GM[1]FF[4]SZ[9]KM[6.5]RU[Chinese]AB[aa:ac]AW[cc];W[ee])'
+    const t = importSgf(src)
+    expect(t.meta.setup).toEqual({
+      black: [
+        { x: 0, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: 2 },
+      ],
+      white: [{ x: 2, y: 2 }],
+    })
+    const out = exportSgf(t)
+    expect(out).toContain('AB[aa][ab][ac]')
+    expect(exportSgf(importSgf(out))).toBe(out)
+  })
+})
