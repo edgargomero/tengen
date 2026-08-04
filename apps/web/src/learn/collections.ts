@@ -6,6 +6,11 @@
 // licencia esté escrito en docs/research/fase-aprender/contenido-licencias.md. Sin veredicto no hay
 // import, aunque el JSON exista en el disco.
 import type { Exercise } from './exercise'
+// Colección semilla «Primeros pasos»: posiciones y árboles 100% originales de tengen (veredicto en
+// docs/research/fase-aprender/contenido-licencias.md §Decisión operativa; fuente SGF committeada en
+// apps/web/content/tsumego/primeros-pasos/). El cast va acompañado de un guardián real: el test
+// tests/learnData.test.ts valida forma y legalidad de CADA dataset importado acá con exerciseIssues.
+import primerosPasos from './data/primeros-pasos.json'
 
 export interface ExerciseCollectionData {
   id: string
@@ -13,4 +18,10 @@ export interface ExerciseCollectionData {
   exercises: readonly Exercise[]
 }
 
-export const COLLECTIONS: readonly ExerciseCollectionData[] = []
+export const COLLECTIONS: readonly ExerciseCollectionData[] = [
+  {
+    id: 'primeros-pasos',
+    title: 'Primeros pasos',
+    exercises: primerosPasos as unknown as readonly Exercise[],
+  },
+]

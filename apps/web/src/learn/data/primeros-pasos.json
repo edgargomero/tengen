@@ -1,0 +1,486 @@
+[
+  {
+    "id": "primeros-pasos-001-nakade-matar",
+    "collection": "primeros-pasos",
+    "boardSize": 19,
+    "setup": {
+      "black": [
+        {
+          "x": 0,
+          "y": 2
+        },
+        {
+          "x": 1,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 2
+        },
+        {
+          "x": 3,
+          "y": 2
+        },
+        {
+          "x": 4,
+          "y": 2
+        },
+        {
+          "x": 4,
+          "y": 1
+        },
+        {
+          "x": 4,
+          "y": 0
+        }
+      ],
+      "white": [
+        {
+          "x": 0,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 1
+        },
+        {
+          "x": 2,
+          "y": 1
+        },
+        {
+          "x": 3,
+          "y": 1
+        },
+        {
+          "x": 3,
+          "y": 0
+        }
+      ]
+    },
+    "toPlay": "black",
+    "objective": "matar",
+    "difficulty": 1,
+    "tree": {
+      "children": [
+        {
+          "children": [],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          "comment": "El centro de los tres espacios. Las blancas ya no pueden hacer dos ojos.",
+          "correct": true
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 1,
+                  "y": 0
+                }
+              },
+              "comment": "Las blancas capturan la piedra y quedan con dos ojos."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "comment": "Desde el borde no alcanza.",
+          "correct": false
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 1,
+                  "y": 0
+                }
+              },
+              "comment": "Las blancas capturan la piedra y quedan con dos ojos."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 2,
+              "y": 0
+            }
+          },
+          "comment": "Desde este borde tampoco.",
+          "correct": false
+        }
+      ],
+      "comment": "Las blancas viven o mueren en un espacio de tres. Juegan negras: matar."
+    }
+  },
+  {
+    "id": "primeros-pasos-002-nakade-vivir",
+    "collection": "primeros-pasos",
+    "boardSize": 19,
+    "setup": {
+      "black": [
+        {
+          "x": 18,
+          "y": 1
+        },
+        {
+          "x": 17,
+          "y": 1
+        },
+        {
+          "x": 16,
+          "y": 1
+        },
+        {
+          "x": 15,
+          "y": 1
+        },
+        {
+          "x": 15,
+          "y": 0
+        }
+      ],
+      "white": [
+        {
+          "x": 18,
+          "y": 2
+        },
+        {
+          "x": 17,
+          "y": 2
+        },
+        {
+          "x": 16,
+          "y": 2
+        },
+        {
+          "x": 15,
+          "y": 2
+        },
+        {
+          "x": 14,
+          "y": 2
+        },
+        {
+          "x": 14,
+          "y": 1
+        },
+        {
+          "x": 14,
+          "y": 0
+        }
+      ]
+    },
+    "toPlay": "black",
+    "objective": "vivir",
+    "difficulty": 1,
+    "tree": {
+      "children": [
+        {
+          "children": [],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 17,
+              "y": 0
+            }
+          },
+          "comment": "El punto vital parte el espacio en dos ojos verdaderos.",
+          "correct": true
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 17,
+                  "y": 0
+                }
+              },
+              "comment": "Con la blanca en el centro queda un solo ojo: el grupo está muerto."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 18,
+              "y": 0
+            }
+          },
+          "comment": "Rellenar tu propio espacio te condena.",
+          "correct": false
+        }
+      ],
+      "comment": "El grupo negro tiene un espacio de tres. Juegan negras: vivir."
+    }
+  },
+  {
+    "id": "primeros-pasos-003-tres-doblado-matar",
+    "collection": "primeros-pasos",
+    "boardSize": 19,
+    "setup": {
+      "black": [
+        {
+          "x": 3,
+          "y": 18
+        },
+        {
+          "x": 3,
+          "y": 17
+        },
+        {
+          "x": 3,
+          "y": 16
+        },
+        {
+          "x": 2,
+          "y": 16
+        },
+        {
+          "x": 2,
+          "y": 15
+        },
+        {
+          "x": 1,
+          "y": 15
+        },
+        {
+          "x": 0,
+          "y": 15
+        }
+      ],
+      "white": [
+        {
+          "x": 2,
+          "y": 18
+        },
+        {
+          "x": 2,
+          "y": 17
+        },
+        {
+          "x": 1,
+          "y": 17
+        },
+        {
+          "x": 1,
+          "y": 16
+        },
+        {
+          "x": 0,
+          "y": 16
+        }
+      ]
+    },
+    "toPlay": "black",
+    "objective": "matar",
+    "difficulty": 2,
+    "tree": {
+      "children": [
+        {
+          "children": [],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 0,
+              "y": 18
+            }
+          },
+          "comment": "El punto del pliegue. Las blancas ya no llegan a dos ojos.",
+          "correct": true
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 0,
+                  "y": 18
+                }
+              },
+              "comment": "Las blancas capturan y quedan con dos ojos."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 1,
+              "y": 18
+            }
+          },
+          "comment": "Por este lado la piedra cae presa.",
+          "correct": false
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 0,
+                  "y": 18
+                }
+              },
+              "comment": "Las blancas capturan y quedan con dos ojos."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 0,
+              "y": 17
+            }
+          },
+          "comment": "Por este lado pasa lo mismo.",
+          "correct": false
+        }
+      ],
+      "comment": "Tres espacios doblados en la esquina. Juegan negras: matar."
+    }
+  },
+  {
+    "id": "primeros-pasos-004-tres-doblado-vivir",
+    "collection": "primeros-pasos",
+    "boardSize": 19,
+    "setup": {
+      "black": [
+        {
+          "x": 16,
+          "y": 18
+        },
+        {
+          "x": 17,
+          "y": 17
+        },
+        {
+          "x": 16,
+          "y": 17
+        },
+        {
+          "x": 18,
+          "y": 16
+        },
+        {
+          "x": 17,
+          "y": 16
+        }
+      ],
+      "white": [
+        {
+          "x": 15,
+          "y": 18
+        },
+        {
+          "x": 15,
+          "y": 17
+        },
+        {
+          "x": 15,
+          "y": 16
+        },
+        {
+          "x": 16,
+          "y": 16
+        },
+        {
+          "x": 16,
+          "y": 15
+        },
+        {
+          "x": 17,
+          "y": 15
+        },
+        {
+          "x": 18,
+          "y": 15
+        }
+      ]
+    },
+    "toPlay": "black",
+    "objective": "vivir",
+    "difficulty": 2,
+    "tree": {
+      "children": [
+        {
+          "children": [],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 18,
+              "y": 18
+            }
+          },
+          "comment": "El punto del pliegue parte el espacio en dos ojos.",
+          "correct": true
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 18,
+                  "y": 18
+                }
+              },
+              "comment": "La blanca ocupa el punto vital: queda un solo ojo."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 17,
+              "y": 18
+            }
+          },
+          "comment": "Rellenar el espacio propio deja entrar a las blancas.",
+          "correct": false
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 18,
+                  "y": 18
+                }
+              },
+              "comment": "La blanca ocupa el punto vital: queda un solo ojo."
+            }
+          ],
+          "move": {
+            "color": "black",
+            "vertex": {
+              "x": 18,
+              "y": 17
+            }
+          },
+          "comment": "Rellenar el espacio propio deja entrar a las blancas.",
+          "correct": false
+        }
+      ],
+      "comment": "Tres espacios doblados en la esquina. Juegan negras: vivir."
+    }
+  }
+]

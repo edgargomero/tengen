@@ -1,0 +1,10 @@
+(;GM[1]FF[4]SZ[19]
+AB[qs][rr][qr][sq][rq]
+AW[ps][pr][pq][qq][qp][rp][sp]
+PL[B]
+C[Tres espacios doblados en la esquina. Juegan negras: vivir.]
+(;B[ss]TE[1]C[El punto del pliegue parte el espacio en dos ojos.])
+(;B[rs]C[Rellenar el espacio propio deja entrar a las blancas.]
+;W[ss]BM[1]C[La blanca ocupa el punto vital: queda un solo ojo.])
+(;B[sr]C[Rellenar el espacio propio deja entrar a las blancas.]
+;W[ss]BM[1]C[La blanca ocupa el punto vital: queda un solo ojo.]))

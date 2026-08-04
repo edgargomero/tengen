@@ -1,0 +1,10 @@
+(;GM[1]FF[4]SZ[19]
+AB[ac][bc][cc][dc][ec][eb][ea]
+AW[ab][bb][cb][db][da]
+PL[B]
+C[Las blancas viven o mueren en un espacio de tres. Juegan negras: matar.]
+(;B[ba]TE[1]C[El centro de los tres espacios. Las blancas ya no pueden hacer dos ojos.])
+(;B[aa]C[Desde el borde no alcanza.]
+;W[ba]BM[1]C[Las blancas capturan la piedra y quedan con dos ojos.])
+(;B[ca]C[Desde este borde tampoco.]
+;W[ba]BM[1]C[Las blancas capturan la piedra y quedan con dos ojos.]))
