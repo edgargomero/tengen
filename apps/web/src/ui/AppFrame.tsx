@@ -29,7 +29,7 @@
 import type { ComponentChildren } from 'preact'
 import { useRef } from 'preact/hooks'
 import { getCurrentUrl, route, useRouter } from 'preact-router'
-import { signInWithGoogle } from '../cloud/authClient'
+import { signInWithGoogle, type SessionUser } from '../cloud/authClient'
 import { useSession } from '../cloud/useSession'
 import { useOnlineStatus } from '../pwa/useOnlineStatus'
 import { NAV_DESTINATIONS, activeDestinationFor, locationLabelFor, normalizePath } from './navDestinations'
@@ -85,17 +85,23 @@ export function AppFrame({ children }: AppFrameProps) {
     route(to)
   }
 
-  const destinations = NAV_DESTINATIONS.map((d) => (
-    <button
-      key={d.id}
-      type="button"
-      aria-current={active?.id === d.id ? 'page' : undefined}
-      class={active?.id === d.id ? 'active' : ''}
-      onClick={() => active?.id !== d.id && navTo(d.path)}
-    >
-      {d.label}
-    </button>
-  ))
+  /* Función y no un array compartido: los mismos destinos se montan en DOS puntos del árbol (el
+   * conmutador de arriba y la barra de abajo), y reusar la MISMA instancia de vnode en dos padres
+   * depende de que Preact la clone internamente — funciona hoy, pero es apoyarse en un detalle de
+   * implementación. Llamarla dos veces produce vnodes frescos por montaje, gratis. */
+  function renderDestinations() {
+    return NAV_DESTINATIONS.map((d) => (
+      <button
+        key={d.id}
+        type="button"
+        aria-current={active?.id === d.id ? 'page' : undefined}
+        class={active?.id === d.id ? 'active' : ''}
+        onClick={() => active?.id !== d.id && navTo(d.path)}
+      >
+        {d.label}
+      </button>
+    ))
+  }
 
   return (
     <NavigationGuardContext.Provider value={registryRef.current}>
@@ -122,9 +128,11 @@ export function AppFrame({ children }: AppFrameProps) {
           </div>
           <div class="topbar-end">
             {/* Los destinos, forma ANCHA. El CSS lo apaga exactamente donde enciende `.appbar`, para
-                que no exista un viewport sin ninguno de los dos. */}
-            <nav class="segmented" aria-label="Ir a">
-              {destinations}
+                que no exista un viewport sin ninguno de los dos. Misma aria-label que la barra de
+                abajo: son la MISMA navegación en dos formas, y sólo una está visible a la vez
+                (display:none saca a la otra del árbol de accesibilidad). */}
+            <nav class="segmented" aria-label="Navegación principal">
+              {renderDestinations()}
             </nav>
             <SessionBadge user={user} pending={pending} />
           </div>
@@ -134,7 +142,7 @@ export function AppFrame({ children }: AppFrameProps) {
 
         {/* Los destinos, forma ANGOSTA Y ALTA. Se renderiza siempre (ver cabecera). */}
         <nav class="appbar" aria-label="Navegación principal">
-          {destinations}
+          {renderDestinations()}
         </nav>
       </div>
     </NavigationGuardContext.Provider>
@@ -142,7 +150,7 @@ export function AppFrame({ children }: AppFrameProps) {
 }
 
 interface SessionBadgeProps {
-  user: { email: string; image?: string | null } | null
+  user: SessionUser | null
   pending: boolean
 }
 

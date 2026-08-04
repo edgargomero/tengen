@@ -161,6 +161,11 @@ sirve al tablero"*, no *"son pares"*. El par centrado no lleva ancho máximo pro
     `--surface` en claro, 7.37 en oscuro) más el peso, que es el segundo eje de jerarquía del sistema.
   - **Se renderiza SIEMPRE y se apaga con CSS.** No es pereza: `useBoundedBoardSize` mide su
     `offsetHeight`, y con render condicional por JS esa medición daría 0 justo donde la barra sí existe.
+  - **La etiqueta va en `--text-sm`, el mismo cuerpo que `.segmented button`** — las dos formas de los
+    mismos destinos comparten paso tipográfico. No `--text-xs`: ese es el paso de metadata/eyebrows, y
+    acá la etiqueta es TODO el afordance (no hay ícono encima, como en una tab bar nativa) — una acción
+    no puede vestirse de metadata. Y el anillo de foco va hacia ADENTRO (`outline-offset: -2px`): la
+    celda toca el borde del viewport y el offset positivo del átomo lo dibujaría recortado.
 - **Badge de sesión** (`.topbar-session`): el estado de cuenta, presente en toda pantalla y no sólo en el
   menú. Dos formas del mismo lugar — `<button>` sin sesión (la única acción que el marco ofrece, porque
   es la que arregla el problema: sin ella la partida no se guarda en la nube y nada lo decía) y `<span>`
@@ -338,14 +343,19 @@ conexión (service worker en `apps/web/src/sw.ts`). Tres puntos donde eso toca a
 - **La superficie informativa de la app vive fuera del template.** `PwaToast` y el chip de conexión
   hablan del *programa* (hay versión nueva, no hay red), no de la partida; por eso no entran en el
   rail, que es la superficie del contenido.
-- **La safe-area es parte del sistema desde que hay una barra pegada al fondo.** El manifest es
-  `display: standalone`, así que una barra fija cae **debajo del indicador de inicio** y queda
-  parcialmente intocable. `viewport-fit=cover` en el meta viewport es lo que hace que
-  `env(safe-area-inset-*)` devuelva algo distinto de 0 — y su alcance es **toda la app, no sólo esa
-  barra**: extiende el viewport bajo el recorte también a los lados, así que el padding de safe-area
-  va además en `.topbar` (con `max()`, para no perder el padding de diseño donde no hay notch) y en
-  `.app-frame-main`. Ningún test automático cubre esto y Chrome emulando 844×390 tampoco: **se
-  verifica en la PWA instalada, en el aparato**.
+- **La safe-area es parte del sistema desde que hay una barra pegada al fondo — y cubre los CUATRO
+  bordes, no el que motivó el cambio.** El manifest es `display: standalone`, así que una barra fija
+  cae **debajo del indicador de inicio** y queda parcialmente intocable. `viewport-fit=cover` es lo
+  que hace que `env(safe-area-inset-*)` devuelva algo distinto de 0 — y expone **todos los bordes a
+  la vez**: en la app instalada el viewport también se mete bajo la barra de estado (arriba) y bajo
+  el recorte lateral en apaisado. Por eso: `.topbar` absorbe el inset de ARRIBA sumándolo a su alto
+  (un `env()` es constante del aparato, no contenido, así que el contrato de `--topbar-h` se
+  mantiene: la zona útil sigue midiendo 3rem) y lleva `max()` a los lados; `.app-frame-main` lleva
+  `max(var(--nav-inset), env(safe-area-inset-bottom))` para el viewport ancho, donde la barra
+  inferior no existe pero el indicador de inicio sí; y el `calc` del `.study-shell` de escritorio
+  descuenta ambos insets verticales. En navegador y en escritorio todos valen 0 y nada cambia.
+  Ningún test automático cubre esto y Chrome emulando 844×390 tampoco: **se verifica en la PWA
+  instalada, en el aparato**.
 
 ## La pantalla que tiene que funcionar cuando nada funciona
 

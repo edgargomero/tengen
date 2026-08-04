@@ -667,7 +667,13 @@ fieldset.field {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  height: var(--topbar-h);
+  /* `viewport-fit=cover` expone TODOS los bordes, no sólo el de abajo: en la PWA instalada el
+     viewport se extiende bajo la barra de estado, así que sin este padding la marca queda debajo
+     del reloj del sistema. El alto lo suma en vez de absorberlo: el contrato de `--topbar-h` es que
+     el alto no cambie con el CONTENIDO, y un `env()` es una constante del aparato, no contenido —
+     la zona útil sigue midiendo exactamente `--topbar-h`. En navegador (no instalada) vale 0. */
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   flex: 0 0 auto;
   padding-left: max(var(--sp-5), env(safe-area-inset-left));
   padding-right: max(var(--sp-5), env(safe-area-inset-right));
@@ -712,7 +718,11 @@ fieldset.field {
 }
 
 /* Celdas iguales: son destinos pares, ninguno es la acción que lidera. Botón sin superficie ni
-   borde — la barra ya ES la superficie, y un botón dentro de otra caja duplicaría el tratamiento. */
+   borde — la barra ya ES la superficie, y un botón dentro de otra caja duplicaría el tratamiento.
+   `--text-sm` y no `--text-xs`: la etiqueta es TODO el afordance (no hay ícono encima, como en las
+   tab bars nativas), así que va en el mismo cuerpo que su hermano de arriba (`.segmented button`,
+   la otra forma de los mismos destinos) — el xs es el paso de metadata/eyebrows, y esto es una
+   acción. */
 .appbar button {
   flex: 1 1 0;
   min-width: 0;
@@ -720,8 +730,14 @@ fieldset.field {
   border-radius: 0;
   background: transparent;
   color: var(--ink-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   padding: var(--sp-1) var(--sp-2);
+}
+
+/* Anillo de foco hacia ADENTRO: la celda toca el borde del viewport, y el offset positivo del átomo
+   dibujaría el anillo medio recortado por la ventana. */
+.appbar button:focus-visible {
+  outline-offset: -2px;
 }
 
 /* El destino donde estás. Tercera expresión del MISMO acento, no un cuarto patrón de "activo":
@@ -1259,7 +1275,11 @@ fieldset.field {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-bottom: var(--nav-inset);
+  /* `max()` y no `--nav-inset` a secas: donde la barra inferior existe, el token ya incluye la
+     safe-area y gana; donde NO existe (viewport ancho — un teléfono apaisado, un iPad instalado),
+     el token vale 0 pero `viewport-fit=cover` sigue extendiendo la página bajo el indicador de
+     inicio, y sin el `env()` suelto el final del contenido quedaría debajo. */
+  padding-bottom: max(var(--nav-inset), env(safe-area-inset-bottom));
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
@@ -1593,10 +1613,13 @@ fieldset.field {
 @media (min-width: 768px) {
   /* Descuenta la banda superior, que desde el marco unificado ya no vive DENTRO de este shell. Sin
      el `calc`, tablero + topbar sumarían más que el viewport y la página escrituraría scroll justo
-     en la pantalla cuyo contrato es no tenerlo. */
+     en la pantalla cuyo contrato es no tenerlo. Los `env()` son la parte del viewport que
+     `viewport-fit=cover` puso bajo el recorte y el indicador de inicio (la topbar ya absorbió el de
+     arriba; el de abajo lo devuelve el padding del marco): en escritorio valen 0 y la cuenta es la
+     de siempre. */
   .study-shell {
-    height: calc(100dvh - var(--topbar-h));
-    max-height: calc(100dvh - var(--topbar-h));
+    height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     overflow: hidden;
   }
 
