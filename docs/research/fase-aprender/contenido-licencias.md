@@ -17,8 +17,56 @@ solución y licencia explícita.** Las dos mitades existen por separado:
 - **Árboles de solución**: solo en transcripciones SIN licencia declarada (u-go.net y derivados).
 
 La premisa del plan («el árbol del SGF es la verdad») queda sin materia prima licenciable para las
-colecciones clásicas. Las opciones quedan al final de este documento; **la decisión es de Edgar**
-porque revoca o modifica una cláusula del plan aprobado.
+colecciones clásicas.
+
+### Segunda pasada (2026-08-05): el patrón que explica todo el ecosistema
+
+La primera pasada se cortó tres veces y quedó incompleta; esta la rehízo consultando la **licencia
+SPDX real de cada repo por API** en vez de fiarse de descripciones. El resultado no es una lista de
+fuentes: es un patrón.
+
+> **La licencia del repositorio no es la licencia del contenido.** Casi todos los repos de tsumego
+> con `LICENSE` permisivo licencian su CÓDIGO mientras sus SGF salen de libros con derechos vivos.
+> Nadie puede licenciar —ni MIT, ni AGPL— lo que no le pertenece.
+
+Evidencia directa (consultada 2026-08-05):
+
+| Repo | Licencia declarada | Qué contiene de verdad |
+| --- | --- | --- |
+| `sanderland/tsumego` («Ten Thousand Tsumego», del autor de KaTrain) | MIT-like, pero el texto empieza *"**Code** is Copyright 2020 Sander Land"* y su `CONTRIBUTORS` agradece a *"Original Tsumego authors"* y *"TsumegoDojo for collecting many of the original files"* | 10.000+ problemas de **Cho Chikun, Ishigure, Fujisawa, Hashimoto Utaro, Lee Changho, Great Tesuji Encyclopedia** — libros con derechos vivos. Y **sin variaciones**: el formato es JSON con UNA jugada (`"SOL": [["B","ob","",""]]`) |
+| `bsinglet/life_and_death_go_problems` | GPL-3.0 | Su propio README: *"taken from 'One Thousand and One Life-and-Death Problems' by Richard Bozulich"* (Kiseido, con derechos). Tiene variaciones, pero el copyleft no suple la falta de título |
+| `d180cf/problems`, `d180cf/tsumego.js`, `cameron-martin/tsumego-solver`, `Seon82/tasuki2sgf`, `aaronslin/tsumego_clipper` | **NONE** (sin licencia) | — |
+| `travisgk/tsumego-pdf`, `benjaminmantle/baduk-study-material` | NOASSERTION | El segundo es la fuente PD de posiciones ya evaluada arriba |
+| `destinybird/MaedaNobuaki80` | Apache-2.0 | 80 problemas de Maeda Nobuaki en **texto plano de opción única**, no árboles |
+| `Tengu712/tsumegolet` | CC0-1.0 | App Android; el CC0 cubre la app |
+
+Ninguno aporta **árboles de variaciones con cadena de título**. Los que tienen licencia limpia no
+tienen variaciones; los que tienen variaciones no tienen título.
+
+### Qué cambia con tengen bajo AGPL (decidido 2026-08-05)
+
+Adoptar AGPL-3.0 (ver `NOTICE.md`) **amplía qué podemos absorber** —ahora también GPL, AGPL y
+CC BY-SA, además de lo permisivo— y de paso deja sin efecto la prohibición de licencia sobre
+[kaya](https://github.com/kaya-go/kaya) (AGPL↔AGPL es compatible; su encoding sigue siendo
+incompleto, así que la razón para no copiarlo pasa a ser técnica y no legal).
+
+Lo que **no** cambia: el problema de las colecciones clásicas nunca fue de compatibilidad de
+licencias, sino de **ausencia de cadena de título**. Ninguna licencia de destino arregla eso.
+
+### La vía que ninguna licencia bloquea: generar las variaciones
+
+Un árbol de solución computado a partir de una posición de dominio público es trabajo mecánico
+sobre material libre — no obra derivada de la transcripción de nadie. Y existen herramientas
+open source para hacerlo bien:
+
+- **`frostburn/tinytsumego` y `tinytsumego2` (MIT)** — *"Algorithms for solving tiny go problems"*:
+  solvers **exactos** (no aproximación estadística) para problemas de tablero pequeño.
+- **KataGo desktop** (MIT, ya instalado) con búsqueda restringida al área — el método que
+  `scripts/spotcheck-tsumego.mjs` ya usa y que en el spot-check de «Primeros pasos» dio gaps
+  inequívocos de 8–19 puntos entre solución y ramas incorrectas.
+
+Es decir: las 867 posiciones PD + generación propia es una vía **entera** (posición libre + árbol
+propio + verificación reproducible), no un parche.
 
 ## Fuentes evaluadas
 
@@ -76,15 +124,21 @@ Borrador (en inglés, listo para enviar):
 > CC BY). Happy to share the project. Thank you for keeping these classics available all these
 > years. — Edgar Gomero
 
-**B. Generar árboles propios con KataGo desktop sobre las 867 posiciones PD** (subset curado de
-~100–150 donde el motor sea inequívoco a visitas altas). Cero riesgo de licencia y escalable, pero
-**revoca la cláusula del plan** «No se regeneran árboles con el motor en v1» — por eso no se hizo
-sin preguntar. Los árboles serían someros (solución + refutación top), con el motor en vivo
-cubriendo el resto, que ya es el modelo de la sección.
+**B. Generar árboles propios sobre las 867 posiciones PD** (subset curado de ~100–150 donde el
+veredicto sea inequívoco), con KataGo desktop a visitas altas y/o un solver exacto MIT
+(`tinytsumego`). Cero riesgo de licencia y escalable, pero **revoca la cláusula del plan** «No se
+regeneran árboles con el motor en v1» — por eso no se hizo sin preguntar. Los árboles serían
+someros (solución + refutación top), con el motor en vivo cubriendo el resto, que ya es el modelo
+de la sección.
 
 **C. Quedarse solo con la semilla original** y crecer a mano (lento, control de calidad total).
 
 A y B son combinables: B como puente hasta que A responda.
+
+> **Elegido por Edgar el 2026-08-04: opción A** (mail a Görtz; la semilla propia crece a mano).
+> La segunda pasada de research del 2026-08-05 no cambió esa decisión — solo la respaldó: no
+> aparece ninguna colección con árboles y título limpio, y la única alternativa real sigue siendo
+> generar (B), que Edgar descartó por ahora.
 
 ## Inventario de lo descargado (fuera del repo)
 
