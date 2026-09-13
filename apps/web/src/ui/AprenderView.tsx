@@ -74,6 +74,13 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
     <main class="card-screen aprender-list">
       <h1>Aprender</h1>
       <p>Vida y muerte con el motor de verdad: si tu jugada no está en la solución, KataGo te muestra cuánto costó.</p>
+      <p class="hint">
+        Con gracias a la{' '}
+        <a href="https://www.fedibergo.org/ensananza" target="_blank" rel="noopener noreferrer">
+          Federación Iberoamericana de Go
+        </a>{' '}
+        por su material de enseñanza, usado como referencia.
+      </p>
       {collections.length === 0 && (
         <p class="hint">
           Todavía no hay ejercicios publicados. Las colecciones clásicas están en curaduría (el veredicto de

@@ -39,6 +39,12 @@ Ver [`docs/TESTING.md`](docs/TESTING.md). En resumen: todo lo que **no** necesit
 UI vía componentes presentacionales) se testea en CI (Vitest, jsdom); el camino "motor en un navegador
 real" es un gate **manual** documentado, acotado por el requisito de WebGPU.
 
+## Agradecimientos
+
+Gracias a la **Federación Iberoamericana de Go (FEDIBERGO)** por el material de enseñanza que publica
+en [fedibergo.org/ensananza](https://www.fedibergo.org/ensananza) (guías de talleres, problemas y
+reglas del Go), usado como referencia en la fase Aprender.
+
 ## Licencia
 
 Ver [`packages/engine/THIRD-PARTY-LICENSES`](packages/engine/THIRD-PARTY-LICENSES) para la atribución

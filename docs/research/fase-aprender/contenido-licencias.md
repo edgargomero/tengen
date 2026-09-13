@@ -163,6 +163,29 @@ b18 oficial `.bin.gz` de `setup-katago.sh`, 400 visitas). Dos criterios por ejer
 
 Discrepancias → lista → curaduría manual antes de publicar. Sin spot-check no se commitea dataset.
 
+## Material de FEDIBERGO (referencia, no empaquetado)
+
+**Fuente:** [fedibergo.org/ensananza](https://www.fedibergo.org/ensananza) — guías de talleres,
+problemas y reglas del Go publicadas por la Federación Iberoamericana de Go para descarga gratuita.
+Descargado el 2026-09-13 a `fedibergo-ensananza/` (50 PDFs, script en
+`fedibergo-ensananza/download.sh`), committeado al repo por decisión de Edgar (2026-09-13, ver fila
+siguiente).
+
+| Hecho | Detalle |
+| --- | --- |
+| Afirmación de Edgar | «Es de uso público» (2026-09-13); decidió commitear los PDFs al repo bajo ese criterio |
+| Licencia declarada en la página `/ensananza` | Ninguna explícita sobre el material de enseñanza |
+| Footer del sitio | `© Copyright 2017 . All Rights Reserved` — boilerplate del template Joomla, sin fecha ni texto propios del material |
+| Contenido actualmente en el producto | La carpeta `fedibergo-ensananza/` vive en el repo como material de referencia; **no** está enlazada desde `apps/web/content/` ni `learn/collections.ts` |
+
+**Veredicto:** agradecimiento público sí (README, NOTICE.md, `/aprender`) — es cortesía por difundir
+material de enseñanza del Go, no depende de que exista una licencia formal. Los PDFs en sí quedan en
+el repo como referencia bajo el criterio de uso público de Edgar. **Convertir cualquier PDF en un
+ejercicio interactivo dentro del producto (`apps/web/content/`, `learn/collections.ts`) sigue el
+mismo protocolo que las colecciones clásicas de arriba** — spot-check con el motor como mínimo, y
+si hace falta más certeza, escribirle a la federación (mismo formato que el borrador a Ulrich
+Görtz).
+
 ### Spot-check ejecutado — «Primeros pasos» (2026-08-04): TODO OK
 
 | Ejercicio | Criterio 1 (Δ vs top local) | Criterio 2 (gap por rama incorrecta) |

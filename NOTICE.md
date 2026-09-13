@@ -30,3 +30,11 @@ que su autor no podía otorgar.
 
 Por eso todo dataset de ejercicios pasa por un veredicto escrito ANTES de empaquetarse:
 `docs/research/fase-aprender/contenido-licencias.md`.
+
+## Agradecimientos
+
+Gracias a la **Federación Iberoamericana de Go (FEDIBERGO)** por el material de enseñanza que publica
+en [fedibergo.org/ensananza](https://www.fedibergo.org/ensananza) — guías de talleres, problemas y
+reglas del Go que sirven de referencia para la fase Aprender. Nada de ese material está incorporado al
+producto todavía; el veredicto y sus condiciones viven en
+`docs/research/fase-aprender/contenido-licencias.md`.
