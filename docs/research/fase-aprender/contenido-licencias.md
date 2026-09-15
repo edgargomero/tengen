@@ -261,7 +261,7 @@ magnitud NO es la misma que "¿esta jugada resuelve el ejercicio de ojos?":
    partida sin necesidad de jugar ahí. Capturar ahora no suma nada que negras no tuvieran ya
    asegurado, y gasta un turno que vale ~25 puntos en un tablero casi vacío. El motor tiene razón:
    tenuki puntúa mejor. "Correcto para la lección" (reconocer y ejecutar la captura) y
-   "score-óptimo" (no son lo mismo) — eso es estructural en un 9×9 disperso, no un defecto de esta
+   "score-óptimo" no son lo mismo — eso es estructural en un 9×9 disperso, no un defecto de esta
    posición particular.
 2. **La restricción de área local no aísla nada en un 9×9 disperso.** El bounding box (setup ±1)
    de un puñado de piedras sueltas cubre la mayor parte de un tablero de 81 puntos, así que el
