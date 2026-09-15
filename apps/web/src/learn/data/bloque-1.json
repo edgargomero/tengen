@@ -1173,7 +1173,7 @@
                 }
               },
               "correct": true,
-              "comment": "Se capturan dos piedras, no una sola, y la piedra negra que captura queda con dos libertades, no con una: no hay simetría de piedra sola contra piedra sola, así que blanca SÍ puede recapturar de inmediato. No es ko.",
+              "comment": "Se capturan dos piedras, no una sola, y la piedra negra que captura queda con dos libertades, no con una: no hay simetría de piedra sola contra piedra sola, así que blanca puede volver a jugar ahí de inmediato, sin ninguna restricción de ko. No es ko.",
               "children": []
             }
           ]
