@@ -1397,7 +1397,7 @@
     "theory": [
       "Una escalera es una forma de capturar una piedra (o una cadena chica) que está lejos, alejándola paso a paso hasta que no le queda ningún lugar donde correr. Funciona así: la piedra rival tiene dos libertades; el atacante juega en una de ellas y la deja en atari; la única jugada que la salva es extenderse hacia la libertad que le queda, pero esa extensión, por la forma en que están puestas las piedras alrededor, también termina con solo dos libertades nuevas -- y una de ellas es, otra vez, ocupable por el atacante. Repetir esa secuencia empuja a la piedra en fuga en zigzag, siguiendo una diagonal: cada jugada del atacante queda un paso más allá que la anterior, alternando entre un lado y el otro. La escalera termina cuando la piedra que huye choca contra el borde del tablero o contra una piedra propia que le corta el único camino que le quedaba: ahí, sin ningún lugar para extenderse, la captura es inevitable.",
       "El borde del tablero cuenta como si fuera una libertad ya ocupada por el rival: un punto en el borde tiene solo tres vecinos en vez de cuatro, y un punto en el rincón tiene solo dos. Por eso, una piedra o cadena pegada al borde necesita menos jugadas del rival para quedar en atari que la misma forma en el centro -- el borde ya le sacó una libertad de entrada, sin que nadie tuviera que jugar ahí. Es la misma razón por la que muchas escaleras terminan justo contra un borde: no hace falta rodear a la piedra en fuga por los cuatro lados, alcanza con cerrarle los que el tablero no cierra solo.",
-      "Cuando dos grupos propios quedan amenazados al mismo tiempo, a veces la mejor defensa no es salvar uno y abandonar el otro (como en el atari doble), sino unirlos en un solo grupo más grande. Si el punto que le falta a un grupo para respirar es el mismo que le falta al otro, jugar ahí los conecta: las libertades de los dos grupos se suman, y lo que eran dos cadenas débiles con una sola libertad cada una pasa a ser una sola cadena con varias. Esa conexión directa -- la piedra nueva tocando a las dos a la vez -- suele ser la jugada más simple y más sólida cuando está disponible.",
+      "Cuando dos grupos propios quedan amenazados al mismo tiempo, a veces la mejor defensa no es salvar uno y abandonar el otro (como en el atari doble), sino unirlos en un solo grupo más grande. Si el punto que le falta a un grupo para respirar es el mismo que le falta al otro, jugar ahí los conecta: lo que eran dos cadenas débiles, cada una con esa sola libertad en común, pasa a ser una sola cadena que respira por las libertades que haya libres alrededor del punto de unión. Esa conexión directa -- la piedra nueva tocando a las dos a la vez -- suele ser la jugada más simple y más sólida cuando está disponible.",
       "No toda conexión válida necesita que las piedras queden en línea recta, tocándose. A veces la jugada que salva a un grupo en atari lo extiende hacia un costado, y esa misma piedra nueva queda en diagonal respecto de otra piedra propia, con un hueco entre las dos: no forman una sola cadena, pero comparten dos puntos vecinos. Si el rival ocupa uno de esos puntos para intentar cortarlas, el defensor juega el otro y la conexión se mantiene. Por eso una diagonal con hueco defiende tan bien como un contacto directo -- siempre que la jugada que la crea le deje al grupo amenazado libertades reales, y no solo la promesa de una ayuda lejana."
     ],
     "exercises": [
@@ -1407,24 +1407,23 @@
         "boardSize": 9,
         "setup": {
           "white": [
-            { "x": 3, "y": 3 }, { "x": 3, "y": 4 }, { "x": 4, "y": 4 }
+            { "x": 4, "y": 5 }, { "x": 4, "y": 4 }, { "x": 5, "y": 4 }
           ],
           "black": [
-            { "x": 2, "y": 3 }, { "x": 3, "y": 2 },
-            { "x": 2, "y": 4 }, { "x": 3, "y": 5 },
-            { "x": 5, "y": 4 }, { "x": 4, "y": 5 }
+            { "x": 3, "y": 4 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 },
+            { "x": 5, "y": 5 }, { "x": 3, "y": 5 }, { "x": 4, "y": 6 }
           ]
         },
         "toPlay": "black",
         "objective": "matar",
         "difficulty": 2,
         "tree": {
-          "comment": "Escalera ya corrida hasta su último paso: la cadena blanca en forma de escalera no tiene a dónde extenderse. Juegan negras: la jugada que la termina de capturar.",
+          "comment": "Escalera corta: la cadena blanca ya se extendió una vez, pero uno de los caminos que parecía disponible en realidad era una piedra blanca propia, ya puesta ahí de antes. Juegan negras: encontrar la única libertad real que le queda.",
           "children": [
             {
-              "move": { "color": "black", "vertex": { "x": 4, "y": 3 } },
+              "move": { "color": "black", "vertex": { "x": 6, "y": 4 } },
               "correct": true,
-              "comment": "Última libertad de la cadena blanca: se captura de una vez, cerrando la escalera.",
+              "comment": "Esa era la única libertad real: la piedra propia en (4,5) le cerraba una salida a la cadena blanca, y el resto ya estaba rodeado por negras. Se capturan las tres piedras juntas.",
               "children": []
             }
           ]
@@ -1436,24 +1435,24 @@
         "boardSize": 9,
         "setup": {
           "white": [
-            { "x": 5, "y": 1 }, { "x": 5, "y": 2 }, { "x": 6, "y": 2 }, { "x": 6, "y": 3 }
+            { "x": 5, "y": 3 }, { "x": 5, "y": 2 }, { "x": 6, "y": 2 }, { "x": 6, "y": 1 }
           ],
           "black": [
-            { "x": 4, "y": 1 }, { "x": 6, "y": 1 }, { "x": 5, "y": 0 },
-            { "x": 4, "y": 2 }, { "x": 5, "y": 3 },
-            { "x": 7, "y": 2 }, { "x": 7, "y": 3 }
+            { "x": 4, "y": 3 }, { "x": 6, "y": 3 }, { "x": 5, "y": 4 },
+            { "x": 4, "y": 2 }, { "x": 5, "y": 1 },
+            { "x": 7, "y": 2 }, { "x": 7, "y": 1 }
           ]
         },
         "toPlay": "black",
         "objective": "matar",
         "difficulty": 3,
         "tree": {
-          "comment": "La misma idea, con una escalera más larga ya recorrida. Juegan negras: encontrar la jugada que sigue la diagonal y termina la captura.",
+          "comment": "Escalera más larga, corriendo hacia el borde superior. Juegan negras: seguir la diagonal hasta el final, donde el borde no deja más lugar para huir.",
           "children": [
             {
-              "move": { "color": "black", "vertex": { "x": 6, "y": 4 } },
+              "move": { "color": "black", "vertex": { "x": 6, "y": 0 } },
               "correct": true,
-              "comment": "Sigue la diagonal de la escalera y es, a la vez, la última libertad de las cuatro piedras blancas: se capturan todas juntas.",
+              "comment": "El borde ya le sacaba la libertad que le faltaba: esta era la última, y se capturan las cuatro piedras de la escalera.",
               "children": []
             }
           ]
@@ -1523,7 +1522,7 @@
             { "x": 3, "y": 4 }, { "x": 5, "y": 3 }
           ],
           "black": [
-            { "x": 2, "y": 4 }, { "x": 3, "y": 3 }, { "x": 3, "y": 5 }
+            { "x": 2, "y": 4 }, { "x": 3, "y": 3 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 }
           ]
         },
         "toPlay": "white",
@@ -1535,7 +1534,7 @@
             {
               "move": { "color": "white", "vertex": { "x": 4, "y": 4 } },
               "correct": true,
-              "comment": "Extiende la piedra en atari y queda en diagonal respecto de la otra piedra blanca, compartiendo dos libertades con ella: aunque no forman una sola cadena, esa diagonal las protege a las dos.",
+              "comment": "Extiende la piedra en atari: ahora comparte exactamente esos dos puntos vacíos con la otra piedra blanca, en diagonal. Si negra ocupa uno para cortar, blanca conecta jugando el otro, y el grupo queda mucho más seguro -- por eso la diagonal, aunque todavía no forme una sola cadena, ya cuenta como una defensa real.",
               "children": []
             }
           ]
