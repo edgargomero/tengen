@@ -219,6 +219,23 @@ Fuente committeada en `apps/web/content/tsumego/bloque-1/` (obra del repo). El r
 `learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
 `collections.ts` aplica a `COLLECTIONS`.
 
+### Veredicto — Bloque 2 del currículo (talleres 6-10), 100% original
+
+Mismo criterio que el Bloque 1: **posiciones compuestas a mano para este proyecto**, inspiradas
+en la estructura pedagógica de FEDIBERGO (orden de temas, tipo de problema) pero SIN reproducir sus
+diagramas ni su texto. La teoría de cada lección es redacción original de tengen, no traducción ni
+resumen ceñido del PDF.
+
+Árboles de solución de todas las lecciones validados por reglas puras (`objectiveCheck.ts`, sin
+motor — ver spec `2026-09-15-aprender-curriculo-design.md`, Pieza 3). A diferencia del Bloque 1,
+el Bloque 2 es íntegramente engineless desde el diseño: no hay protocolo con KataGo desktop en
+ninguna lección. El gate de validación es el mismo para todas: `objectiveCheck.ts` + revisión
+manual de Edgar.
+
+Fuente committeada en `apps/web/content/tsumego/bloque-2/` (obra del repo). El registro
+`learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
+`collections.ts` aplica a `COLLECTIONS`.
+
 ### Spike de spot-check -- Lecciones 4-5 (2026-09-15)
 
 **Qué se probó.** 3 posiciones borrador de "ojos" en 9×9 (formato `Exercise`, sin comprometer
