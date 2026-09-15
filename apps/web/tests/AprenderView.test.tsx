@@ -14,6 +14,8 @@ import type { Analysis, Position } from '@tengen/engine'
 import { AprenderView, type ExerciseCollectionData } from '../src/ui/AprenderView'
 import { ExercisePlayer } from '../src/ui/ExercisePlayer'
 import type { Exercise, ExerciseNode } from '../src/learn/exercise'
+import { CURRICULUM } from '../src/learn/curriculum'
+import { recordResult } from '../src/learn/progress'
 import type { StorageLike } from '../src/game/persistence'
 
 // jsdom no trae ResizeObserver y `useBoundedBoardSize` lo instancia al montar. El stub es inerte:
@@ -101,6 +103,39 @@ describe('AprenderView — lista', () => {
   it('sin colecciones muestra un estado vacío honesto, no una pantalla en blanco', () => {
     render(<AprenderView collections={[]} storage={memoryStorage()} />)
     expect(screen.getByText(/todavía no hay ejercicios/i)).toBeInTheDocument()
+  })
+})
+
+// T13: el nivel de currículo (CURRICULUM real, no un fixture inyectado -- no hay prop para eso,
+// ver AprenderView.tsx). Se interactúa con el contenido real a través de la UI renderizada.
+describe('AprenderView — currículo', () => {
+  it('la Lección 2 aparece bloqueada si la Lección 1 no está resuelta', () => {
+    render(<AprenderView storage={memoryStorage()} />)
+    expect(screen.getByRole('button', { name: /Cadenas grandes/i })).toBeDisabled()
+  })
+
+  it('la Lección 2 se desbloquea cuando los 6 ejercicios de la Lección 1 están resueltos', () => {
+    const storage = memoryStorage()
+    for (const ex of CURRICULUM[0]!.exercises) recordResult(storage, ex.id, 'resuelto')
+    render(<AprenderView storage={storage} />)
+    expect(screen.getByRole('button', { name: /Cadenas grandes/i })).not.toBeDisabled()
+  })
+
+  it('abrir la Lección 1 no monta ModelGate (sin motor)', () => {
+    render(<AprenderView storage={memoryStorage()} />)
+    fireEvent.click(screen.getByRole('button', { name: /La jugada y la captura/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Empezar los 6 problemas/i }))
+    // Ancla positiva: confirma que sí llegamos al `ExercisePlayer` del ejercicio 1 (si el click de
+    // arriba no hubiera hecho nada, o el ejercicio fuera `undefined`, esto fallaría en vez de dejar
+    // pasar en falso una aserción negativa sobre una pantalla equivocada).
+    expect(screen.getByRole('button', { name: /Ver solución/i })).toBeInTheDocument()
+    // El discriminador real de "sin motor" es el copy de `ModelGate` (`ModelGate.tsx`), que arranca
+    // en estado 'downloading' de forma SÍNCRONA al montar -- si `ModelGate` hubiera envuelto este
+    // ejercicio por error, este texto aparecería ya en este render, sin esperar ningún efecto.
+    expect(screen.queryByText(/Descargando la red neuronal/i)).not.toBeInTheDocument()
+    // `Preparando motor…` es el hint de `booting` en el propio `ExercisePlayer` (no de `ModelGate`):
+    // en modo `engineless` nunca se pasa `booting`, así que tampoco debería aparecer.
+    expect(screen.queryByText(/Preparando motor/i)).not.toBeInTheDocument()
   })
 })
 

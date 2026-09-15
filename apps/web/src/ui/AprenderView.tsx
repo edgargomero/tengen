@@ -6,6 +6,7 @@
 //      EngineManager + ReviewScheduler en refs, ensureReady('b18', 19), dispose al desmontar) →
 //      ExercisePlayer (interacción pura, testeable con scheduler mock).
 import type { RoutableProps } from 'preact-router'
+import { route } from 'preact-router'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { NetworkId } from '@tengen/engine'
 import { EngineManager } from '../engine/engineManager'
@@ -13,9 +14,10 @@ import { createWorkerManagedEngine } from '../engine/workerManagedEngine'
 import { ReviewScheduler } from '../analysis/reviewScheduler'
 import { ModelGate } from '../models/ModelGate'
 import { COLLECTIONS, type ExerciseCollectionData } from '../learn/collections'
+import { CURRICULUM } from '../learn/curriculum'
 import type { Exercise } from '../learn/exercise'
 import { LEARN_ANALYSIS_GROUP } from '../learn/engineRefutation'
-import { loadProgress, type ProgressMap } from '../learn/progress'
+import { isLessonUnlocked, loadProgress, type ProgressMap } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'
 import { ExercisePlayer } from './ExercisePlayer'
 
@@ -23,6 +25,11 @@ export type { ExerciseCollectionData } from '../learn/collections'
 
 /** La red del player: la principal de la app (no hay red chica; decisión del plan de la fase). */
 const LEARN_NETWORK: NetworkId = 'b18'
+
+/** Talleres 1-3 del Bloque 1: sin motor (spec, Pieza 3). Talleres 4-5 siguen el camino EXISTENTE
+ * con motor (ModelGate + EngineExercisePlayer) sin cambios. Ajustar si el resultado de una futura
+ * Task de spike lo cambia -- ver nota de la Task 13. */
+const LESSONS_WITHOUT_ENGINE = new Set([1, 2, 3])
 
 interface AprenderViewProps extends RoutableProps {
   /** Inyectables en tests; en producción los defaults (registro real + localStorage). */
@@ -35,6 +42,12 @@ interface Selection {
   index: number
 }
 
+interface LessonSelection {
+  lessonId: string
+  /** 'teoria' -> exercises[0..5] -> 'practicar'. */
+  step: 'teoria' | number | 'practicar'
+}
+
 /** Estado visible de un ejercicio en la lista: glifo del motivo ●○ del sistema. */
 function stateGlyph(progress: ProgressMap, id: string): { glyph: string; title: string; modifier: string } {
   const estado = progress[id]?.estado
@@ -45,6 +58,7 @@ function stateGlyph(progress: ProgressMap, id: string): { glyph: string; title: 
 
 export function AprenderView({ collections = COLLECTIONS, storage = window.localStorage }: AprenderViewProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
+  const [lessonSelection, setLessonSelection] = useState<LessonSelection | null>(null)
 
   if (selection) {
     const collection = collections.find((c) => c.id === selection.collectionId)
@@ -67,6 +81,66 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
     setSelection(null)
   }
 
+  if (lessonSelection) {
+    const lesson = CURRICULUM.find((l) => l.id === lessonSelection.lessonId)
+    if (lesson) {
+      if (lessonSelection.step === 'teoria') {
+        return (
+          <main class="card-screen">
+            <h1>{lesson.title}</h1>
+            {lesson.theory.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+            <button type="button" onClick={() => setLessonSelection({ ...lessonSelection, step: 0 })}>
+              Empezar los 6 problemas
+            </button>
+            <button type="button" class="ghost" onClick={() => setLessonSelection(null)}>
+              Volver
+            </button>
+          </main>
+        )
+      }
+      if (lessonSelection.step === 'practicar') {
+        return (
+          <main class="card-screen">
+            <h1>Practicá lo que aprendiste</h1>
+            <p>Una partida contra Human SL, calibrado a {lesson.practiceOpponent.rank}.</p>
+            <button type="button" class="primary" onClick={() => route(`/jugar?practica=${lesson.id}`)}>
+              Jugar contra Human SL {lesson.practiceOpponent.rank}
+            </button>
+            <button type="button" class="ghost" onClick={() => setLessonSelection(null)}>
+              Volver al currículo
+            </button>
+          </main>
+        )
+      }
+      const index = lessonSelection.step
+      const exercise = lesson.exercises[index]
+      if (exercise) {
+        const hasNext = index + 1 < lesson.exercises.length
+        const playerProps = {
+          key: exercise.id,
+          exercise,
+          storage,
+          onBackToList: () => setLessonSelection(null),
+          ...(hasNext
+            ? { onNext: () => setLessonSelection({ ...lessonSelection, step: index + 1 }) }
+            : { onNext: () => setLessonSelection({ ...lessonSelection, step: 'practicar' as const }) }),
+        }
+        return LESSONS_WITHOUT_ENGINE.has(lesson.workshop) ? (
+          <ExercisePlayer {...playerProps} engineless />
+        ) : (
+          <ModelGate net={LEARN_NETWORK}>
+            <EngineExercisePlayer {...playerProps} />
+          </ModelGate>
+        )
+      }
+    }
+    // Selección huérfana (currículo cambiado entre renders, o índice inválido): de vuelta a la
+    // lista, sin lanzar -- mismo criterio que la selección de colecciones de arriba.
+    setLessonSelection(null)
+  }
+
   // El progreso se relee en cada render de la lista: volver del player ya refleja lo recién jugado.
   const progress = loadProgress(storage)
 
@@ -81,6 +155,29 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         </a>{' '}
         por su material de enseñanza, usado como referencia.
       </p>
+      <section class="aprender-collection">
+        <h2>Currículo -- Bloque 1</h2>
+        <ul class="exercise-list">
+          {CURRICULUM.map((lesson) => {
+            const unlocked = isLessonUnlocked(CURRICULUM, progress, lesson.id)
+            return (
+              <li key={lesson.id}>
+                <button
+                  type="button"
+                  class="exercise-row"
+                  disabled={!unlocked}
+                  onClick={() => unlocked && setLessonSelection({ lessonId: lesson.id, step: 'teoria' })}
+                >
+                  <span class={unlocked ? 'exercise-state' : 'exercise-state exercise-state--bloqueado'}>
+                    {unlocked ? '·' : '🔒'}
+                  </span>
+                  <span class="exercise-row-label">{lesson.title}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
       {collections.length === 0 && (
         <p class="hint">
           Todavía no hay ejercicios publicados. Las colecciones clásicas están en curaduría (el veredicto de

@@ -41,6 +41,7 @@ import { NewGameForm } from './ui/NewGameForm'
 import { PartidasView } from './ui/PartidasView'
 import { AprenderView } from './ui/AprenderView'
 import { PlayView } from './ui/PlayView'
+import { CURRICULUM } from './learn/curriculum'
 import { detectWebGpu } from './webgpu'
 import type { WebGpuDetection } from './webgpu'
 
@@ -186,7 +187,21 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
   }
 
   if (session === null) {
-    return <NewGameForm onStart={handleStart} onBack={onBack} />
+    // Prefill desde "Practicá lo que aprendiste" (Aprender, Task 13): `route('/jugar?practica=...')`
+    // remonta `PlayApp` (nueva entrada de historia → nuevo match de ruta), así que leer
+    // `window.location.search` acá, en el cuerpo de la función, ya ve el query string actualizado.
+    // Sin el param (entrada normal a "Jugar"), `initial` queda `undefined`: cero cambio.
+    const params = new URLSearchParams(window.location.search)
+    const practicaId = params.get('practica')
+    const practicaLesson = practicaId ? CURRICULUM.find((l) => l.id === practicaId) : undefined
+    const initial = practicaLesson
+      ? {
+          boardSize: practicaLesson.practiceOpponent.boardSize,
+          opponentKind: 'human' as const,
+          humanRank: practicaLesson.practiceOpponent.rank,
+        }
+      : undefined
+    return <NewGameForm onStart={handleStart} onBack={onBack} initial={initial} />
   }
   return (
     <PlayView
