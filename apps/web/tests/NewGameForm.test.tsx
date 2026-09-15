@@ -193,3 +193,65 @@ describe('NewGameForm — rediseño compacto (crítica 2026-08-03)', () => {
     expect(screen.queryByRole('heading', { name: 'tengen' })).not.toBeInTheDocument()
   })
 })
+
+describe('NewGameForm — prop `initial` (prefill del formulario)', () => {
+  it('sin initial arranca en kata/9×9/5k (comportamiento de hoy, regresión)', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = renderForm()
+    // El tamaño por defecto es 9×9 y queda marcado.
+    expect(screen.getByRole('button', { name: '9×9' })).toHaveAttribute('aria-pressed', 'true')
+    // El oponente por defecto es KataGo.
+    expect(screen.getByRole('button', { name: 'KataGo' })).toHaveAttribute('aria-pressed', 'true')
+    // El ranking de Human SL se ve en la select al cambiar de oponente. Con opponentKind='kata'
+    // la select no está renderizada, así que hay que cambiar a Human SL primero.
+    fireEvent.click(screen.getByRole('button', { name: 'Human SL (estilo humano)' }))
+    const nivelSelect = screen.getByRole('combobox', { name: 'Nivel' })
+    expect(nivelSelect).toHaveValue('5k')
+    // Emitir el config para confirmar todos los valores de inicio.
+    const config = empezar(onStart)
+    expect(config.opponent).toEqual({ kind: 'human', rank: '5k' })
+  })
+
+  it('con initial={opponentKind:human, humanRank:20k, boardSize:9} arranca prellenado', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = vi.fn<(c: GameConfig) => void>()
+    render(
+      <NewGameForm
+        onStart={onStart}
+        onBack={vi.fn()}
+        initial={{ opponentKind: 'human', humanRank: '20k', boardSize: 9 }}
+      />,
+    )
+    // El tamaño debe ser 9×9 (mismo que el default, pero prefijado).
+    expect(screen.getByRole('button', { name: '9×9' })).toHaveAttribute('aria-pressed', 'true')
+    // El oponente debe ser Human SL.
+    expect(screen.getByRole('button', { name: 'Human SL (estilo humano)' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    // El ranking debe ser 20k.
+    const nivelSelect = screen.getByRole('combobox', { name: 'Nivel' })
+    expect(nivelSelect).toHaveValue('20k')
+    // Emitir y verificar que el config refleja el prefill.
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(onStart).toHaveBeenCalledOnce()
+    const config = onStart.mock.calls[0]![0]
+    expect(config.opponent).toEqual({ kind: 'human', rank: '20k' })
+    expect(config.boardSize).toBe(9)
+  })
+
+  it('initial={{ boardSize: 13 }} prellena el tamaño sin cambiar el resto', () => {
+    conUserAgent(CHROME_MAC)
+    const onStart = vi.fn<(c: GameConfig) => void>()
+    render(<NewGameForm onStart={onStart} onBack={vi.fn()} initial={{ boardSize: 13 }} />)
+    // El tamaño debe ser 13×13, no el default de 9×9.
+    expect(screen.getByRole('button', { name: '9×9' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '13×13' })).toHaveAttribute('aria-pressed', 'true')
+    // El oponente sigue siendo el default (KataGo).
+    expect(screen.getByRole('button', { name: 'KataGo' })).toHaveAttribute('aria-pressed', 'true')
+    // Emitir y verificar que el boardSize es 13.
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(onStart).toHaveBeenCalledOnce()
+    expect(onStart.mock.calls[0]![0].boardSize).toBe(13)
+  })
+})

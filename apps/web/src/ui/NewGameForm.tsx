@@ -12,6 +12,10 @@ import { kataStrengthOptions } from '../game/opponentStrength'
 interface NewGameFormProps {
   onStart(config: GameConfig): void
   onBack(): void
+  // `initial` prellena el estado de inicio del formulario (se lee una sola vez al montar).
+  // Se usa para Task 13 (Aprender: "Practicar contra Human SL"). Sin especificar, el comportamiento
+  // es idéntico al de hoy (kata/9×9/5k).
+  initial?: { boardSize?: BoardSize; opponentKind?: 'human' | 'kata'; humanRank?: HumanRank }
 }
 
 const BOARD_SIZES: BoardSize[] = [9, 13, 19]
@@ -33,12 +37,12 @@ function defaultMainTimeMin(size: BoardSize): number {
 const DEFAULT_BYOYOMI_PERIODS = 5
 const DEFAULT_BYOYOMI_SECONDS = 30
 
-export function NewGameForm({ onStart, onBack }: NewGameFormProps) {
+export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
   // Tamaño por defecto: 9×9 (partida más corta y rápida — mejor primera experiencia jugable que
   // 19×19; además el usuario puede subir de tamaño cuando quiera).
-  const [boardSize, setBoardSize] = useState<BoardSize>(9)
-  const [opponentKind, setOpponentKind] = useState<'human' | 'kata'>('kata')
-  const [humanRank, setHumanRank] = useState<HumanRank>('5k')
+  const [boardSize, setBoardSize] = useState<BoardSize>(initial?.boardSize ?? 9)
+  const [opponentKind, setOpponentKind] = useState<'human' | 'kata'>(initial?.opponentKind ?? 'kata')
+  const [humanRank, setHumanRank] = useState<HumanRank>(initial?.humanRank ?? '5k')
   // Qué fuerzas se ofrecen depende del dispositivo: en móvil hay UNA (25 visitas ≈ 15 s por jugada
   // a las ~1,5 visitas/s medidas en un iPhone 12); en escritorio siguen las tres. Se calcula en cada
   // render —es un reduce sobre 3 elementos— y nunca al importar el módulo, que congelaría el UA.
