@@ -9,7 +9,7 @@
 // - `correct` viene HORNEADO por el conversor en cada nodo cuyo move es del color del alumno
 //   (marca explícita del SGF o heurística "primera rama = solución" con WARNING): la sesión no
 //   adivina nada en runtime. En nodos del rival `correct` no aplica.
-import type { Move, StoneColor } from '@tengen/engine'
+import type { BoardSize, Move, StoneColor } from '@tengen/engine'
 import { isMoveSequenceLegal, type SetupStones } from '../game/rules'
 
 export type ExerciseObjective = 'matar' | 'vivir' | 'ko' | 'desconocido'
@@ -27,7 +27,7 @@ export interface ExerciseNode {
 export interface Exercise {
   id: string
   collection: string
-  boardSize: 19
+  boardSize: BoardSize
   setup: SetupStones
   toPlay: StoneColor
   objective: ExerciseObjective
