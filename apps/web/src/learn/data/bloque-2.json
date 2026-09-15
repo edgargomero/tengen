@@ -1,0 +1,207 @@
+[
+  {
+    "id": "b2-l6",
+    "block": 2,
+    "workshop": 6,
+    "title": "Un ojo no alcanza, dos ojos sí",
+    "theory": [
+      "Un grupo puede tener un espacio vacío rodeado por sus propias piedras: eso es un ojo. Mientras ese ojo sea la única libertad que le queda al grupo, sigue siendo, ni más ni menos, una libertad como cualquier otra: si el rival consigue reducir al grupo a esa sola libertad, jugar ahí adentro captura el grupo entero, sin importar que el punto tenga forma de ojo. Un grupo con un solo ojo no está a salvo: alcanza con que el rival rellene, una por una, las libertades externas que le queden, hasta dejarlo con el ojo como única salida, para después capturarlo jugando justo ahí.",
+      "La historia cambia por completo cuando el grupo tiene DOS ojos, y esos dos ojos están separados (no son parte del mismo espacio vacío conectado). El rival no puede jugar en ninguno de los dos: hacerlo no captura nada, porque el grupo sigue vivo por el otro ojo, y la piedra que intentó invadir queda rodeada por completo, sin ninguna libertad propia -- una jugada ilegal, suicidio. Como el rival nunca puede ocupar ninguno de los dos puntos, nunca puede reducir al grupo a una sola libertad: dos ojos separados hacen que un grupo sea inmortal, sin importar cuántas jugadas tenga el rival en el resto de la partida.",
+      "Entre \"un ojo\" y \"dos ojos\" está la jugada que decide todo: el punto vital. Es el punto que, si lo juega el que defiende, le asegura el segundo ojo y la vida permanente; y que, si lo juega el rival primero, le quita al grupo cualquier chance de formar ese segundo ojo. Encontrar el punto vital -- y no confundirlo con una jugada que reduce libertades pero todavía no define nada -- es la destreza central de este taller.",
+      "Hay una trampa común de la que conviene cuidarse: un grupo con un ojo formado y otra libertad más todavía NO está en atari, y jugar directamente en el ojo mientras exista esa otra libertad es ilegal -- un suicidio que no captura nada. Antes de poder matar a ese grupo hay que rellenar primero esa libertad externa; recién ahí, con el ojo como única salida, se lo puede capturar. Distinguir \"todavía no es momento\" de \"ya se puede matar\" es tan importante como reconocer el punto vital que salva un grupo propio."
+    ],
+    "exercises": [
+      {
+        "id": "b2-l6-01",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 } ],
+          "black": [ { "x": 2, "y": 0 }, { "x": 2, "y": 1 }, { "x": 1, "y": 2 }, { "x": 0, "y": 2 } ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "El grupo blanco del rincón tiene un ojo en (0,0), y es la única libertad que le queda. Juegan negras: capturar.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 0, "y": 0 } },
+              "correct": true,
+              "comment": "Última libertad del grupo blanco -- el ojo, en este momento, es una libertad más. Se capturan las tres piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l6-02",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 }, { "x": 7, "y": 7 } ],
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 1, "y": 2 }, { "x": 0, "y": 2 },
+            { "x": 6, "y": 7 }, { "x": 7, "y": 6 }, { "x": 7, "y": 8 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "El grupo blanco del rincón tiene un ojo formado en (0,0), pero todavía le queda otra libertad afuera. Aparte, una piedra blanca suelta está en atari. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 8, "y": 7 } },
+              "correct": true,
+              "comment": "Esa piedra suelta sí estaba en atari: es la única jugada real de este turno.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 2, "y": 1 } },
+              "correct": false,
+              "comment": "El grupo del ojo todavía tenía esta libertad externa: con esta jugada queda en atari (el ojo pasa a ser su única salida), pero todavía no está capturado. Jugar directamente en el ojo ahora mismo sería ilegal -- un suicidio, porque esta libertad todavía existía.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l6-03",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 }, { "x": 3, "y": 1 } ],
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 1, "y": 2 }, { "x": 0, "y": 2 },
+            { "x": 4, "y": 1 }, { "x": 3, "y": 0 }, { "x": 3, "y": 2 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "El grupo blanco de la izquierda ya tiene un ojo formado en (0,0). Aparte, una piedra blanca suelta está en atari. Juegan blancas: encontrar el punto vital que la salva.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 1 } },
+              "correct": true,
+              "comment": "Conecta la piedra suelta con el grupo que ya tenía el ojo: el conjunto pasa a tener dos libertades separadas (el ojo, más esta nueva salida), así que ya no se puede capturar en una sola jugada.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l6-04",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 1, "y": 1 }, { "x": 1, "y": 0 }, { "x": 2, "y": 1 }, { "x": 3, "y": 1 }, { "x": 4, "y": 1 }, { "x": 5, "y": 1 }, { "x": 5, "y": 0 }
+          ],
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 4, "y": 0 },
+            { "x": 0, "y": 1 }, { "x": 1, "y": 2 }, { "x": 0, "y": 0 }, { "x": 0, "y": 2 }, { "x": 2, "y": 2 }, { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 6, "y": 1 }, { "x": 5, "y": 2 }, { "x": 6, "y": 0 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "La cadena blanca está en atari, pero las dos piedras negras sueltas que la atacan también lo están, compartiendo esa misma última libertad. Juegan blancas: salvarse.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 0 } },
+              "correct": true,
+              "comment": "Captura las dos piedras negras de un saque. Los dos puntos que quedan libres no son adyacentes entre sí, y cada uno queda completamente rodeado: son dos ojos reales, separados. El grupo queda vivo para siempre -- ya no alcanza ninguna jugada del rival.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l6-05",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 },
+            { "x": 3, "y": 1 }, { "x": 1, "y": 3 }
+          ],
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 0, "y": 2 },
+            { "x": 4, "y": 1 }, { "x": 3, "y": 0 }, { "x": 3, "y": 2 },
+            { "x": 0, "y": 3 }, { "x": 2, "y": 3 }, { "x": 1, "y": 4 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "El grupo blanco ya tiene un ojo formado en (0,0). Hay dos piedras blancas sueltas, cada una en atari por su lado, y el rincón todavía tiene otras dos libertades sin usar. Juegan blancas: hay más de un punto vital posible, cualquiera de los dos salva la posición.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 1 } },
+              "correct": true,
+              "comment": "Conecta con la piedra suelta de la derecha. El grupo conjunto queda con el ojo más otra salida: a salvo esta jugada.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 1, "y": 2 } },
+              "correct": true,
+              "comment": "Conecta con la piedra suelta de abajo. Es igual de válido que conectar hacia la derecha: el grupo conjunto también queda con el ojo más otra salida.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 2 } },
+              "correct": false,
+              "comment": "Este punto no conecta con ninguna de las dos piedras sueltas en atari: ambas se siguen pudiendo capturar la próxima jugada.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l6-06",
+        "collection": "bloque-2-leccion-6",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 },
+            { "x": 7, "y": 0 }, { "x": 7, "y": 1 }, { "x": 8, "y": 1 }
+          ],
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 1, "y": 2 }, { "x": 2, "y": 1 }, { "x": 0, "y": 2 },
+            { "x": 6, "y": 0 }, { "x": 7, "y": 2 }, { "x": 8, "y": 2 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Dos grupos blancos, cada uno con un ojo. Juegan negras: identificar cuál de los dos está realmente en atari antes de capturar.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 0, "y": 0 } },
+              "correct": true,
+              "comment": "El grupo de la izquierda sí estaba en atari: el ojo era su última libertad.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 6, "y": 1 } },
+              "correct": false,
+              "comment": "El grupo de la derecha todavía tenía esta libertad externa además de su ojo: con esta jugada queda en atari, pero no capturado.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
+  }
+]
