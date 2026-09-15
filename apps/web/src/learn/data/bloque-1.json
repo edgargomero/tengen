@@ -832,5 +832,358 @@
       "rank": "20k",
       "boardSize": 9
     }
+  },
+  {
+    "id": "b1-l3",
+    "block": 1,
+    "workshop": 3,
+    "title": "La regla del ko",
+    "theory": [
+      "La regla del ko es una excepción a cómo funciona una captura común: prohíbe volver a capturar de inmediato en el mismo punto cuando esa recaptura restauraría exactamente la posición que había en el tablero antes de la jugada anterior. No prohíbe recapturar para siempre -- solo prohíbe hacerlo en el acto, en el turno inmediatamente siguiente.",
+      "La razón es evitar un ciclo sin fin: si negra captura una piedra blanca suelta y blanca pudiera recapturarla ahí mismo, y esa recaptura dejara a blanca en la misma situación (una piedra sola con una sola libertad, exactamente en el punto que negra acaba de dejar libre), ambos jugadores podrían repetir la captura una y otra vez sin que la partida avance nunca en esa zona. La regla corta ese ciclo: quien quiere recapturar tiene que jugar antes en otra parte del tablero (una amenaza de ko), y recién en el turno siguiente puede volver a intentarlo.",
+      "Esta situación puede aparecer en el centro del tablero, en el borde o en el rincón -- la forma cambia un poco porque un punto central tiene cuatro vecinos, uno de borde tiene tres y uno de rincón solo dos, pero la idea es siempre la misma: una piedra sola en atari (una libertad), rodeada de tal manera que, al capturarla, la piedra que captura queda ella misma sola y con una sola libertad, justo en el punto que acaba de quedar vacío.",
+      "No toda captura que se ve ajustada es un ko. Si la jugada captura una cadena de dos piedras o más (no una piedra suelta), o si la piedra que captura termina con dos o más libertades, recapturar de inmediato es una jugada legal como cualquier otra -- no hay ciclo que cortar, porque la posición después de esa recaptura ya no sería idéntica a la de antes. Antes de gritar \"ko\", conviene contar: ¿se capturó una sola piedra, y la piedra que la capturó quedó también sola y con una sola libertad?"
+    ],
+    "exercises": [
+      {
+        "id": "b1-l3-01",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 4,
+              "y": 3
+            },
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 5
+            }
+          ],
+          "white": [
+            {
+              "x": 4,
+              "y": 4
+            },
+            {
+              "x": 6,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 3
+            },
+            {
+              "x": 5,
+              "y": 5
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "ko",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Ko clásico en el centro del tablero. La piedra blanca solitaria tiene una sola libertad. Juegan negras: capturarla.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 5,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "La captura deja a la piedra negra también sola y con una sola libertad, exactamente donde estaba la piedra blanca: es un ko. Blanca no puede recapturar ahí en su próximo turno.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l3-02",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 0,
+              "y": 3
+            },
+            {
+              "x": 0,
+              "y": 5
+            }
+          ],
+          "white": [
+            {
+              "x": 0,
+              "y": 4
+            },
+            {
+              "x": 2,
+              "y": 4
+            },
+            {
+              "x": 1,
+              "y": 3
+            },
+            {
+              "x": 1,
+              "y": 5
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "ko",
+        "difficulty": 2,
+        "tree": {
+          "comment": "El mismo ko, pero contra el borde del tablero: el punto capturado tiene solo tres vecinos en vez de cuatro. Juegan negras: capturar la piedra blanca.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 1,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "Igual que en el centro: la piedra negra que captura queda sola, con una sola libertad, en el punto que blanca acaba de dejar vacío. Blanca no puede recapturar de inmediato.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l3-03",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 0,
+              "y": 1
+            }
+          ],
+          "white": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 2,
+              "y": 0
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "ko",
+        "difficulty": 3,
+        "tree": {
+          "comment": "El mismo ko una tercera vez, ahora en el rincón: el punto capturado tiene solo dos vecinos. Juegan negras: capturar.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 1,
+                  "y": 0
+                }
+              },
+              "correct": true,
+              "comment": "La forma más chica de las tres, pero la misma regla: la piedra negra queda sola y con una sola libertad, así que blanca no puede recapturar de inmediato.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l3-04",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 1,
+              "y": 2
+            },
+            {
+              "x": 3,
+              "y": 2
+            },
+            {
+              "x": 2,
+              "y": 3
+            }
+          ],
+          "white": [
+            {
+              "x": 2,
+              "y": 2
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "Una captura simple, sin ko: la piedra blanca solitaria tiene una sola libertad. Juegan negras: capturarla.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 2,
+                  "y": 1
+                }
+              },
+              "correct": true,
+              "comment": "La piedra negra que captura queda con varias libertades libres alrededor: no hay ningún ciclo que cortar, así que esto no es un ko.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l3-05",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 5,
+              "y": 2
+            },
+            {
+              "x": 7,
+              "y": 2
+            },
+            {
+              "x": 6,
+              "y": 1
+            },
+            {
+              "x": 5,
+              "y": 3
+            },
+            {
+              "x": 7,
+              "y": 3
+            }
+          ],
+          "white": [
+            {
+              "x": 6,
+              "y": 2
+            },
+            {
+              "x": 6,
+              "y": 3
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "Otra captura simple sin ko, esta vez de una cadena de dos piedras blancas en atari. Juegan negras: capturar.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 6,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "Se capturan dos piedras a la vez, no una sola: la condición del ko (una piedra sola capturando a otra piedra sola) no se cumple, así que blanca podría volver a jugar ahí sin ninguna restricción.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l3-06",
+        "collection": "bloque-1-leccion-3",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 3
+            },
+            {
+              "x": 4,
+              "y": 5
+            },
+            {
+              "x": 5,
+              "y": 3
+            },
+            {
+              "x": 5,
+              "y": 5
+            }
+          ],
+          "white": [
+            {
+              "x": 4,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 4
+            },
+            {
+              "x": 7,
+              "y": 4
+            },
+            {
+              "x": 6,
+              "y": 3
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Distractor: esta posición se parece a un ko -- una cadena blanca en atari, rodeada de forma ajustada. Juegan negras: capturar y decidir si es ko o no.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 6,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "Se capturan dos piedras, no una sola, y la piedra negra que captura queda con dos libertades, no con una: no hay simetría de piedra sola contra piedra sola, así que blanca SÍ puede recapturar de inmediato. No es ko.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
   }
 ]
