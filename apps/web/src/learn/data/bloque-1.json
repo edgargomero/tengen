@@ -1262,35 +1262,30 @@
         "boardSize": 9,
         "setup": {
           "black": [
-            { "x": 0, "y": 4 },
-            { "x": 0, "y": 2 }, { "x": 1, "y": 2 }, { "x": 2, "y": 2 }, { "x": 3, "y": 3 }, { "x": 3, "y": 4 }, { "x": 3, "y": 5 },
-            { "x": 3, "y": 6 }, { "x": 2, "y": 7 }, { "x": 1, "y": 7 }, { "x": 0, "y": 7 },
-            { "x": 5, "y": 4 }, { "x": 6, "y": 3 }, { "x": 7, "y": 3 }, { "x": 8, "y": 4 }
+            { "x": 6, "y": 1 }, { "x": 7, "y": 0 }, { "x": 7, "y": 2 },
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 4 }, { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 2, "y": 7 }, { "x": 2, "y": 8 }
           ],
           "white": [
-            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 },
-            { "x": 1, "y": 4 }, { "x": 2, "y": 4 },
-            { "x": 1, "y": 5 }, { "x": 2, "y": 5 },
-            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 },
-            { "x": 6, "y": 4 }, { "x": 7, "y": 4 }
+            { "x": 7, "y": 1 },
+            { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 1, "y": 5 }, { "x": 1, "y": 6 }, { "x": 1, "y": 7 }, { "x": 1, "y": 8 }, { "x": 0, "y": 8 }
           ]
         },
         "toPlay": "black",
         "objective": "matar",
         "difficulty": 4,
         "tree": {
-          "comment": "El ojo grande del grupo blanco de la izquierda ya quedó reducido a un solo punto (negras ya habían jugado adentro). A la derecha hay otro grupo blanco, con dos libertades. Juegan negras: identificar cuál de los dos se captura ya mismo.",
+          "comment": "A la derecha hay una piedra blanca sola. A la izquierda, un grupo blanco con un ojo grande de tres puntos en línea. Juegan negras: identificar qué se puede capturar ya mismo, y no confundirlo con el punto vital del ojo grande.",
           "children": [
             {
-              "move": { "color": "black", "vertex": { "x": 0, "y": 5 } },
+              "move": { "color": "black", "vertex": { "x": 8, "y": 1 } },
               "correct": true,
-              "comment": "El ojo grande de la izquierda ya no tenía más que este punto: se capturan las diez piedras blancas enteras.",
+              "comment": "Esa piedra blanca de la derecha sí estaba en atari: única libertad, se captura entera.",
               "children": []
             },
             {
-              "move": { "color": "black", "vertex": { "x": 6, "y": 5 } },
+              "move": { "color": "black", "vertex": { "x": 0, "y": 6 } },
               "correct": false,
-              "comment": "Reduce al par blanco de la derecha a atari, pero todavía no lo captura: esa piedra negra suelta adentro del ojo grande de la izquierda era la jugada real, porque ahí ya no quedaba más que una libertad.",
+              "comment": "Este es el punto vital del ojo grande de la izquierda: condena a ese grupo a no tener nunca dos ojos reales (el espacio de tres queda partido en dos pedazos de un punto, ninguno protegido). Pero todavía no lo captura -- el grupo sigue con dos libertades. La jugada real de este turno era la piedra suelta de la derecha, que sí estaba en atari.",
               "children": []
             }
           ]
@@ -1305,7 +1300,7 @@
             { "x": 5, "y": 0 }
           ],
           "white": [
-            { "x": 4, "y": 0 }, { "x": 5, "y": 1 }, { "x": 7, "y": 0 }, { "x": 6, "y": 1 }
+            { "x": 4, "y": 0 }, { "x": 4, "y": 1 }, { "x": 5, "y": 1 }, { "x": 6, "y": 1 }, { "x": 7, "y": 1 }, { "x": 7, "y": 0 }
           ]
         },
         "toPlay": "white",
