@@ -45,9 +45,13 @@ const ILLEGAL_REASONS: Record<'ko' | 'suicide' | 'overwrite', string> = {
 export interface ExercisePlayerProps {
   exercise: Exercise
   storage: StorageLike
-  scheduler: RefutationScheduler
+  /** Ausente/undefined cuando `engineless` es true -- nunca se llama. */
+  scheduler?: RefutationScheduler
   /** El motor todavía está arrancando (solo afecta a la refutación fuera-de-árbol). */
   booting?: boolean
+  /** Lecciones 1-3 del Bloque 1 (spec, Pieza 3): fuera-de-árbol NO consulta al motor -- feedback
+   * inmediato y genérico. Cuando es true, `scheduler` puede faltar. */
+  engineless?: boolean
   /** null = medir con el hook (browser). Los tests jsdom lo inyectan (offsetHeight ahí es 0). */
   boardBounds?: BoundedBoardSize
   onBackToList(): void
@@ -60,6 +64,7 @@ export function ExercisePlayer({
   storage,
   scheduler,
   booting = false,
+  engineless,
   boardBounds,
   onBackToList,
   onNext,
@@ -98,7 +103,7 @@ export function ExercisePlayer({
   // Guard con flag propio (no con epochRef): el baseline de la RAÍZ sigue siendo válido tras
   // cualquier reintento.
   useEffect(() => {
-    if (booting) return
+    if (booting || engineless || !scheduler) return
     let live = true
     const rootId = session.tree.root.id
     scheduler
@@ -117,7 +122,7 @@ export function ExercisePlayer({
     return () => {
       live = false
     }
-  }, [booting, session, scheduler])
+  }, [booting, engineless, session, scheduler])
 
   function applyResult(result: AttemptResult): void {
     switch (result.kind) {
@@ -139,6 +144,15 @@ export function ExercisePlayer({
         recordResult(storage, exercise.id, 'fallado')
         return
       case 'fuera-de-arbol': {
+        if (engineless) {
+          // Lecciones 1-3 (spec, Pieza 3): verificadas por reglas puras, cero llamadas al motor —
+          // fuera-de-árbol es directamente fallo, sin refutación ni veredicto en puntos.
+          setFeedback({ tone: 'danger', text: 'Esa no es la jugada. Fijate cuál piedra está en atari.' })
+          session.fail()
+          recordResult(storage, exercise.id, 'fallado')
+          return
+        }
+        if (!scheduler) return // defensivo: modo con motor siempre trae `scheduler` inyectado.
         setFeedback({ tone: 'neutral', text: 'No está en el árbol de la solución. Consultando al motor…' })
         setRefuting(true)
         const epoch = epochRef.current

@@ -228,6 +228,28 @@ describe('ExercisePlayer', () => {
     expect(await screen.findByText(/resuelto/i)).toBeInTheDocument()
   })
 
+  it('modo engineless: fuera-de-árbol falla al toque, sin tocar el scheduler', async () => {
+    const storage = memoryStorage()
+    // El scheduler SÍ se pasa (podría estar disponible igual) para probar que `engineless` lo
+    // ignora por completo -- ni el precalentamiento ni la refutación lo tocan.
+    const scheduler = { analyzePosition: vi.fn() }
+    render(
+      <ExercisePlayer
+        exercise={demoExercise('demo-001')}
+        storage={storage}
+        scheduler={scheduler}
+        engineless
+        boardBounds={BOUNDS}
+        onBackToList={() => {}}
+      />,
+    )
+    clickVertex(9, 9)
+    expect(await screen.findByText(/esa no es la jugada/i)).toBeInTheDocument()
+    expect(scheduler.analyzePosition).not.toHaveBeenCalled()
+    const saved = JSON.parse(storage.getItem(PROGRESS_KEY) ?? '{}') as Record<string, { estado: string }>
+    expect(saved['demo-001']?.estado).toBe('intentado')
+  })
+
   it('Ver solución reproduce la línea principal numerada y cuenta como intento fallado', async () => {
     const storage = memoryStorage()
     render(
