@@ -41,7 +41,7 @@ import { NewGameForm } from './ui/NewGameForm'
 import { PartidasView } from './ui/PartidasView'
 import { AprenderView } from './ui/AprenderView'
 import { PlayView } from './ui/PlayView'
-import { CURRICULUM } from './learn/curriculum'
+import { practiceWins, resolvePracticaPrefill } from './learn/practicaPrefill'
 import { detectWebGpu } from './webgpu'
 import type { WebGpuDetection } from './webgpu'
 
@@ -165,15 +165,30 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
   // Bumpea en CADA transición de sesión (nueva partida / import / "Nueva partida"): ver nota de
   // cabecera. Arranca en 0 y no importa su valor exacto, solo que cambie.
   const [sessionKey, setSessionKey] = useState(0)
+  // El `practica=...` de la URL NO se limpia solo (ver comentario del `if` de abajo): sin esta
+  // bandera, el prefill de práctica seguiría "ganando" en el re-render que sigue a "Empezar
+  // partida"/importar un SGF, y la partida recién iniciada nunca llegaría a montarse.
+  const [startedHere, setStartedHere] = useState(false)
+
+  // Prefill desde "Practicá lo que aprendiste" (Aprender, Task 13): `route('/jugar?practica=...')`
+  // remonta `PlayApp` (nueva entrada de historia → nuevo match de ruta), así que leer
+  // `window.location.search` acá, en el cuerpo de la función, ya ve el query string actualizado.
+  // Sin el param (entrada normal a "Jugar"), `prefill.lesson`/`prefill.initial` quedan `undefined`:
+  // cero cambio para el camino de siempre. La resolución vive en `learn/practicaPrefill.ts`
+  // (aislado de `main.tsx` a propósito: testeable sin arrastrar `virtual:pwa-register` — ver el
+  // comentario de cabecera de ese archivo).
+  const prefill = resolvePracticaPrefill(window.location.search)
 
   function handleStart(config: GameConfig): void {
     setSession({ config })
     setSessionKey((k) => k + 1)
+    setStartedHere(true)
   }
 
   function handleImport(config: GameConfig, tree: GameTree): void {
     setSession({ config, initialTree: tree })
     setSessionKey((k) => k + 1)
+    setStartedHere(true)
   }
 
   function handleNewGame(): void {
@@ -184,24 +199,25 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
     }
     setSession(null)
     setSessionKey((k) => k + 1)
+    // No hace falta resetear `startedHere` a `false` acá: `session` vuelve a `null`, que ya alcanza
+    // por sí solo para mostrar el formulario más abajo. `startedHere` sigue en `true`, así que
+    // `practicaActiva` sigue en `false` -- el formulario vuelve en blanco (SIN reaplicar el
+    // prefill), no reencerrado en el 9×9/Human SL/20k de la práctica: "Nueva partida" es la salida
+    // explícita del alumno del contexto de práctica, y debería dejarlo elegir de cero.
   }
 
-  if (session === null) {
-    // Prefill desde "Practicá lo que aprendiste" (Aprender, Task 13): `route('/jugar?practica=...')`
-    // remonta `PlayApp` (nueva entrada de historia → nuevo match de ruta), así que leer
-    // `window.location.search` acá, en el cuerpo de la función, ya ve el query string actualizado.
-    // Sin el param (entrada normal a "Jugar"), `initial` queda `undefined`: cero cambio.
-    const params = new URLSearchParams(window.location.search)
-    const practicaId = params.get('practica')
-    const practicaLesson = practicaId ? CURRICULUM.find((l) => l.id === practicaId) : undefined
-    const initial = practicaLesson
-      ? {
-          boardSize: practicaLesson.practiceOpponent.boardSize,
-          opponentKind: 'human' as const,
-          humanRank: practicaLesson.practiceOpponent.rank,
-        }
-      : undefined
-    return <NewGameForm onStart={handleStart} onBack={onBack} initial={initial} />
+  // `practicaActiva` sirve DOS propósitos con la misma condición (ver `practiceWins`,
+  // `practicaPrefill.ts`): decide si el prefill de práctica gana la prioridad de render sobre una
+  // sesión restaurada, Y si ese prefill se sigue aplicando al formulario. Ambos apagados juntos por
+  // `startedHere`: el `practica=...` de la URL no se limpia solo, así que sin esa bandera el
+  // prefill seguiría "ganando" en cada re-render posterior (incluido tras "Nueva partida"), sin
+  // tocar el storage de la sesión restaurada -- si el alumno vuelve a /jugar sin el query param la
+  // sigue teniendo.
+  const practicaActiva = practiceWins(startedHere, prefill)
+  if (session === null || practicaActiva) {
+    return (
+      <NewGameForm onStart={handleStart} onBack={onBack} initial={practicaActiva ? prefill.initial : undefined} />
+    )
   }
   return (
     <PlayView
