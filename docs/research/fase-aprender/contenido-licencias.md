@@ -210,10 +210,89 @@ resumen ceñido del PDF.
 
 Árboles de solución de las Lecciones 1-3 (jugada, captura, ko) validados por reglas puras
 (`objectiveCheck.ts`, sin motor — ver spec `2026-09-15-aprender-curriculo-design.md`, Pieza 3).
-Lecciones 4-5 (ojos, técnicas), condicionado al spike de la Task 8: spot-check con KataGo desktop
-(mismo protocolo de este documento) o, si el spike falla, el mismo chequeo de reglas + revisión
-manual de Edgar.
+Lecciones 4-5 (ojos, técnicas): el spike de la Task 8 (ver entrada de abajo) **descartó** el
+spot-check con KataGo desktop para estas dos lecciones — el score del motor no es un árbitro
+fiable en posiciones tan dispersas. Se validan con el mismo chequeo de reglas de las Lecciones 1-3
+(`objectiveCheck.ts`) + revisión manual de Edgar.
 
 Fuente committeada en `apps/web/content/tsumego/bloque-1/` (obra del repo). El registro
 `learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
 `collections.ts` aplica a `COLLECTIONS`.
+
+### Spike de spot-check -- Lecciones 4-5 (2026-09-15)
+
+**Qué se probó.** 3 posiciones borrador de "ojos" en 9×9 (formato `Exercise`, sin comprometer
+contenido final), corridas contra KataGo desktop 1.16.5 con una COPIA adaptada de
+`spotcheck-tsumego.mjs` (`boardXSize/YSize: 9`, `komi: 5.5`, mismo `maxVisits=400`, misma config
+`analysis_example.cfg` y modelo `b18c384nbt.bin.gz` — la copia vivió fuera del repo y se borró al
+terminar; nada de este spike es código de producto):
+
+1. **Ojo simple en atari** — anillo blanco de 8 piedras sellado por un muro negro, una sola
+   libertad (el propio ojo en (1,1)). Correcta: capturar ahí. Incorrectas: 2 tenukis.
+2. **Ojo grande con punto vital** — ojo de tres en línea (straight-three) sellado, 12 piedras
+   blancas. Correcta: el punto vital central. Incorrectas: los dos extremos.
+3. **Control** — grupo blanco de 16 piedras con DOS ojos reales confirmados por cómputo (4/4
+   diagonales propias en ambos), sin negras en el tablero. Sin sellar por fuera (a propósito: un
+   grupo con 2 ojos reales es invulnerable pase lo que pase afuera).
+
+**Resultado crudo (gaps en puntos, criterio 2 — el "criterio pedagógico duro" del protocolo).**
+
+| Posición | Comparación | Resultado |
+|---|---|---|
+| 1 (ojo simple) | capturar vs. tenuki cercano (4,4) | **gap −7,1** (tenuki gana) |
+| 1 (ojo simple) | capturar vs. tenuki lejano (7,7) | **gap −14,9** (tenuki gana, por más) |
+| 2 (punto vital) | centro vs. extremo izquierdo | gap 3,7 (centro gana, roza el umbral ≥3) |
+| 2 (punto vital) | centro vs. extremo derecho | gap 3,9 (centro gana, roza el umbral ≥3) |
+| 3 (control) | tenuki (7,2) vs. toque ocioso cerca de un ojo (×2) | gap 20,4 / 20,0 (tenuki gana claro) |
+| 3 (control, re-medido) | 3 toques ociosos LOCALES entre sí (sin tenuki de por medio) | scoreLead −85,3 / −84,2 / −84,8 — **dispersión ≤1,0 pt entre sí** |
+
+El criterio 1 (co-optimalidad local vía `allowMoves`+`untilDepth:1`) falló en las 3: top local
+Δ7,0 / Δ18,0 / Δ∞. Diagnóstico manual (`rootInfo.scoreLead` sin restricción) confirmó que no es un
+artefacto de script: capturar el ojo simple puntúa 21,5; tenuki cercano 29,3; tenuki lejano 37,0;
+el mejor movimiento libre del motor (ni siquiera dentro del área local) 46,3 — un gradiente limpio
+y monótono, no ruido.
+
+**Diagnóstico (no es ruido, es una magnitud distinta a la que gobierna la lección).** El motor
+está midiendo bien — mide el score total de una partida de área en un 9×9 casi vacío, y esa
+magnitud NO es la misma que "¿esta jugada resuelve el ejercicio de ojos?":
+
+1. **El anillo de la posición 1 está incondicionalmente muerto** (una libertad, sellado, no puede
+   hacer un segundo ojo) — bajo reglas de área, esos puntos ya son de negras al final de la
+   partida sin necesidad de jugar ahí. Capturar ahora no suma nada que negras no tuvieran ya
+   asegurado, y gasta un turno que vale ~25 puntos en un tablero casi vacío. El motor tiene razón:
+   tenuki puntúa mejor. "Correcto para la lección" (reconocer y ejecutar la captura) y
+   "score-óptimo" (no son lo mismo) — eso es estructural en un 9×9 disperso, no un defecto de esta
+   posición particular.
+2. **La restricción de área local no aísla nada en un 9×9 disperso.** El bounding box (setup ±1)
+   de un puñado de piedras sueltas cubre la mayor parte de un tablero de 81 puntos, así que el
+   criterio 1 termina comparando la jugada de la lección contra jugadas de apertura de tablero
+   abierto (posición 2: top local Δ18) — o, en el caso de la posición 3, la solución cae directo
+   FUERA del área local (Δ∞). El mecanismo que aísla bien un tsumego en 19×19 no tiene poder de
+   aislamiento acá.
+3. **El gap de 3,7/3,9 de la posición 2 "pasa" el umbral, pero por el motivo equivocado.** Matar un
+   grupo sellado de 12 piedras con su espacio de ojo vale del orden de 30-40 puntos (ver el
+   gradiente de la posición 1). Un gap de 3,7 libra el umbral ≥3 con un margen que es un orden de
+   magnitud menor que lo que realmente está en juego — señal de que, a 400 visitas, la búsqueda
+   reparte su presupuesto en jugadas de tablero abierto (que valen 10-20 puntos) y nunca termina de
+   resolver la pelea de vida y muerte local. Es exactamente el error de "umbral que roza" que ya
+   está en la memoria del proyecto: el número librado no mide la magnitud que gobierna la posición.
+4. **El "control" tal como está armado (tenuki `correct`, toques ociosos `incorrect`) no controla
+   lo que dice controlar** — mide "punto grande vs. jugada desperdiciada", no "nada funciona acá".
+   El control real está en la fila re-medida: 3 toques ociosos LOCALES comparados ENTRE SÍ (sin
+   tenuki de por medio) caen dentro de 1,0 punto uno de otro. Ahí sí el motor muestra que, cuando
+   la respuesta correcta es "nada local funciona", no inventa gaps falsos entre jugadas locales
+   igual de inútiles — la señal es limpia en ESE eje. El problema no es ruido aleatorio del motor;
+   es que compara contra la magnitud equivocada (todo el tablero) en vez de la magnitud de la
+   lección (la pelea local de vida y muerte).
+
+**Veredicto: Protocolo B — mismo chequeo de reglas de las Lecciones 1-3 (`objectiveCheck.ts`) +
+revisión manual de Edgar.** No por ruido del motor (el motor lee bien, y de hecho la posición de
+control confirma que no fabrica gaps falsos entre jugadas locales). Es porque, en un 9×9 disperso,
+el score total de KataGo mide el valor de toda la partida, dominado por el tablero abierto, y esa
+magnitud sistemáticamente no coincide con "¿esta jugada resuelve el objetivo de vida y muerte de
+la lección?" — ni el criterio 1 (co-optimalidad local, sin poder de aislamiento acá) ni el criterio
+2 (gap ≥3, superable por un margen que no refleja el valor real de la posición) miden lo que
+la lección necesita verificar. Aumentar visitas podría angostar el problema de presupuesto del
+punto 3, pero no resuelve el 1 ni el 2, que son estructurales al tamaño y dispersión del tablero —
+no vale la pena perseguirlo para 2 de 5 lecciones cuando el chequeo de reglas puro ya cubre 1-3 sin
+depender del motor.
