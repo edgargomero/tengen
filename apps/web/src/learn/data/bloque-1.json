@@ -1,0 +1,403 @@
+[
+  {
+    "id": "b1-l1",
+    "block": 1,
+    "workshop": 1,
+    "title": "La jugada y la captura",
+    "theory": [
+      "El go se juega turno a turno: cada jugador coloca UNA piedra en una intersección vacía del tablero, o pasa el turno. Las piedras nunca se mueven -- se quedan donde se colocan, salvo que las capturen.",
+      "Una piedra (o una cadena de piedras del mismo color, conectadas) tiene libertades: las intersecciones vacías pegadas a ella. Cuando le queda una sola libertad, decimos que está en atari -- en peligro de captura inmediata.",
+      "Si el rival ocupa esa última libertad, la piedra (o toda la cadena) se captura: sale del tablero. Pero si la piedra en atari es tuya, también podés jugar ahí vos primero -- eso se llama defenderse, y agranda la cadena en vez de perderla.",
+      "Encontrar el atari, y decidir si conviene capturar o defenderse, es la primera destreza táctica del go. Los seis problemas de esta lección practican exactamente eso."
+    ],
+    "exercises": [
+      {
+        "id": "b1-l1-01",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            {
+              "x": 4,
+              "y": 4
+            }
+          ],
+          "black": [
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 3
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "Una piedra blanca sola. Juegan negras: capturarla.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 4,
+                  "y": 5
+                }
+              },
+              "correct": true,
+              "comment": "La única libertad que le queda a la piedra blanca.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l1-02",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 4
+            }
+          ],
+          "white": [
+            {
+              "x": 2,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 3
+            },
+            {
+              "x": 3,
+              "y": 3
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 5,
+              "y": 4
+            }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "La cadena negra de dos piedras tiene una sola libertad. Juegan blancas: capturarla.",
+          "children": [
+            {
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 4,
+                  "y": 5
+                }
+              },
+              "correct": true,
+              "comment": "Última libertad de la cadena negra.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l1-03",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ],
+          "white": [
+            {
+              "x": 2,
+              "y": 0
+            },
+            {
+              "x": 2,
+              "y": 1
+            },
+            {
+              "x": 1,
+              "y": 2
+            }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "La cadena negra en forma de L tiene una sola libertad. Juegan blancas: capturarla.",
+          "children": [
+            {
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 0,
+                  "y": 1
+                }
+              },
+              "correct": true,
+              "comment": "Última libertad de la cadena en L.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l1-04",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 4
+            }
+          ],
+          "black": [
+            {
+              "x": 2,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 4
+            },
+            {
+              "x": 3,
+              "y": 3
+            },
+            {
+              "x": 4,
+              "y": 3
+            },
+            {
+              "x": 3,
+              "y": 5
+            }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 2,
+        "tree": {
+          "comment": "La cadena blanca de dos piedras está en atari. Juegan blancas: defenderse.",
+          "children": [
+            {
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 4,
+                  "y": 5
+                }
+              },
+              "correct": true,
+              "comment": "Extiende la cadena y gana libertades.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l1-05",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            {
+              "x": 3,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 3
+            },
+            {
+              "x": 5,
+              "y": 5
+            }
+          ],
+          "black": [
+            {
+              "x": 2,
+              "y": 4
+            },
+            {
+              "x": 5,
+              "y": 4
+            },
+            {
+              "x": 3,
+              "y": 3
+            },
+            {
+              "x": 4,
+              "y": 3
+            },
+            {
+              "x": 3,
+              "y": 5
+            }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "La cadena blanca está en atari. Hay dos formas de salvarla: extender, o capturar la piedra negra que la está atacando (también está en atari). Juegan blancas.",
+          "children": [
+            {
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 4,
+                  "y": 5
+                }
+              },
+              "correct": true,
+              "comment": "Extiende la cadena directamente.",
+              "children": []
+            },
+            {
+              "move": {
+                "color": "white",
+                "vertex": {
+                  "x": 6,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "Captura la piedra negra que también estaba en atari, y esa libertad pasa a ser tuya.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l1-06",
+        "collection": "bloque-1-leccion-1",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            {
+              "x": 3,
+              "y": 2
+            },
+            {
+              "x": 4,
+              "y": 2
+            },
+            {
+              "x": 4,
+              "y": 5
+            }
+          ],
+          "black": [
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 3,
+              "y": 1
+            },
+            {
+              "x": 5,
+              "y": 2
+            },
+            {
+              "x": 4,
+              "y": 1
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 5,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Dos grupos blancos: uno tiene dos libertades, el otro una sola. Juegan negras: identificar cuál está en atari antes de capturar.",
+          "children": [
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 4,
+                  "y": 4
+                }
+              },
+              "correct": true,
+              "comment": "La piedra suelta de abajo sí estaba en atari: esta era su última libertad.",
+              "children": []
+            },
+            {
+              "move": {
+                "color": "black",
+                "vertex": {
+                  "x": 4,
+                  "y": 3
+                }
+              },
+              "correct": false,
+              "comment": "Ese grupo de arriba tenía dos libertades: con esta jugada queda en atari, pero todavía no está capturado.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
+  }
+]
