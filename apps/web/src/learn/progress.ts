@@ -3,6 +3,7 @@
 // equivocada, y fallback SILENCIOSO ({} al leer, no-op al escribir) — perder progreso nunca rompe
 // la app. Sin D1 en v1: la nube es fase posterior si la sección prende.
 import type { StorageLike } from '../game/persistence'
+import type { Lesson } from './lesson'
 
 const STORAGE_KEY = 'tengen:learn:v1'
 
@@ -70,4 +71,15 @@ export function recordResult(
   } catch {
     // Fallback silencioso: el progreso es un extra, nunca un bloqueo.
   }
+}
+
+/** Lección en la posición 0 del currículo: siempre desbloqueada. Lección en la posición i>0:
+ * desbloqueada si los 6 ejercicios de lessons[i-1] están 'resuelto'. Derivado de ProgressMap --
+ * cero storage nuevo. */
+export function isLessonUnlocked(lessons: readonly Lesson[], progress: ProgressMap, lessonId: string): boolean {
+  const index = lessons.findIndex((l) => l.id === lessonId)
+  if (index <= 0) return true
+  const previous = lessons[index - 1]
+  if (!previous) return true
+  return previous.exercises.every((ex) => progress[ex.id]?.estado === 'resuelto')
 }

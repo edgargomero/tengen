@@ -1,8 +1,10 @@
 // Fase Aprender T4: progreso por ejercicio en localStorage — patrón exacto de game/persistence.ts
 // (StorageLike inyectado, clave versionada, type guard, fallback silencioso a {}).
 import { describe, expect, it } from 'vitest'
-import { loadProgress, recordResult } from '../src/learn/progress'
+import { loadProgress, recordResult, isLessonUnlocked } from '../src/learn/progress'
 import type { StorageLike } from '../src/game/persistence'
+import type { Lesson } from '../src/learn/lesson'
+import type { Exercise } from '../src/learn/exercise'
 
 function memoryStorage(initial: Record<string, string> = {}): StorageLike & { data: Record<string, string> } {
   const data = { ...initial }
@@ -85,5 +87,64 @@ describe('recordResult', () => {
       removeItem: () => {},
     }
     expect(() => recordResult(broken, 'x', 'resuelto', () => 't')).not.toThrow()
+  })
+})
+
+// Helpers para isLessonUnlocked
+function validExercise(id: string): Exercise {
+  return {
+    id,
+    collection: 'test',
+    boardSize: 9,
+    setup: { black: [{ x: 3, y: 4 }], white: [{ x: 2, y: 4 }, { x: 4, y: 4 }, { x: 3, y: 3 }] },
+    toPlay: 'white',
+    objective: 'matar',
+    tree: {
+      children: [{ move: { color: 'white', vertex: { x: 3, y: 5 } }, correct: true, children: [] }],
+    },
+  }
+}
+
+function validLesson(id: string, exerciseIds: string[]): Lesson {
+  return {
+    id,
+    block: 1,
+    workshop: 1,
+    title: `Lección ${id}`,
+    theory: ['Texto teórico.'],
+    exercises: exerciseIds.map((exId) => validExercise(exId)),
+    checkpoint: false,
+    practiceOpponent: { rank: '20k', boardSize: 9 },
+  }
+}
+
+describe('isLessonUnlocked', () => {
+  it('la primera lección siempre está desbloqueada', () => {
+    const lessons = [validLesson('b1-l1', ['e1', 'e2'])]
+    expect(isLessonUnlocked(lessons, {}, 'b1-l1')).toBe(true)
+  })
+
+  it('la segunda lección NO se desbloquea si falta resolver un ejercicio de la primera', () => {
+    const lessons = [validLesson('b1-l1', ['e1', 'e2']), validLesson('b1-l2', ['e3', 'e4'])]
+    const progress = { e1: { estado: 'resuelto' as const, intentos: 1 } }
+    expect(isLessonUnlocked(lessons, progress, 'b1-l2')).toBe(false)
+  })
+
+  it('un ejercicio "intentado" (no resuelto) NO desbloquea', () => {
+    const lessons = [validLesson('b1-l1', ['e1', 'e2']), validLesson('b1-l2', ['e3', 'e4'])]
+    const progress = {
+      e1: { estado: 'intentado' as const, intentos: 3 },
+      e2: { estado: 'resuelto' as const, intentos: 1 },
+    }
+    expect(isLessonUnlocked(lessons, progress, 'b1-l2')).toBe(false)
+  })
+
+  it('se desbloquea cuando todos los ejercicios de la lección anterior están resueltos', () => {
+    const lessons = [validLesson('b1-l1', ['e1', 'e2']), validLesson('b1-l2', ['e3', 'e4'])]
+    const progress = {
+      e1: { estado: 'resuelto' as const, intentos: 1 },
+      e2: { estado: 'resuelto' as const, intentos: 1 },
+    }
+    expect(isLessonUnlocked(lessons, progress, 'b1-l2')).toBe(true)
   })
 })
