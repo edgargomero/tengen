@@ -112,13 +112,21 @@ describe('AprenderView — currículo', () => {
   it('la Lección 2 aparece bloqueada si la Lección 1 no está resuelta', () => {
     render(<AprenderView storage={memoryStorage()} />)
     expect(screen.getByRole('button', { name: /Cadenas grandes/i })).toBeDisabled()
+    // Finding 3: el glifo real en el DOM, no solo el título -- '–' (raya), no el emoji 🔒 que había.
+    // getAllByTitle porque con progreso vacío las Lecciones 2-5 están TODAS bloqueadas.
+    const locked = screen.getAllByTitle('Lección bloqueada')
+    expect(locked.length).toBeGreaterThan(0)
+    for (const el of locked) expect(el).toHaveTextContent('–')
   })
 
-  it('la Lección 2 se desbloquea cuando los 6 ejercicios de la Lección 1 están resueltos', () => {
+  it('la Lección 2 se desbloquea cuando los 6 ejercicios de la Lección 1 están resueltos, y la Lección 1 muestra el glifo de lección resuelta', () => {
     const storage = memoryStorage()
     for (const ex of CURRICULUM[0]!.exercises) recordResult(storage, ex.id, 'resuelto')
     render(<AprenderView storage={storage} />)
     expect(screen.getByRole('button', { name: /Cadenas grandes/i })).not.toBeDisabled()
+    // Finding 3: el progreso REAL de la lección (los 6 ejercicios resueltos), no solo si la
+    // siguiente fila está deshabilitada -- antes de la corrección, esto no tenía ninguna aserción.
+    expect(screen.getByTitle('Lección resuelta')).toBeInTheDocument()
   })
 
   it('abrir la Lección 1 no monta ModelGate (sin motor)', () => {
@@ -135,6 +143,19 @@ describe('AprenderView — currículo', () => {
     expect(screen.queryByText(/Descargando la red neuronal/i)).not.toBeInTheDocument()
     // `Preparando motor…` es el hint de `booting` en el propio `ExercisePlayer` (no de `ModelGate`):
     // en modo `engineless` nunca se pasa `booting`, así que tampoco debería aparecer.
+    expect(screen.queryByText(/Preparando motor/i)).not.toBeInTheDocument()
+  })
+
+  it('abrir la Lección 4 TAMPOCO monta ModelGate (fix de revisión: las 5 lecciones son sin motor, no solo 1-3 -- Task 8 mostró que el score del motor da señal equivocada en estas posiciones)', () => {
+    const storage = memoryStorage()
+    for (const lesson of CURRICULUM.slice(0, 3)) {
+      for (const ex of lesson.exercises) recordResult(storage, ex.id, 'resuelto')
+    }
+    render(<AprenderView storage={storage} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ojos: uno no alcanza/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Empezar los 6 problemas/i }))
+    expect(screen.getByRole('button', { name: /Ver solución/i })).toBeInTheDocument()
+    expect(screen.queryByText(/Descargando la red neuronal/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Preparando motor/i)).not.toBeInTheDocument()
   })
 })

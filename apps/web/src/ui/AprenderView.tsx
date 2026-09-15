@@ -1,10 +1,12 @@
 // Fase Aprender T6: la sección /aprender. Dos niveles con estado interno (sin sub-rutas, como
 // PartidasView):
-//   1. Colecciones → lista de ejercicios (.card-screen). SIN ModelGate: la lista se navega sin
-//      descargar el modelo — el gate aparece recién al abrir un ejercicio.
-//   2. Player: <ModelGate net='b18'> → EngineExercisePlayer (patrón exacto de ReadyAnalyzeView:
-//      EngineManager + ReviewScheduler en refs, ensureReady('b18', 19), dispose al desmontar) →
-//      ExercisePlayer (interacción pura, testeable con scheduler mock).
+//   1. Colecciones ("Primeros pasos") → lista de ejercicios (.card-screen). SIN ModelGate para
+//      LISTAR: el gate aparece recién al abrir un ejercicio, con <ModelGate net='b18'> →
+//      EngineExercisePlayer (patrón exacto de ReadyAnalyzeView: EngineManager + ReviewScheduler en
+//      refs, ensureReady('b18', 19), dispose al desmontar) → ExercisePlayer.
+//   2. Currículo (Bloque 1) → el mismo <ExercisePlayer>, pero SIN motor en ninguna de sus 5
+//      lecciones (spec, Pieza 3; ver la nota junto al render de más abajo para el porqué) —
+//      interacción pura, testeable con scheduler mock cuando aplica.
 import type { RoutableProps } from 'preact-router'
 import { route } from 'preact-router'
 import { useEffect, useRef, useState } from 'preact/hooks'
@@ -16,6 +18,7 @@ import { ModelGate } from '../models/ModelGate'
 import { COLLECTIONS, type ExerciseCollectionData } from '../learn/collections'
 import { CURRICULUM } from '../learn/curriculum'
 import type { Exercise } from '../learn/exercise'
+import type { Lesson } from '../learn/lesson'
 import { LEARN_ANALYSIS_GROUP } from '../learn/engineRefutation'
 import { isLessonUnlocked, loadProgress, type ProgressMap } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'
@@ -23,13 +26,9 @@ import { ExercisePlayer } from './ExercisePlayer'
 
 export type { ExerciseCollectionData } from '../learn/collections'
 
-/** La red del player: la principal de la app (no hay red chica; decisión del plan de la fase). */
+/** La red del player: la de "Primeros pasos" (Colecciones), la única superficie de Aprender que
+ * todavía usa motor. El Currículo (Bloque 1) es 100% engineless -- ver la nota junto a su render. */
 const LEARN_NETWORK: NetworkId = 'b18'
-
-/** Talleres 1-3 del Bloque 1: sin motor (spec, Pieza 3). Talleres 4-5 siguen el camino EXISTENTE
- * con motor (ModelGate + EngineExercisePlayer) sin cambios. Ajustar si el resultado de una futura
- * Task de spike lo cambia -- ver nota de la Task 13. */
-const LESSONS_WITHOUT_ENGINE = new Set([1, 2, 3])
 
 interface AprenderViewProps extends RoutableProps {
   /** Inyectables en tests; en producción los defaults (registro real + localStorage). */
@@ -54,6 +53,32 @@ function stateGlyph(progress: ProgressMap, id: string): { glyph: string; title: 
   if (estado === 'resuelto') return { glyph: '●', title: 'Resuelto', modifier: 'resuelto' }
   if (estado === 'intentado') return { glyph: '○', title: 'Intentado', modifier: 'intentado' }
   return { glyph: '·', title: 'Pendiente', modifier: 'pendiente' }
+}
+
+/** Estado visible de una LECCIÓN en la lista del currículo: análogo a `stateGlyph`, pero agregado
+ * sobre los 6 ejercicios de la lección (no un solo id) más `isLessonUnlocked`. Reusa el vocabulario
+ * ●/○/· de `stateGlyph` para 'resuelto'/'intentado'/'pendiente'; 'bloqueado' usa '–' (raya, NO
+ * emoji): un glifo geométrico plano que no compite con la familia ●○· ni introduce un pictograma
+ * (spec, Pieza 4; `.kntor-design-atomic/system.md` documenta esa familia como "la firma de la
+ * sección"). Los títulos llevan el prefijo "Lección" para no colisionar (mismo texto que
+ * `stateGlyph` produciría) cuando ambas listas -- Currículo y Colecciones -- están en la misma
+ * pantalla, como en los tests. */
+function lessonGlyph(
+  lessons: readonly Lesson[],
+  progress: ProgressMap,
+  lesson: Lesson,
+): { glyph: string; title: string; modifier: string } {
+  if (!isLessonUnlocked(lessons, progress, lesson.id)) {
+    return { glyph: '–', title: 'Lección bloqueada', modifier: 'bloqueado' }
+  }
+  const estados = lesson.exercises.map((ex) => progress[ex.id]?.estado)
+  if (estados.every((estado) => estado === 'resuelto')) {
+    return { glyph: '●', title: 'Lección resuelta', modifier: 'resuelto' }
+  }
+  if (estados.some((estado) => estado === 'resuelto' || estado === 'intentado')) {
+    return { glyph: '○', title: 'Lección en progreso', modifier: 'intentado' }
+  }
+  return { glyph: '·', title: 'Lección pendiente', modifier: 'pendiente' }
 }
 
 export function AprenderView({ collections = COLLECTIONS, storage = window.localStorage }: AprenderViewProps) {
@@ -127,13 +152,15 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
             ? { onNext: () => setLessonSelection({ ...lessonSelection, step: index + 1 }) }
             : { onNext: () => setLessonSelection({ ...lessonSelection, step: 'practicar' as const }) }),
         }
-        return LESSONS_WITHOUT_ENGINE.has(lesson.workshop) ? (
-          <ExercisePlayer {...playerProps} engineless />
-        ) : (
-          <ModelGate net={LEARN_NETWORK}>
-            <EngineExercisePlayer {...playerProps} />
-          </ModelGate>
-        )
+        // Las 5 lecciones del Bloque 1 son TODAS sin motor (decisión de Edgar, confirmada
+        // 2026-09-15): la Task 8 (spike, ya hecha) midió que el score de KataGo da señal
+        // EQUIVOCADA en estas posiciones 9x9 dispersas -- un tenuki (jugar en otro lado) puntuó
+        // 7-15 puntos MEJOR que la captura correcta de un grupo ya muerto y completamente sellado.
+        // Antes solo las Lecciones 1-3 eran engineless (spec, Pieza 3); ahora también 4-5, lo que
+        // además evita la descarga bloqueante de ~110MB y ~25s de `ModelGate` en esas dos. El
+        // camino CON motor (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa
+        // "Primeros pasos" (Colecciones), la sección aparte más abajo.
+        return <ExercisePlayer {...playerProps} engineless />
       }
     }
     // Selección huérfana (currículo cambiado entre renders, o índice inválido): de vuelta a la
@@ -159,7 +186,8 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         <h2>Currículo -- Bloque 1</h2>
         <ul class="exercise-list">
           {CURRICULUM.map((lesson) => {
-            const unlocked = isLessonUnlocked(CURRICULUM, progress, lesson.id)
+            const state = lessonGlyph(CURRICULUM, progress, lesson)
+            const unlocked = state.modifier !== 'bloqueado'
             return (
               <li key={lesson.id}>
                 <button
@@ -168,8 +196,8 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
                   disabled={!unlocked}
                   onClick={() => unlocked && setLessonSelection({ lessonId: lesson.id, step: 'teoria' })}
                 >
-                  <span class={unlocked ? 'exercise-state' : 'exercise-state exercise-state--bloqueado'}>
-                    {unlocked ? '·' : '🔒'}
+                  <span class={`exercise-state exercise-state--${state.modifier}`} title={state.title}>
+                    {state.glyph}
                   </span>
                   <span class="exercise-row-label">{lesson.title}</span>
                 </button>

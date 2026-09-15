@@ -49,8 +49,9 @@ export interface ExercisePlayerProps {
   scheduler?: RefutationScheduler
   /** El motor todavía está arrancando (solo afecta a la refutación fuera-de-árbol). */
   booting?: boolean
-  /** Lecciones 1-3 del Bloque 1 (spec, Pieza 3): fuera-de-árbol NO consulta al motor -- feedback
-   * inmediato y genérico. Cuando es true, `scheduler` puede faltar. */
+  /** Las 5 lecciones del Bloque 1 (spec, Pieza 3; decisión de Edgar 2026-09-15 tras el spike de la
+   * Task 8 -- ver la nota en `AprenderView.tsx` junto al render del currículo): fuera-de-árbol NO
+   * consulta al motor -- feedback inmediato y genérico. Cuando es true, `scheduler` puede faltar. */
   engineless?: boolean
   /** null = medir con el hook (browser). Los tests jsdom lo inyectan (offsetHeight ahí es 0). */
   boardBounds?: BoundedBoardSize
@@ -145,9 +146,11 @@ export function ExercisePlayer({
         return
       case 'fuera-de-arbol': {
         if (engineless) {
-          // Lecciones 1-3 (spec, Pieza 3): verificadas por reglas puras, cero llamadas al motor —
-          // fuera-de-árbol es directamente fallo, sin refutación ni veredicto en puntos.
-          setFeedback({ tone: 'danger', text: 'Esa no es la jugada. Fijate cuál piedra está en atari.' })
+          // Las 5 lecciones (spec, Pieza 3): verificadas por reglas puras, cero llamadas al motor —
+          // fuera-de-árbol es directamente fallo, sin refutación ni veredicto en puntos. El texto es
+          // agnóstico del objetivo a propósito: cubre atari/captura (Lecciones 1-3), ojos (L4) y
+          // escaleras/conexión (L5) por igual, sin presuponer un mecanismo específico.
+          setFeedback({ tone: 'danger', text: 'Esa no es la jugada. Volvé a mirar el objetivo del problema.' })
           session.fail()
           recordResult(storage, exercise.id, 'fallado')
           return

@@ -1458,9 +1458,12 @@ textarea:focus-visible {
 
 /* ── Aprender: lista de ejercicios (fase Aprender) ──────────────────────────────────────────────
    La lista es una `.card-screen` (misma superficie que el menú y Mis partidas). La firma de la
-   sección es el estado de cada problema como el motivo ●○ del sistema: piedra colocada = resuelto,
-   piedra hueca = intentado, punto = pendiente. El color solo comunica estado consumado (success en
-   la lista es un hecho del usuario, no una promesa del motor). */
+   sección es el estado de cada problema (o, en el currículo, de cada LECCIÓN completa) como el
+   motivo ●○ del sistema: piedra colocada = resuelto, piedra hueca = intentado, punto = pendiente,
+   raya = bloqueado (una lección todavía no alcanzable -- NO es un pictograma de candado, sigue
+   siendo un glifo tipográfico plano de la misma familia). El color solo comunica estado consumado
+   (success en la lista es un hecho del usuario, no una promesa del motor); bloqueado usa el mismo
+   tono que un control deshabilitado, porque lo es. */
 .aprender-list {
   max-width: 32rem;
 }
@@ -1514,6 +1517,14 @@ textarea:focus-visible {
    contrast-audit). La distinción con "intentado" la carga el glifo (· vs ○), no el color. */
 .exercise-state--pendiente {
   color: var(--ink-3);
+}
+
+/* Acá SÍ --ink-4 (muted/disabled): a diferencia de "pendiente", una lección bloqueada vive dentro
+   de un `.exercise-row` con `disabled` real -- `button:disabled` ya pinta ese mismo tono (y baja la
+   opacidad) sobre TODA la fila, así que WCAG exime el contraste (componente inactivo, no
+   informativo) y esto solo lo hace explícito, igual que los demás modificadores hermanos. */
+.exercise-state--bloqueado {
+  color: var(--ink-4);
 }
 
 .exercise-row-label {
