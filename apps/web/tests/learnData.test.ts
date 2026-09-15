@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { COLLECTIONS } from '../src/learn/collections'
 import { exerciseIssues } from '../src/learn/exercise'
 import { createExerciseSession } from '../src/learn/exerciseSession'
+import { CURRICULUM } from '../src/learn/curriculum'
+import { lessonIssues } from '../src/learn/lesson'
 
 describe('datos reales de Aprender', () => {
   it('hay al menos una colección registrada y ninguna está vacía', () => {
@@ -42,5 +44,18 @@ describe('datos reales de Aprender', () => {
         expect(['resuelto', 'avanza']).toContain(result.kind)
       }
     }
+  })
+})
+
+describe('CURRICULUM', () => {
+  it('cada lección registrada pasa lessonIssues sin problemas', () => {
+    for (const lesson of CURRICULUM) {
+      expect(lessonIssues(lesson), `lección ${lesson.id}`).toEqual([])
+    }
+  })
+
+  it('el orden de bloque/workshop es estrictamente creciente (desbloqueo secuencial depende de esto)', () => {
+    const workshops = CURRICULUM.map((l) => l.workshop)
+    expect(workshops).toEqual([...workshops].sort((a, b) => a - b))
   })
 })
