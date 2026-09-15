@@ -19,3 +19,9 @@ duel-out/
 
 # Logs del analysis engine de KataGo desktop (los escribe el spot-check local de Aprender)
 analysis_logs/
+
+# Worktrees de trabajo aislado (superpowers:using-git-worktrees)
+.worktrees/
+
+# Workspace de subagent-driven-development (ledgers, briefs, reportes -- scratch, no versionar)
+.superpowers/sdd/
