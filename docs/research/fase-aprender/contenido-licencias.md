@@ -200,3 +200,20 @@ exteriores tenían huecos diagonales y el motor contraatacaba por ahí (gap −1
 "top moves raros" E17/P17 eran exactamente los puntos de corte). Se reforzaron los cuatro muros
 con las piedras conectoras — la lección del método: **el veredicto del motor se mide, las
 posiciones no se verifican solo a ojo.**
+
+### Veredicto — Bloque 1 del currículo (talleres 1-5), 100% original
+
+Mismo criterio que «Primeros pasos»: **posiciones compuestas a mano para este proyecto**, inspiradas
+en la estructura pedagógica de FEDIBERGO (orden de temas, tipo de problema) pero SIN reproducir sus
+diagramas ni su texto. La teoría de cada lección es redacción original de tengen, no traducción ni
+resumen ceñido del PDF.
+
+Árboles de solución de las Lecciones 1-3 (jugada, captura, ko) validados por reglas puras
+(`objectiveCheck.ts`, sin motor — ver spec `2026-09-15-aprender-curriculo-design.md`, Pieza 3).
+Lecciones 4-5 (ojos, técnicas), condicionado al spike de la Task 8: spot-check con KataGo desktop
+(mismo protocolo de este documento) o, si el spike falla, el mismo chequeo de reglas + revisión
+manual de Edgar.
+
+Fuente committeada en `apps/web/content/tsumego/bloque-1/` (obra del repo). El registro
+`learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
+`collections.ts` aplica a `COLLECTIONS`.
