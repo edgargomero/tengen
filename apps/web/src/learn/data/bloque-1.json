@@ -1185,5 +1185,213 @@
       "rank": "20k",
       "boardSize": 9
     }
+  },
+  {
+    "id": "b1-l4",
+    "block": 1,
+    "workshop": 4,
+    "title": "Ojos: uno no alcanza",
+    "theory": [
+      "Un ojo es un punto vacío rodeado por piedras de un mismo grupo, tal que el rival no puede jugar ahí sin que su jugada sea ilegal. No alcanza con rodearlo por los lados: las diagonales también cuentan. En un rincón, la única diagonal tiene que ser propia; en el borde, las dos diagonales; en el centro del tablero, alcanza con tres de las cuatro. Si falta esa protección diagonal, el punto es un ojo falso: el rival puede jugar ahí sin cometer suicidio, y lo que parecía una forma segura termina siendo una libertad más, capturable como cualquier otra.",
+      "Un grupo con un solo ojo real todavía no está a salvo. El taller anterior mostró que alcanza con reducir un grupo a su última libertad para capturarlo entero, sea cual sea la forma de esa libertad. Un ojo, aunque sea real, es una libertad como cualquier otra en el momento en que queda como la única que le queda al grupo: la protección de la diagonal solo importa mientras el grupo conserve otra salida.",
+      "Ahí está la razón por la que dos ojos separados hacen que un grupo no se pueda capturar nunca. Mientras los dos sigan siendo reales, el rival no puede jugar en ninguno: hacerlo no captura nada (el grupo sigue vivo por el otro ojo) y la piedra rival, rodeada por completo y sin conexión propia, se queda sin ninguna libertad -- una jugada ilegal. Por eso alcanza con formar el segundo ojo para que un grupo quede a salvo para siempre, sin importar cuántas jugadas tenga el rival en el resto de la partida.",
+      "Un espacio vacío grande dentro de un grupo no es automáticamente dos ojos: si es una sola región conectada, sigue siendo un solo ojo aunque ocupe varios puntos, y el rival puede condenarlo jugando en su punto vital -- el punto que, al ocuparlo, parte el espacio en pedazos demasiado chicos para volver a ser dos ojos reales. Un ojo de tres puntos en línea, por ejemplo, deja de poder sostener dos ojos si el rival juega justo en el centro. Distinguir un ojo grande de dos ojos separados, y reconocer el punto que lo condena, es la otra mitad de la lección de este taller."
+    ],
+    "exercises": [
+      {
+        "id": "b1-l4-01",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 6, "y": 6 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 },
+            { "x": 6, "y": 7 }, { "x": 8, "y": 7 },
+            { "x": 6, "y": 8 }, { "x": 7, "y": 8 }, { "x": 8, "y": 8 }
+          ],
+          "black": [
+            { "x": 5, "y": 6 }, { "x": 5, "y": 7 }, { "x": 5, "y": 8 },
+            { "x": 6, "y": 5 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "El grupo blanco del rincón tiene un solo punto vacío adentro: parece un ojo, pero es la única libertad que le queda a las ocho piedras. Juegan negras: capturar.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 7, "y": 7 } },
+              "correct": true,
+              "comment": "Última libertad del grupo blanco: se capturan las ocho piedras de una vez.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l4-02",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 1, "y": 0 },
+            { "x": 0, "y": 1 }, { "x": 0, "y": 2 }, { "x": 0, "y": 3 }, { "x": 1, "y": 3 }
+          ],
+          "white": [
+            { "x": 2, "y": 0 }, { "x": 1, "y": 1 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "La piedra negra de (1,0) y la del grupo principal en (0,1) parecen compartir un ojo en (0,0). Juegan blancas: encontrar por qué ese punto no está protegido.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 0, "y": 0 } },
+              "correct": true,
+              "comment": "La piedra de (1,0) no está conectada con el resto del grupo negro -- son dos cadenas distintas que solo parecían compartir un ojo. La diagonal (1,1) es blanca, así que ese punto nunca fue un ojo real: es la última libertad de la piedra suelta, y se captura directo.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l4-03",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 0, "y": 4 },
+            { "x": 0, "y": 2 }, { "x": 1, "y": 2 }, { "x": 2, "y": 2 }, { "x": 3, "y": 3 }, { "x": 3, "y": 4 }, { "x": 3, "y": 5 },
+            { "x": 3, "y": 6 }, { "x": 2, "y": 7 }, { "x": 1, "y": 7 }, { "x": 0, "y": 7 },
+            { "x": 5, "y": 4 }, { "x": 6, "y": 3 }, { "x": 7, "y": 3 }, { "x": 8, "y": 4 }
+          ],
+          "white": [
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 },
+            { "x": 1, "y": 4 }, { "x": 2, "y": 4 },
+            { "x": 1, "y": 5 }, { "x": 2, "y": 5 },
+            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 },
+            { "x": 6, "y": 4 }, { "x": 7, "y": 4 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 4,
+        "tree": {
+          "comment": "El ojo grande del grupo blanco de la izquierda ya quedó reducido a un solo punto (negras ya habían jugado adentro). A la derecha hay otro grupo blanco, con dos libertades. Juegan negras: identificar cuál de los dos se captura ya mismo.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 0, "y": 5 } },
+              "correct": true,
+              "comment": "El ojo grande de la izquierda ya no tenía más que este punto: se capturan las diez piedras blancas enteras.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 6, "y": 5 } },
+              "correct": false,
+              "comment": "Reduce al par blanco de la derecha a atari, pero todavía no lo captura: esa piedra negra suelta adentro del ojo grande de la izquierda era la jugada real, porque ahí ya no quedaba más que una libertad.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l4-04",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 0 }
+          ],
+          "white": [
+            { "x": 4, "y": 0 }, { "x": 5, "y": 1 }, { "x": 7, "y": 0 }, { "x": 6, "y": 1 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Una piedra negra se metió adentro del ojo grande del grupo blanco. Juegan blancas: capturar esa piedra intrusa.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 6, "y": 0 } },
+              "correct": true,
+              "comment": "Esa piedra negra quedó con una sola libertad: capturarla restaura el ojo.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l4-05",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 1, "y": 7 }, { "x": 1, "y": 8 }, { "x": 2, "y": 7 }, { "x": 3, "y": 7 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 }, { "x": 5, "y": 8 }
+          ],
+          "black": [
+            { "x": 2, "y": 8 }, { "x": 4, "y": 8 },
+            { "x": 0, "y": 7 }, { "x": 1, "y": 6 }, { "x": 0, "y": 8 }, { "x": 0, "y": 6 }, { "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 6, "y": 7 }, { "x": 5, "y": 6 }, { "x": 6, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "La cadena blanca está en atari, pero las dos piedras negras sueltas que la atacan también lo están, compartiendo esa misma última libertad. Juegan blancas: salvarse.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 8 } },
+              "correct": true,
+              "comment": "Captura las dos piedras negras de un saque. Los dos puntos que quedan libres no son adyacentes entre sí, y cada uno queda completamente rodeado (con sus diagonales también propias): son dos ojos reales, separados. El grupo queda vivo para siempre -- ya no alcanza ninguna jugada del rival.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b1-l4-06",
+        "collection": "bloque-1-leccion-4",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 2, "y": 0 },
+            { "x": 0, "y": 1 }, { "x": 2, "y": 1 },
+            { "x": 0, "y": 2 }, { "x": 1, "y": 2 }, { "x": 2, "y": 2 },
+            { "x": 7, "y": 7 }
+          ],
+          "black": [
+            { "x": 6, "y": 7 }, { "x": 7, "y": 6 }, { "x": 7, "y": 8 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "El grupo blanco del rincón tiene un ojo, pero también varias libertades más alrededor. Aparte, una piedra blanca suelta está en atari. Juegan negras: identificar qué se puede capturar ya mismo.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 8, "y": 7 } },
+              "correct": true,
+              "comment": "Esa piedra blanca suelta sí está en atari: es la única jugada real de este turno.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 3, "y": 1 } },
+              "correct": false,
+              "comment": "Aunque le saca una libertad al grupo del ojo, todavía le quedan muchas más: ni cerca de atari. Todavía no hay nada que capturar ahí.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
   }
 ]
