@@ -236,6 +236,28 @@ Fuente committeada en `apps/web/content/tsumego/bloque-2/` (obra del repo). El r
 `learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
 `collections.ts` aplica a `COLLECTIONS`.
 
+### Veredicto — Bloque 3 del currículo (talleres 11-15), 100% original
+
+Mismo criterio que los Bloques 1 y 2: **posiciones compuestas a mano para este proyecto**,
+inspiradas en la estructura pedagógica de FEDIBERGO (orden de temas, tipo de problema) pero SIN
+reproducir sus diagramas ni su texto. La teoría de cada lección es redacción original de tengen,
+no traducción ni resumen ceñido del PDF.
+
+A diferencia de los Bloques 1-2, este bloque introduce un tipo de ejercicio nuevo además de los de
+jugada: **ejercicios de conteo de puntos** (Lecciones 11, 12 y 15 — el taller 11 es 100% conteo,
+los talleres 12 y 15 mezclan conteo con jugada). Se validan con una función nueva,
+**`countingExerciseIssues`** (`apps/web/src/learn/countingExercise.ts`), que confirma que el
+puntaje declarado de cada posición (piedras + territorio, con `komi: 5.5` desde la Lección 12)
+coincide exactamente con el cálculo real del área — **no** con `objectiveCheck.ts`, el validador
+que usan los ejercicios de jugada de todos los bloques (acá, los de las Lecciones 12-15). Ambos
+gates son reglas puras, sin motor: el Bloque 3 sigue siendo íntegramente engineless, igual que el
+Bloque 2. Cada task de autoría corre el gate que corresponda (`checkObjective`/`exerciseIssues`
+para jugada, `countingExerciseIssues` para conteo) a mano antes de comitear.
+
+Fuente committeada en `apps/web/content/tsumego/bloque-3/` (obra del repo). El registro
+`learn/curriculum.ts` solo importa después de que esta entrada exista — misma regla que
+`collections.ts` aplica a `COLLECTIONS`.
+
 ### Spike de spot-check -- Lecciones 4-5 (2026-09-15)
 
 **Qué se probó.** 3 posiciones borrador de "ojos" en 9×9 (formato `Exercise`, sin comprometer
