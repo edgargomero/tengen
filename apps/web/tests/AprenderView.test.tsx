@@ -14,9 +14,101 @@ import type { Analysis, Position } from '@tengen/engine'
 import { AprenderView, type ExerciseCollectionData } from '../src/ui/AprenderView'
 import { ExercisePlayer } from '../src/ui/ExercisePlayer'
 import type { Exercise, ExerciseNode } from '../src/learn/exercise'
+import type { CountingExercise } from '../src/learn/countingExercise'
+import type { Lesson } from '../src/learn/lesson'
 import { CURRICULUM } from '../src/learn/curriculum'
 import { recordResult } from '../src/learn/progress'
 import type { StorageLike } from '../src/game/persistence'
+
+// T3 del Bloque 3: fixture de currículo MEZCLADO (Exercise + CountingExercise en la misma lección),
+// para el describe "AprenderView — currículo mixto" de más abajo. Se arma con `vi.hoisted` (no un
+// `const` suelto) porque `vi.mock` se iza por encima de los imports -- la factory solo puede leer
+// variables que también estén izadas (mismo patrón que AppFrame.test.tsx). Se APPENDEA al final del
+// `CURRICULUM` real (vía `importOriginal`) en vez de reemplazarlo: así los tests de "currículo real"
+// de este mismo archivo (Lección 2 bloqueada, Lección 4 sin motor, etc.) seguyen viendo exactamente
+// las mismas 15 lecciones reales, sin reescribirlas.
+const mocks = vi.hoisted(() => {
+  const n = (partial: Partial<ExerciseNode>): ExerciseNode => ({ children: [], ...partial })
+  const B = (x: number, y: number) => ({ color: 'black' as const, vertex: { x, y } })
+  const W = (x: number, y: number) => ({ color: 'white' as const, vertex: { x, y } })
+
+  function demoExercise(id: string): Exercise {
+    return {
+      id,
+      collection: 'demo',
+      boardSize: 19,
+      setup: {
+        black: [
+          { x: 0, y: 2 },
+          { x: 1, y: 1 },
+          { x: 2, y: 0 },
+        ],
+        white: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      toPlay: 'black',
+      objective: 'matar',
+      tree: n({
+        comment: 'Las blancas viven o mueren en la esquina.',
+        children: [
+          n({ move: B(0, 1), correct: true, comment: 'Captura limpia' }),
+          n({ move: B(6, 6), correct: false, comment: 'Deja vivir', children: [n({ move: W(7, 7) })] }),
+        ],
+      }),
+    }
+  }
+
+  // Mismo muro adyacente negro(x=4)/blanco(x=5) de territory.test.ts / countingExercise.test.ts --
+  // countArea real da negro=45, blanco=36, sin dame (9×9).
+  const COUNTING_SIZE = 9
+  const countingWallSetup = {
+    black: Array.from({ length: COUNTING_SIZE }, (_, y) => ({ x: 4, y })),
+    white: Array.from({ length: COUNTING_SIZE }, (_, y) => ({ x: 5, y })),
+  }
+  function countingExercise(id: string): CountingExercise {
+    return {
+      kind: 'conteo',
+      id,
+      collection: 'demo',
+      boardSize: COUNTING_SIZE,
+      setup: { black: [...countingWallSetup.black], white: [...countingWallSetup.white] },
+      correctScore: { black: 45, white: 36 },
+    }
+  }
+
+  // Slots INDEPENDIENTES (jugada / conteo), como decidió Edgar para el Bloque 3 real -- la lección
+  // mezcla los dos tipos de `LessonExercise` sin un tercer tipo híbrido.
+  const MIXED_LESSON: Lesson = {
+    id: 'mix-l1',
+    block: 99,
+    workshop: 1,
+    title: 'Lección mixta de prueba',
+    theory: ['Teoría de prueba para la lección mixta.'],
+    checkpoint: false,
+    practiceOpponent: { rank: '20k', boardSize: 9 },
+    exercises: [demoExercise('mix-ex-1'), countingExercise('mix-ex-2')],
+  }
+  const NEXT_LESSON: Lesson = {
+    id: 'mix-l2',
+    block: 99,
+    workshop: 2,
+    title: 'Lección siguiente de prueba',
+    theory: ['Más teoría de prueba.'],
+    checkpoint: false,
+    practiceOpponent: { rank: '20k', boardSize: 9 },
+    exercises: [demoExercise('mix2-ex-1')],
+  }
+
+  return { n, B, W, demoExercise, countingExercise, MIXED_LESSON, NEXT_LESSON }
+})
+const { demoExercise } = mocks
+
+vi.mock('../src/learn/curriculum', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/learn/curriculum')>()
+  return { CURRICULUM: [...actual.CURRICULUM, mocks.MIXED_LESSON, mocks.NEXT_LESSON] }
+})
 
 // jsdom no trae ResizeObserver y `useBoundedBoardSize` lo instancia al montar. El stub es inerte:
 // estos tests inyectan `boardBounds` fijos, así que la medición real nunca se usa.
@@ -41,38 +133,6 @@ function memoryStorage(initial: Record<string, string> = {}): StorageLike {
     removeItem: (k) => {
       delete data[k]
     },
-  }
-}
-
-const n = (partial: Partial<ExerciseNode>): ExerciseNode => ({ children: [], ...partial })
-const B = (x: number, y: number) => ({ color: 'black' as const, vertex: { x, y } })
-const W = (x: number, y: number) => ({ color: 'white' as const, vertex: { x, y } })
-
-function demoExercise(id: string): Exercise {
-  return {
-    id,
-    collection: 'demo',
-    boardSize: 19,
-    setup: {
-      black: [
-        { x: 0, y: 2 },
-        { x: 1, y: 1 },
-        { x: 2, y: 0 },
-      ],
-      white: [
-        { x: 0, y: 0 },
-        { x: 1, y: 0 },
-      ],
-    },
-    toPlay: 'black',
-    objective: 'matar',
-    tree: n({
-      comment: 'Las blancas viven o mueren en la esquina.',
-      children: [
-        n({ move: B(0, 1), correct: true, comment: 'Captura limpia' }),
-        n({ move: B(6, 6), correct: false, comment: 'Deja vivir', children: [n({ move: W(7, 7) })] }),
-      ],
-    }),
   }
 }
 
@@ -324,5 +384,62 @@ describe('ExercisePlayer', () => {
     })
     // La primera jugada de la solución queda numerada sobre el tablero (marker label "1").
     expect(document.querySelector('.shudan-vertex[data-x="0"][data-y="1"] .shudan-marker')).not.toBeNull()
+  })
+})
+
+// T3 del Bloque 3: la lección mixta (`mocks.MIXED_LESSON`/`mocks.NEXT_LESSON`, apendeada al final
+// del CURRICULUM real por el `vi.mock` de arriba) prueba que ni la navegación entre pasos ni el
+// desbloqueo secuencial distinguen `kind` -- y, sobre todo, que un `CountingExercise` real monta
+// `CountingExercisePlayer` A TRAVÉS de `AprenderView` (no solo montado directo, que ya cubre
+// CountingExercisePlayer.test.tsx). Este es el caso que atrapa el bug si el guard viejo
+// (`if (exercise && !isCountingExercise(exercise))`) no se reemplazó por el branch real: sin el
+// reemplazo, el paso de conteo cae en "selección huérfana" y `setLessonSelection(null)` devuelve a
+// la lista en vez de mostrar el player de conteo.
+describe('AprenderView — currículo mixto (Exercise + CountingExercise)', () => {
+  it('la navegación entre pasos no distingue el kind, y un CountingExercise monta CountingExercisePlayer a través de AprenderView', async () => {
+    const storage = memoryStorage()
+    // Desbloquear la lección mixta: resolver los 6 ejercicios de la ÚLTIMA lección real (sea cual
+    // sea su contenido -- no se hardcodea, solo su posición justo antes de la mixta).
+    const lastReal = CURRICULUM[CURRICULUM.length - 3]!
+    for (const ex of lastReal.exercises) recordResult(storage, ex.id, 'resuelto')
+
+    render(<AprenderView storage={storage} />)
+    fireEvent.click(screen.getByRole('button', { name: /Lección mixta de prueba/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Empezar los 6 problemas/i }))
+
+    // Paso 0: Exercise (jugada) -- chrome de ExercisePlayer. Ancla positiva: si el click de arriba
+    // no hubiera llegado al primer ejercicio, esto fallaría en vez de dejar pasar en falso las
+    // aserciones negativas del paso 1. Sin `clickVertex`/`boardBounds` acá a propósito: AprenderView
+    // no tiene forma de inyectar bounds fijos en el goban de sus hijos (a diferencia del describe
+    // "ExercisePlayer" de arriba, que lo renderiza directo) -- en jsdom `offsetWidth` da 0 siempre,
+    // así que el tablero real NUNCA monta en este camino. "Siguiente" no exige haber resuelto (no
+    // tiene `disabled`), así que la navegación entre pasos se prueba igual, sin tocar el tablero.
+    expect(screen.getByRole('button', { name: /ver solución/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /siguiente/i }))
+
+    // Paso 1: CountingExercise (conteo) -- chrome de CountingExercisePlayer. Positiva primero
+    // (atrapa el bug del guard viejo), negativa después (confirma que NO seguimos en ExercisePlayer).
+    expect(screen.getByRole('button', { name: /calificar/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ver solución/i })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/puntos negro/i), { target: { value: '45' } })
+    fireEvent.change(screen.getByLabelText(/puntos blanco/i), { target: { value: '36' } })
+    fireEvent.click(screen.getByRole('button', { name: /calificar/i }))
+    expect(await screen.findByText(/¡resuelto!/i)).toBeInTheDocument()
+
+    // Último paso de la lección: "Siguiente" lleva a la pantalla de práctica (no hay un tercer
+    // ejercicio), igual que si toda la lección hubiera sido de un solo `kind`.
+    fireEvent.click(screen.getByRole('button', { name: /siguiente/i }))
+    expect(screen.getByText(/Practicá lo que aprendiste/i)).toBeInTheDocument()
+  })
+
+  it('el desbloqueo secuencial de la siguiente lección no distingue el kind de los ejercicios resueltos', () => {
+    const storage = memoryStorage()
+    // Resuelve LOS DOS ejercicios de la lección mixta -- uno Exercise, uno CountingExercise --
+    // directo por `recordResult` (la mecánica de desbloqueo ya se prueba vía UI en el test de
+    // arriba; este se enfoca solo en que `isLessonUnlocked` no distinga `kind`).
+    for (const ex of mocks.MIXED_LESSON.exercises) recordResult(storage, ex.id, 'resuelto')
+
+    render(<AprenderView storage={storage} />)
+    expect(screen.getByRole('button', { name: /Lección siguiente de prueba/i })).not.toBeDisabled()
   })
 })

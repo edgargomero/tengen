@@ -24,6 +24,7 @@ import { LEARN_ANALYSIS_GROUP } from '../learn/engineRefutation'
 import { isLessonUnlocked, loadProgress, type ProgressMap } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'
 import { ExercisePlayer } from './ExercisePlayer'
+import { CountingExercisePlayer } from './CountingExercisePlayer'
 
 export type { ExerciseCollectionData } from '../learn/collections'
 
@@ -143,34 +144,38 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
       }
       const index = lessonSelection.step
       const exercise = lesson.exercises[index]
-      // TODO(Task 3 del plan docs/superpowers/plans/2026-09-16-bloque-3-curriculo.md): esta rama
-      // solo renderiza ExercisePlayer, que espera `Exercise` (jugada) -- filtra un
-      // CountingExercise (conteo) como si no existiera hasta que Task 3 agregue el branch real
-      // (`CountingExercisePlayer`). Hoy es código muerto: ningún `CountingExercise` está todavía en
-      // CURRICULUM (bloque-3.json se importa recién en Task 9).
-      if (exercise && !isCountingExercise(exercise)) {
+      if (exercise) {
         const hasNext = index + 1 < lesson.exercises.length
+        // Sin `exercise` acá: se pasa explícito en cada rama de abajo para que TypeScript conserve
+        // el tipo angosto que devuelve `isCountingExercise` (CountingExercise en un lado, Exercise
+        // en el otro) en vez del tipo ancho `LessonExercise` que tendría si viviera en este objeto.
         const playerProps = {
           key: exercise.id,
-          exercise,
           storage,
           onBackToList: () => setLessonSelection(null),
           ...(hasNext
             ? { onNext: () => setLessonSelection({ ...lessonSelection, step: index + 1 }) }
             : { onNext: () => setLessonSelection({ ...lessonSelection, step: 'practicar' as const }) }),
         }
-        // Esta rama renderiza sin motor para CUALQUIER lección de `CURRICULUM`, sin importar el
-        // bloque -- el `engineless` de más abajo no condiciona por bloque. Es seguro porque el
-        // score de KataGo da señal EQUIVOCADA en estas posiciones 9x9 dispersas -- un tenuki (jugar
-        // en otro lado) puntuó 7-15 puntos MEJOR que la captura correcta de un grupo ya muerto y
-        // completamente sellado (medido en el spike de la Task 8 del plan del Bloque 1, ya hecho).
-        // Dentro del Bloque 1, antes solo las Lecciones 1-3 eran engineless (spec, Pieza 3); Edgar
-        // confirmó extenderlo a 4-5 el 2026-09-15, lo que además evita la descarga bloqueante de
-        // ~110MB y ~25s de `ModelGate` en esas dos -- el Bloque 2, al sumarse entero por esta misma
-        // rama, hereda el mismo ahorro sin necesitar una decisión aparte. El camino CON motor
-        // (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa "Primeros pasos"
-        // (Colecciones), la sección aparte más abajo.
-        return <ExercisePlayer {...playerProps} engineless />
+        // Los ejercicios de CONTEO (Bloque 3, Task 3): posiciones terminadas sin jugada, se
+        // califican contra `countArea` en vivo -- ver CountingExercisePlayer.tsx. Nunca pasan por
+        // el motor (no tiene sentido pedirle a KataGo un veredicto sobre un puntaje que el alumno
+        // escribe a mano).
+        if (isCountingExercise(exercise)) {
+          return <CountingExercisePlayer {...playerProps} exercise={exercise} />
+        }
+        // Esta rama renderiza sin motor para CUALQUIER lección de JUGADA de `CURRICULUM`, sin
+        // importar el bloque -- el `engineless` de más abajo no condiciona por bloque. Es seguro
+        // porque el score de KataGo da señal EQUIVOCADA en estas posiciones 9x9 dispersas -- un
+        // tenuki (jugar en otro lado) puntuó 7-15 puntos MEJOR que la captura correcta de un grupo
+        // ya muerto y completamente sellado (medido en el spike de la Task 8 del plan del Bloque 1,
+        // ya hecho). Dentro del Bloque 1, antes solo las Lecciones 1-3 eran engineless (spec, Pieza
+        // 3); Edgar confirmó extenderlo a 4-5 el 2026-09-15, lo que además evita la descarga
+        // bloqueante de ~110MB y ~25s de `ModelGate` en esas dos -- el Bloque 2, al sumarse entero
+        // por esta misma rama, hereda el mismo ahorro sin necesitar una decisión aparte. El camino
+        // CON motor (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa "Primeros
+        // pasos" (Colecciones), la sección aparte más abajo.
+        return <ExercisePlayer {...playerProps} exercise={exercise} engineless />
       }
     }
     // Selección huérfana (currículo cambiado entre renders, o índice inválido): de vuelta a la
