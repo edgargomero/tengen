@@ -8,6 +8,7 @@ import { COLLECTIONS } from '../src/learn/collections'
 import { exerciseIssues } from '../src/learn/exercise'
 import { createExerciseSession } from '../src/learn/exerciseSession'
 import { CURRICULUM } from '../src/learn/curriculum'
+import { isCountingExercise } from '../src/learn/countingExercise'
 import { lessonIssues } from '../src/learn/lesson'
 import { checkObjective } from '../src/learn/objectiveCheck'
 
@@ -74,6 +75,11 @@ describe('CURRICULUM', () => {
   it('checkObjective: cada jugada marcada correct logra el objetivo pedagógico, en cada punto jugable de cada ejercicio real', () => {
     for (const lesson of CURRICULUM) {
       for (const exercise of lesson.exercises) {
+        // Un CountingExercise no tiene jugada -- objectiveCheck.ts/checkObjective solo aplica a
+        // Exercise. Su propia forma/contenido (correctScore vs. countArea real) ya se valida
+        // arriba, en el test de lessonIssues (que rama por isCountingExercise a
+        // countingExerciseIssues) -- repetirlo acá sería un chequeo duplicado, no uno nuevo.
+        if (isCountingExercise(exercise)) continue
         // Guarda contra un gate vacío: si nadie marcó ninguna jugada correct entre los hijos
         // directos de la raíz (lo que mira checkObjective), wrongCorrect sería trivialmente [] sin
         // haber chequeado nada real.

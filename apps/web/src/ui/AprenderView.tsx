@@ -18,6 +18,7 @@ import { ModelGate } from '../models/ModelGate'
 import { COLLECTIONS, type ExerciseCollectionData } from '../learn/collections'
 import { CURRICULUM } from '../learn/curriculum'
 import type { Exercise } from '../learn/exercise'
+import { isCountingExercise } from '../learn/countingExercise'
 import type { Lesson } from '../learn/lesson'
 import { LEARN_ANALYSIS_GROUP } from '../learn/engineRefutation'
 import { isLessonUnlocked, loadProgress, type ProgressMap } from '../learn/progress'
@@ -142,7 +143,12 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
       }
       const index = lessonSelection.step
       const exercise = lesson.exercises[index]
-      if (exercise) {
+      // TODO(Task 3 del plan docs/superpowers/plans/2026-09-16-bloque-3-curriculo.md): esta rama
+      // solo renderiza ExercisePlayer, que espera `Exercise` (jugada) -- filtra un
+      // CountingExercise (conteo) como si no existiera hasta que Task 3 agregue el branch real
+      // (`CountingExercisePlayer`). Hoy es código muerto: ningún `CountingExercise` está todavía en
+      // CURRICULUM (bloque-3.json se importa recién en Task 9).
+      if (exercise && !isCountingExercise(exercise)) {
         const hasNext = index + 1 < lesson.exercises.length
         const playerProps = {
           key: exercise.id,
