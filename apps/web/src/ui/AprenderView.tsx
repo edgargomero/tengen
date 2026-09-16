@@ -4,8 +4,8 @@
 //      LISTAR: el gate aparece recién al abrir un ejercicio, con <ModelGate net='b18'> →
 //      EngineExercisePlayer (patrón exacto de ReadyAnalyzeView: EngineManager + ReviewScheduler en
 //      refs, ensureReady('b18', 19), dispose al desmontar) → ExercisePlayer.
-//   2. Currículo (Bloque 1) → el mismo <ExercisePlayer>, pero SIN motor en ninguna de sus 5
-//      lecciones (spec, Pieza 3; ver la nota junto al render de más abajo para el porqué) —
+//   2. Currículo → el mismo <ExercisePlayer>, pero SIN motor en NINGUNA lección de todo
+//      `CURRICULUM` (spec, Pieza 3; ver la nota junto al render de más abajo para el porqué) —
 //      interacción pura, testeable con scheduler mock cuando aplica.
 import type { RoutableProps } from 'preact-router'
 import { route } from 'preact-router'
@@ -27,7 +27,8 @@ import { ExercisePlayer } from './ExercisePlayer'
 export type { ExerciseCollectionData } from '../learn/collections'
 
 /** La red del player: la de "Primeros pasos" (Colecciones), la única superficie de Aprender que
- * todavía usa motor. El Currículo (Bloque 1) es 100% engineless -- ver la nota junto a su render. */
+ * todavía usa motor. El Currículo (todo `CURRICULUM`) es 100% engineless -- ver la nota junto a su
+ * render. */
 const LEARN_NETWORK: NetworkId = 'b18'
 
 interface AprenderViewProps extends RoutableProps {
@@ -152,14 +153,17 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
             ? { onNext: () => setLessonSelection({ ...lessonSelection, step: index + 1 }) }
             : { onNext: () => setLessonSelection({ ...lessonSelection, step: 'practicar' as const }) }),
         }
-        // Las 5 lecciones del Bloque 1 son TODAS sin motor (decisión de Edgar, confirmada
-        // 2026-09-15): la Task 8 (spike, ya hecha) midió que el score de KataGo da señal
-        // EQUIVOCADA en estas posiciones 9x9 dispersas -- un tenuki (jugar en otro lado) puntuó
-        // 7-15 puntos MEJOR que la captura correcta de un grupo ya muerto y completamente sellado.
-        // Antes solo las Lecciones 1-3 eran engineless (spec, Pieza 3); ahora también 4-5, lo que
-        // además evita la descarga bloqueante de ~110MB y ~25s de `ModelGate` en esas dos. El
-        // camino CON motor (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa
-        // "Primeros pasos" (Colecciones), la sección aparte más abajo.
+        // Esta rama renderiza sin motor para CUALQUIER lección de `CURRICULUM`, sin importar el
+        // bloque -- el `engineless` de más abajo no condiciona por bloque. Es seguro porque el
+        // score de KataGo da señal EQUIVOCADA en estas posiciones 9x9 dispersas -- un tenuki (jugar
+        // en otro lado) puntuó 7-15 puntos MEJOR que la captura correcta de un grupo ya muerto y
+        // completamente sellado (medido en el spike de la Task 8 del plan del Bloque 1, ya hecho).
+        // Dentro del Bloque 1, antes solo las Lecciones 1-3 eran engineless (spec, Pieza 3); Edgar
+        // confirmó extenderlo a 4-5 el 2026-09-15, lo que además evita la descarga bloqueante de
+        // ~110MB y ~25s de `ModelGate` en esas dos -- el Bloque 2, al sumarse entero por esta misma
+        // rama, hereda el mismo ahorro sin necesitar una decisión aparte. El camino CON motor
+        // (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa "Primeros pasos"
+        // (Colecciones), la sección aparte más abajo.
         return <ExercisePlayer {...playerProps} engineless />
       }
     }
@@ -183,7 +187,7 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         por su material de enseñanza, usado como referencia.
       </p>
       <section class="aprender-collection">
-        <h2>Currículo -- Bloque 1</h2>
+        <h2>Currículo</h2>
         <ul class="exercise-list">
           {CURRICULUM.map((lesson) => {
             const state = lessonGlyph(CURRICULUM, progress, lesson)
