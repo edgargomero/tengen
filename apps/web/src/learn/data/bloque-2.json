@@ -251,29 +251,28 @@
         "boardSize": 9,
         "setup": {
           "white": [
-            { "x": 7, "y": 1 }, { "x": 7, "y": 2 }, { "x": 7, "y": 3 }, { "x": 8, "y": 1 }, { "x": 8, "y": 3 },
-            { "x": 5, "y": 2 }
+            { "x": 7, "y": 0 }, { "x": 8, "y": 1 }, { "x": 7, "y": 2 }
           ],
           "black": [
-            { "x": 4, "y": 2 }, { "x": 5, "y": 1 }, { "x": 5, "y": 3 }
+            { "x": 7, "y": 1 }, { "x": 6, "y": 0 }
           ]
         },
         "toPlay": "white",
         "objective": "vivir",
         "difficulty": 3,
         "tree": {
-          "comment": "El grupo blanco del borde derecho ya tiene un ojo formado en (8,2). Aparte, una piedra blanca suelta está en atari. Juegan blancas: reforzar antes de que el rival termine de cortarla.",
+          "comment": "El rincón (8,0) parece un ojo, pero su diagonal (7,1) es negra: ojo falso. La piedra blanca (7,0) ya está en atari real -- su única libertad es el rincón vacío -- porque esa piedra negra en la diagonal le tapa el otro lado. Juegan blancas.",
           "children": [
             {
-              "move": { "color": "white", "vertex": { "x": 6, "y": 2 } },
+              "move": { "color": "white", "vertex": { "x": 6, "y": 1 } },
               "correct": true,
-              "comment": "Conecta la piedra suelta con el grupo del ojo: el conjunto queda con el ojo más muchas otras salidas -- ya no se puede capturar en una sola jugada.",
+              "comment": "Esa piedra negra de la diagonal estaba en atari por su lado (única libertad, este punto). Al capturarla, (7,1) queda vacío y pegado a la piedra blanca de (7,0): pasa de una libertad a dos. El ojo, además, deja de ser falso.",
               "children": []
             },
             {
-              "move": { "color": "white", "vertex": { "x": 7, "y": 0 } },
+              "move": { "color": "white", "vertex": { "x": 8, "y": 0 } },
               "correct": false,
-              "comment": "Extiende el grupo del ojo, pero no toca a la piedra suelta: sigue en atari, y el rival la captura la próxima jugada.",
+              "comment": "Jugar directamente en el rincón no arregla nada: la piedra negra de la diagonal sigue ahí, así que el conjunto sigue con una sola libertad de verdad.",
               "children": []
             }
           ]
@@ -287,28 +286,28 @@
           "white": [
             { "x": 3, "y": 4 }, { "x": 4, "y": 3 }, { "x": 5, "y": 4 }, { "x": 4, "y": 5 },
             { "x": 3, "y": 3 }, { "x": 5, "y": 3 }, { "x": 3, "y": 5 }, { "x": 5, "y": 5 },
-            { "x": 1, "y": 4 }
+            { "x": 1, "y": 8 }, { "x": 0, "y": 7 }, { "x": 1, "y": 6 }
           ],
           "black": [
-            { "x": 0, "y": 4 }, { "x": 1, "y": 3 }, { "x": 1, "y": 5 }
+            { "x": 1, "y": 7 }, { "x": 2, "y": 8 }
           ]
         },
         "toPlay": "white",
         "objective": "vivir",
         "difficulty": 4,
         "tree": {
-          "comment": "El anillo blanco del centro ya tiene un ojo verdadero en (4,4): las cuatro diagonales son propias, no solo los cuatro lados. Aparte, una piedra blanca suelta a la izquierda está en atari. Juegan blancas: repararla antes de que el rival la capture.",
+          "comment": "El anillo blanco del centro ya tiene un ojo verdadero en (4,4): las cuatro diagonales son propias. Pero lejos de ahí, en el rincón (0,8), el grupo blanco tiene un ojo falso -- su diagonal (1,7) es negra -- y está en atari real: que el resto de la posición ya tenga un ojo asegurado no salva a esta parte, que es un grupo aparte. Juegan blancas.",
           "children": [
             {
-              "move": { "color": "white", "vertex": { "x": 2, "y": 4 } },
+              "move": { "color": "white", "vertex": { "x": 2, "y": 7 } },
               "correct": true,
-              "comment": "Conecta la piedra suelta con el anillo del ojo verdadero: el conjunto queda con muchísimas salidas -- ya no se puede capturar en una sola jugada.",
+              "comment": "La piedra negra de la diagonal estaba en atari (única libertad, este punto). Capturarla libera (1,7), pegado a la piedra blanca de (1,8): pasa de una libertad a dos, y el ojo del rincón deja de ser falso.",
               "children": []
             },
             {
-              "move": { "color": "white", "vertex": { "x": 2, "y": 3 } },
+              "move": { "color": "white", "vertex": { "x": 0, "y": 8 } },
               "correct": false,
-              "comment": "Extiende el anillo hacia arriba, pero no toca a la piedra suelta: sigue en atari, y el rival la captura la próxima jugada.",
+              "comment": "Jugar directamente en el rincón no arregla nada: la piedra negra de la diagonal sigue ahí, así que el conjunto sigue con una sola libertad de verdad.",
               "children": []
             }
           ]
