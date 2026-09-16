@@ -421,5 +421,168 @@
       "rank": "20k",
       "boardSize": 9
     }
+  },
+  {
+    "id": "b2-l8",
+    "block": 2,
+    "workshop": 8,
+    "title": "Ataris sucesivos y conexiones",
+    "theory": [
+      "A veces una cadena en atari no se captura ahí mismo: se escapa extendiéndose hacia su última libertad, y esa huida puede desembocar de inmediato en un atari nuevo, si las piedras alrededor están puestas de manera que solo le dejan una salida real cada vez. Lo que importa frente al tablero es siempre el número de libertades que tiene la cadena EN ESTE MOMENTO, no cómo llegó hasta ahí: si una cadena ya corrió una vez y ahora vuelve a tener una sola libertad, capturarla no exige más que ocupar ese único punto. La persecución es la historia que la trajo hasta acá, no algo que la jugada de captura tenga que repetir.",
+      "El taller de la escalera (Lección 5 del Bloque 1) ya mostró que el borde del tablero cuenta como si fuera una libertad ocupada de entrada: una piedra de borde tiene tres vecinos en vez de cuatro, y una de rincón, solo dos. Por eso perseguir una cadena hacia el borde necesita menos piedras propias que hacerlo en el centro. Esta lección practica la misma idea con cadenas más largas: contra el borde, alcanza con relativamente pocas piedras de más para dejar sin ninguna libertad a una cadena bastante más grande que las de la Lección 5.",
+      "Otras veces dos cadenas propias quedan amenazadas al mismo tiempo, cada una con una sola libertad, pero esa libertad resulta ser exactamente el mismo punto para las dos. Ahí no hace falta elegir cuál salvar como en un atari doble: jugar en ese punto compartido no separa nada, las funde en una sola cadena, que respira por los puntos vacíos que queden libres alrededor de la unión. Esto es una conexión abierta: nada tocaba a las dos cadenas de antemano, y una sola jugada convierte a dos grupos débiles y por separado condenados en uno que sobrevive.",
+      "La misma fusión funciona con una de las dos cadenas pegada al borde, y ahí el borde vuelve a ahorrarle al rival una piedra de ataque en el lado que la toca. Pero el punto de unión conviene dejarlo un paso adentro del borde, no sobre él: un punto de borde tiene solo tres vecinos, y si dos de esos tres ya se los llevan las cadenas que se están uniendo, apenas queda uno para respirar -- no alcanza. Contar las libertades que la unión deja libres, en vez de darlas por sentadas, es lo que distingue una conexión que salva de una que solo parece salvar. Y conviene distinguir todo esto de una cadena que simplemente no tiene con quién conectarse: cuando el peligro es de un solo grupo y no hay ningún aliado cerca compartiendo su última libertad, la única respuesta correcta es extenderla directo, igual que en las primeras lecciones."
+    ],
+    "exercises": [
+      {
+        "id": "b2-l8-01",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 5, "y": 7 } ],
+          "black": [ { "x": 3, "y": 6 }, { "x": 4, "y": 5 }, { "x": 4, "y": 7 }, { "x": 6, "y": 6 }, { "x": 6, "y": 7 }, { "x": 5, "y": 8 } ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "La cadena blanca ya se escapó de un atari anterior extendiéndose en zigzag hasta acá. No importa cómo llegó: contá sus libertades ahora mismo. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 5 } },
+              "correct": true,
+              "comment": "Esa era, en este momento, su única libertad real: se capturan las tres piedras de la persecución de una vez.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l8-02",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 8 }, { "x": 2, "y": 8 }, { "x": 3, "y": 8 }, { "x": 4, "y": 8 }, { "x": 5, "y": 8 } ],
+          "black": [ { "x": 1, "y": 7 }, { "x": 2, "y": 7 }, { "x": 3, "y": 7 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 }, { "x": 6, "y": 8 } ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Una cadena blanca larga, pegada al borde inferior. El borde ya le quitó una libertad de entrada a cada una de sus piedras: contá cuántas libertades reales le quedan al conjunto. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 0, "y": 8 } },
+              "correct": true,
+              "comment": "El rincón era su última libertad real: se capturan las cinco piedras de la cadena de una sola vez.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l8-03",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 4, "y": 2 }, { "x": 4, "y": 4 } ],
+          "black": [ { "x": 3, "y": 2 }, { "x": 5, "y": 2 }, { "x": 4, "y": 1 }, { "x": 3, "y": 4 }, { "x": 5, "y": 4 }, { "x": 4, "y": 5 } ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Dos piedras blancas sueltas, cada una en atari por su lado, sin tocarse entre sí, comparten exactamente la misma última libertad. Juegan blancas: unirlas con una conexión abierta.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 3 } },
+              "correct": true,
+              "comment": "Ese punto era la última libertad de las dos piedras a la vez: al jugarlo, se funden en una sola cadena que respira por los dos puntos que quedan libres alrededor de la unión.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l8-04",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 0, "y": 2 }, { "x": 2, "y": 2 } ],
+          "black": [ { "x": 0, "y": 1 }, { "x": 0, "y": 3 }, { "x": 2, "y": 1 }, { "x": 2, "y": 3 }, { "x": 3, "y": 2 } ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "Una piedra blanca pegada al borde izquierdo y otra un paso más adentro quedaron, cada una, en atari por su lado, compartiendo entre las dos la misma última libertad. Juegan blancas: conectarlas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 1, "y": 2 } },
+              "correct": true,
+              "comment": "El borde le ahorró al rival una piedra de ataque en la de la izquierda, pero el punto de unión sigue abriendo dos libertades nuevas: la cadena conjunta queda a salvo.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l8-05",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 3 }, { "x": 1, "y": 5 }, { "x": 3, "y": 3 }, { "x": 3, "y": 5 }, { "x": 6, "y": 6 } ],
+          "black": [ { "x": 1, "y": 4 }, { "x": 3, "y": 4 }, { "x": 5, "y": 6 }, { "x": 7, "y": 6 }, { "x": 6, "y": 5 } ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 5,
+        "tree": {
+          "comment": "Dos piedras negras parecen atacadas por arriba y por abajo, con la misma última libertad en el medio -- pero cada una todavía tiene otra salida además de esa. Lejos de ahí, una piedra blanca sí está en atari real. Juegan negras: identificar dónde está la jugada que realmente logra algo.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 6, "y": 7 } },
+              "correct": true,
+              "comment": "Esa piedra blanca suelta sí estaba en atari: es la única captura real de este turno.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 2, "y": 4 } },
+              "correct": false,
+              "comment": "Une dos piedras que ya tenían, cada una, otra libertad además de este punto: no estaban realmente amenazadas, así que esta jugada no captura nada y no hacía falta jugarla.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l8-06",
+        "collection": "bloque-2-leccion-8",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 2, "y": 5 }, { "x": 3, "y": 5 } ],
+          "black": [ { "x": 1, "y": 5 }, { "x": 2, "y": 4 }, { "x": 3, "y": 4 }, { "x": 2, "y": 6 }, { "x": 4, "y": 5 } ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 2,
+        "tree": {
+          "comment": "La cadena blanca está en atari. No hay ningún grupo propio cerca con quien compartir esa libertad: la única salida es extenderse directo. Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 6 } },
+              "correct": true,
+              "comment": "Única libertad real: extenderse ahí suma dos libertades nuevas. A diferencia de los problemas anteriores, aquí no había con quién conectar.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
   }
 ]
