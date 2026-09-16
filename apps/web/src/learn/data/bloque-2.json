@@ -203,5 +203,224 @@
       "rank": "20k",
       "boardSize": 9
     }
+  },
+  {
+    "id": "b2-l7",
+    "block": 2,
+    "workshop": 7,
+    "title": "Ojo verdadero, ojo falso",
+    "theory": [
+      "No alcanza con que un espacio vacío esté rodeado por las cuatro direcciones ortogonales de un mismo color para llamarlo ojo de verdad: también importan las diagonales. Un ojo en el rincón tiene una sola diagonal; uno en el borde, dos; uno en el centro, cuatro. Si esa o esas diagonales pertenecen al propio color, el ojo es verdadero: las piedras que lo rodean están, en los hechos, bien afianzadas entre sí. Si el rival controla una diagonal sin que el resto compense, el ojo es falso: parece un ojo, cuenta como una libertad igual que cualquier otra, pero la solidez que promete no es real.",
+      "La diferencia se nota en lo que puede pasar después, no en el aspecto del punto en sí. El rival no puede jugar directamente adentro de un ojo mientras al grupo le queden otras libertades -- esa jugada, ahí, sería un suicidio ilegal. Lo que sí puede hacer, cuando la diagonal le pertenece, es apoyarse en esa piedra diagonal para separar entre sí a las piedras que se supone forman el cerco del ojo: si esas piedras no estaban conectadas de otra manera, capturar una de ellas (o a las dos, si compartían la última libertad) hace desaparecer el cerco entero junto con el ojo que prometía.",
+      "Para el que defiende, la respuesta es reforzar esa diagonal -- o, más precisamente, conectar lo que la diagonal amenaza con separar -- antes de que la última libertad se agote. Una vez que el grupo queda reducido a esa sola libertad, la única jugada que sirve es la que, en el mismo movimiento, recupera la libertad perdida: capturando la piedra rival que la ocupaba, o uniéndose a una piedra propia que abre una salida nueva. Distinguir un ojo genuinamente sólido de uno que solo lo parece es, en el fondo, la misma destreza que encontrar el punto vital: hay que mirar más allá de la forma inmediata.",
+      "Un grupo vivo, con sus ojos asegurados, termina controlando un espacio vacío a su alrededor que el rival ya no puede disputar en serio: eso es, en su forma más simple, el territorio. Ese territorio se cuenta recién al final de la partida, cuando ya no quedan jugadas útiles que lo alteren -- por ahora alcanza con reconocer qué espacio vacío está, de hecho, asegurado por un grupo vivo, y cuál todavía puede ser invadido."
+    ],
+    "exercises": [
+      {
+        "id": "b2-l7-01",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 1, "y": 0 }, { "x": 0, "y": 1 } ],
+          "black": [ { "x": 1, "y": 1 }, { "x": 2, "y": 0 }, { "x": 0, "y": 2 } ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "Dos piedras blancas sueltas parecen cercar un ojo en (0,0), pero la diagonal (1,1) es negra: nunca estuvieron realmente conectadas entre sí, y cada una ya está en atari por su lado, compartiendo esa misma última libertad. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 0, "y": 0 } },
+              "correct": true,
+              "comment": "Esa última libertad compartida: al jugar ahí se capturan las dos piedras blancas de una vez. El \"ojo\" nunca fue de un solo grupo vivo.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 2, "y": 1 } },
+              "correct": false,
+              "comment": "No es esa la última libertad de ninguna de las dos piedras blancas: no captura nada.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l7-02",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 7, "y": 1 }, { "x": 7, "y": 2 }, { "x": 7, "y": 3 }, { "x": 8, "y": 1 }, { "x": 8, "y": 3 },
+            { "x": 5, "y": 2 }
+          ],
+          "black": [
+            { "x": 4, "y": 2 }, { "x": 5, "y": 1 }, { "x": 5, "y": 3 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "El grupo blanco del borde derecho ya tiene un ojo formado en (8,2). Aparte, una piedra blanca suelta está en atari. Juegan blancas: reforzar antes de que el rival termine de cortarla.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 6, "y": 2 } },
+              "correct": true,
+              "comment": "Conecta la piedra suelta con el grupo del ojo: el conjunto queda con el ojo más muchas otras salidas -- ya no se puede capturar en una sola jugada.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 7, "y": 0 } },
+              "correct": false,
+              "comment": "Extiende el grupo del ojo, pero no toca a la piedra suelta: sigue en atari, y el rival la captura la próxima jugada.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l7-03",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 3, "y": 4 }, { "x": 4, "y": 3 }, { "x": 5, "y": 4 }, { "x": 4, "y": 5 },
+            { "x": 3, "y": 3 }, { "x": 5, "y": 3 }, { "x": 3, "y": 5 }, { "x": 5, "y": 5 },
+            { "x": 1, "y": 4 }
+          ],
+          "black": [
+            { "x": 0, "y": 4 }, { "x": 1, "y": 3 }, { "x": 1, "y": 5 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "El anillo blanco del centro ya tiene un ojo verdadero en (4,4): las cuatro diagonales son propias, no solo los cuatro lados. Aparte, una piedra blanca suelta a la izquierda está en atari. Juegan blancas: repararla antes de que el rival la capture.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 4 } },
+              "correct": true,
+              "comment": "Conecta la piedra suelta con el anillo del ojo verdadero: el conjunto queda con muchísimas salidas -- ya no se puede capturar en una sola jugada.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 3 } },
+              "correct": false,
+              "comment": "Extiende el anillo hacia arriba, pero no toca a la piedra suelta: sigue en atari, y el rival la captura la próxima jugada.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l7-04",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 7, "y": 7 }, { "x": 7, "y": 8 }, { "x": 8, "y": 7 }, { "x": 6, "y": 6 }, { "x": 7, "y": 5 }
+          ],
+          "black": [
+            { "x": 7, "y": 6 }, { "x": 8, "y": 6 }, { "x": 6, "y": 7 }, { "x": 6, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 5,
+        "tree": {
+          "comment": "El grupo blanco del rincón tiene un solo ojo verdadero, en (8,8), y ninguna otra libertad: está en atari. Dos piedras negras sueltas se metieron pegadas al grupo y también están en atari, compartiendo la libertad (8,5). Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 8, "y": 5 } },
+              "correct": true,
+              "comment": "Captura las dos piedras negras de un saque. Los dos puntos que quedan libres, (7,6) y (8,6), son vecinos entre sí -- forman un solo espacio de dos puntos, no dos ojos separados. Pero ese espacio y el ojo del rincón en (8,8) son dos regiones vacías DISTINTAS: y si el rival entra en el espacio de dos puntos, se lo captura y el hueco vuelve a quedar. El grupo queda vivo para siempre.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 6, "y": 5 } },
+              "correct": false,
+              "comment": "No toca a las dos piedras negras en atari: el grupo del rincón sigue con su única libertad, el ojo de (8,8).",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l7-05",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 3, "y": 8 }, { "x": 3, "y": 7 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 }, { "x": 5, "y": 8 },
+            { "x": 1, "y": 4 }, { "x": 1, "y": 5 }
+          ],
+          "black": [
+            { "x": 2, "y": 8 }, { "x": 2, "y": 7 }, { "x": 3, "y": 6 }, { "x": 6, "y": 7 }, { "x": 5, "y": 6 },
+            { "x": 6, "y": 8 },
+            { "x": 0, "y": 4 }, { "x": 2, "y": 4 }, { "x": 1, "y": 3 }, { "x": 0, "y": 5 }, { "x": 2, "y": 5 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "El grupo blanco del borde inferior tiene un ojo verdadero formado en (4,8), pero todavía le queda otra libertad afuera, en (4,6): ahí no hay nada para capturar este turno. Aparte, lejos de ahí, una cadena blanca suelta de dos piedras SÍ está en atari. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 1, "y": 6 } },
+              "correct": true,
+              "comment": "Esa cadena suelta sí estaba en atari: es la única captura real de este turno.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 4, "y": 6 } },
+              "correct": false,
+              "comment": "Reduce al grupo del borde a su última libertad (el ojo), pero todavía no lo captura: esa jugada ingenua no logra nada este turno.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l7-06",
+        "collection": "bloque-2-leccion-7",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 7, "y": 3 }, { "x": 8, "y": 2 }, { "x": 7, "y": 4 }, { "x": 8, "y": 5 }
+          ],
+          "black": [
+            { "x": 8, "y": 3 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Una piedra negra se metió en el territorio del borde derecho, y ya quedó en atari. Juegan blancas: cerrar la invasión.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 8, "y": 4 } },
+              "correct": true,
+              "comment": "Última libertad de la piedra invasora: se captura y el territorio queda asegurado.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 7, "y": 2 } },
+              "correct": false,
+              "comment": "No toca a la piedra invasora: sigue en atari, pero todavía sin capturar.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
   }
 ]
