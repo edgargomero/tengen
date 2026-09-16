@@ -795,5 +795,196 @@
       "rank": "20k",
       "boardSize": 9
     }
+  },
+  {
+    "id": "b2-l10",
+    "block": 2,
+    "workshop": 10,
+    "title": "Repaso: talleres 6 a 9",
+    "theory": [
+      "Este taller no trae ningún concepto nuevo: es un repaso de los talleres 6 a 9, para practicar todo junto antes de seguir avanzando. Empecemos por lo más básico: un grupo con un solo ojo formado no está a salvo. Mientras esa forma de ojo sea la única libertad que le queda al grupo, sigue siendo ni más ni menos que una libertad como cualquier otra, y el rival la puede ocupar para capturar. Lo que sí protege de verdad a un grupo es tener DOS ojos separados: ahí el rival no puede jugar en ninguno de los dos sin cometer suicidio, así que nunca puede reducir al grupo a una sola libertad. La jugada que decide si un grupo llega a tener ese segundo ojo -- o se queda para siempre con uno solo -- es el punto vital.",
+      "También repasamos que no todo espacio con forma de ojo es un ojo verdadero: hace falta revisar las diagonales, no solo los lados. En el rincón alcanza con una diagonal propia, en el borde hacen falta las dos, y en el centro basta con tres de las cuatro. Si el rival controla una diagonal sin que el resto compense, el ojo es falso: no protege nada, aunque a primera vista parezca sólido. La forma de aprovechar esa falla es capturar la piedra rival que ocupa la diagonal -- si esa piedra también está en atari -- justo cuando el grupo propio queda reducido a esa única libertad: la captura recupera la libertad perdida en el mismo momento.",
+      "Del taller de ataris sucesivos y conexiones, lo que importa recordar es contar las libertades de una cadena tal como está ahora, sin importar cuántas veces ya se escapó de un atari anterior: si volvió a quedar con una sola libertad, se captura igual que cualquier otra. Y cuando dos cadenas propias, separadas entre sí, quedan en atari compartiendo exactamente la misma última libertad, no hace falta elegir una y perder la otra: jugar en ese punto compartido las funde en una sola cadena, que respira por lo que quede libre alrededor de la unión.",
+      "Por último, un ojo grande -- un espacio vacío de cuatro puntos o más, todos conectados -- sigue la misma lógica que un ojo chico, aunque su punto vital cambie de forma según la geometría. Pero en una partida real casi nunca se llega a jugar ese punto vital con el espacio todavía intacto: lo más común es que la jugada decisiva sea una captura, de una piedra intrusa que se metió adentro del espacio, o de las piedras rivales que le quitaban libertades al grupo desde afuera. Jugar el punto vital de un ojo grande que todavía no tiene ninguna piedra en atari cerca no captura nada: antes de mover apurado hacia el centro de un espacio grande, conviene preguntarse si hay, de verdad, una piedra rival en su última libertad ahora mismo. Los seis problemas de este taller mezclan las cuatro ideas -- un ojo no alcanza, ojo verdadero y falso, ataris sucesivos y conexiones, ojos grandes -- en posiciones nuevas, para practicar el reconocimiento de cada una fuera del contexto en que se aprendió."
+    ],
+    "exercises": [
+      {
+        "id": "b2-l10-01",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 7, "y": 3 }, { "x": 7, "y": 4 }, { "x": 7, "y": 5 }, { "x": 8, "y": 3 }, { "x": 8, "y": 5 }
+          ],
+          "black": [
+            { "x": 6, "y": 3 }, { "x": 7, "y": 2 }, { "x": 6, "y": 4 }, { "x": 6, "y": 5 }, { "x": 7, "y": 6 }, { "x": 8, "y": 2 }, { "x": 8, "y": 6 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "El grupo blanco del borde derecho tiene un ojo formado, y ya es su única libertad. Juegan negras: capturar.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 8, "y": 4 } },
+              "correct": true,
+              "comment": "Última libertad del grupo blanco: se capturan las cinco piedras de una vez.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l10-02",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 3, "y": 0 }, { "x": 4, "y": 1 }, { "x": 5, "y": 0 }, { "x": 5, "y": 1 }, { "x": 3, "y": 2 }
+          ],
+          "black": [
+            { "x": 3, "y": 1 }, { "x": 4, "y": 2 }, { "x": 5, "y": 2 }, { "x": 6, "y": 1 }, { "x": 6, "y": 0 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "El grupo blanco de arriba tiene un ojo formado en el borde superior, pero la diagonal (3,1) es negra: ojo falso, y el grupo ya está en atari real. Esa piedra negra de la diagonal también está en atari. Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 1 } },
+              "correct": true,
+              "comment": "Última libertad de la piedra negra de la diagonal: se captura, y el grupo blanco pasa de una libertad a dos. El ojo, además, deja de ser falso.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 0 } },
+              "correct": false,
+              "comment": "Jugar directamente en el punto del ojo no arregla nada: la piedra negra de la diagonal sigue ahí, así que el grupo sigue con una sola libertad de verdad.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l10-03",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 }
+          ],
+          "black": [
+            { "x": 3, "y": 2 }, { "x": 3, "y": 3 }, { "x": 4, "y": 1 }, { "x": 4, "y": 4 }, { "x": 5, "y": 3 }, { "x": 6, "y": 1 }, { "x": 6, "y": 2 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "La cadena blanca ya se escapó de un atari anterior en zigzag hacia el borde superior. No importa cómo llegó hasta acá: contá sus libertades ahora mismo. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 0 } },
+              "correct": true,
+              "comment": "El borde ya le sacaba una libertad a la cadena: esta era la única que le quedaba. Se capturan las cuatro piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l10-04",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [ { "x": 2, "y": 5 }, { "x": 3, "y": 6 } ],
+          "black": [ { "x": 1, "y": 5 }, { "x": 2, "y": 4 }, { "x": 2, "y": 6 }, { "x": 4, "y": 6 }, { "x": 3, "y": 7 } ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Dos piedras blancas, en diagonal entre sí, quedaron cada una en atari por su lado, compartiendo exactamente el mismo punto como última libertad. Juegan blancas: unirlas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 5 } },
+              "correct": true,
+              "comment": "Ese punto era la última libertad de las dos piedras a la vez, aunque no estén en línea recta: al jugarlo, se funden en una sola cadena que respira por los puntos libres alrededor de la unión.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l10-05",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 2, "y": 3 }, { "x": 3, "y": 2 }, { "x": 3, "y": 4 }, { "x": 4, "y": 2 }, { "x": 6, "y": 3 }, { "x": 5, "y": 2 }, { "x": 5, "y": 4 }, { "x": 4, "y": 5 }
+          ],
+          "black": [ { "x": 5, "y": 3 } ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Las piedras blancas cercan un espacio de ojo grande con forma de T, lejos de cualquier borde. Una piedra negra se metió en una de las puntas, y ya quedó con una sola libertad. Juegan blancas: capturarla antes de que se asiente.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 3 } },
+              "correct": true,
+              "comment": "Última libertad de la piedra negra intrusa: se captura, y el espacio en T queda libre de nuevo.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 4 } },
+              "correct": false,
+              "comment": "Otro punto del espacio en T, pero no toca a la piedra intrusa: no la captura.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b2-l10-06",
+        "collection": "bloque-2-leccion-10",
+        "boardSize": 9,
+        "setup": {
+          "white": [
+            { "x": 4, "y": 4 }, { "x": 7, "y": 4 }, { "x": 6, "y": 3 }, { "x": 5, "y": 5 }, { "x": 7, "y": 5 }, { "x": 6, "y": 6 }
+          ],
+          "black": [ { "x": 3, "y": 4 }, { "x": 4, "y": 3 }, { "x": 4, "y": 5 }, { "x": 6, "y": 4 }, { "x": 6, "y": 5 } ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 4,
+        "tree": {
+          "comment": "La piedra blanca del centro está en atari. Dos piedras negras conectadas entre sí, un poco más allá, también están en atari, compartiendo exactamente esa misma última libertad. Juegan blancas: salvarse.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 5, "y": 4 } },
+              "correct": true,
+              "comment": "Esa era la última libertad compartida: se capturan las dos piedras negras de un saque, y la piedra blanca pasa a tener varias libertades nuevas, incluido el espacio que dejan libre las piedras capturadas.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 5, "y": 6 } },
+              "correct": false,
+              "comment": "No toca a las piedras negras en atari ni rescata a la piedra blanca, que sigue con su única libertad de antes.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": true,
+    "practiceOpponent": {
+      "rank": "20k",
+      "boardSize": 9
+    }
   }
 ]
