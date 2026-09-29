@@ -117,5 +117,187 @@
     ],
     "checkpoint": false,
     "practiceOpponent": { "rank": "20k", "boardSize": 9 }
+  },
+  {
+    "id": "b3-l12",
+    "block": 3,
+    "workshop": 12,
+    "title": "Territorio y komi",
+    "theory": [
+      "En la lección anterior contaste posiciones terminadas. Durante la partida, en cambio, hace falta saber cuándo un espacio que rodeás ya es territorio de verdad, y para eso se tienen que cumplir tres condiciones. La primera: el límite tiene que estar cerrado, sin huecos. Si al cerco le falta una piedra, el espacio de adentro se comunica con el de afuera por ese hueco, la región vacía termina tocando piedras de los dos colores y, al contar, no es de nadie. Una conexión abierta no es un hueco: son tres piedras propias alrededor de un punto vacío, con el cuarto lado hacia tu propio espacio. Si el rival se mete en ese punto, su piedra queda con una sola libertad y la capturás enseguida, así que ese límite funciona como cerrado.",
+      "La segunda: las piedras del límite no tienen que poder ser capturadas. Si el rival captura una piedra de tu cerco, en su lugar queda un hueco y volvés al problema de la primera condición. Por eso, antes de pasar, fijate si alguna piedra de tu límite quedó débil, por ejemplo con pocas libertades contra el borde, y si hace falta agregá una jugada defensiva que la conecte. Y mirá también el límite del rival: si una de sus piedras se puede capturar, ese espacio todavía no es suyo.",
+      "La tercera: tenés que poder capturar cualquier piedra que el rival meta adentro. Un ejemplo: Blanco rodeó un rincón grande y Negro juega una piedra en el medio. Blanco le quita libertades desde afuera; Negro agrega piedras para armarse un espacio propio, pero solo consigue encerrar un punto, un único ojo. Blanco termina de cerrarle las libertades de afuera, y cuando al grupo negro no le queda otra libertad que ese ojo, juega adentro (no es suicidio, porque captura) y saca todas las piedras. La invasión fracasó y el rincón sigue siendo blanco. Para que una invasión prospere, el invasor tiene que formar dos ojos o capturar alguna piedra del límite. En los ejercicios de estas lecciones, toda piedra que sigue sobre el tablero cuenta como viva, igual que en la lección anterior: por eso, para despejar un territorio, hay que capturar a los invasores. Al sacarlos, los puntos que ocupaban quedan vacíos y rodeados por el dueño del territorio, y se cuentan como suyos.",
+      "Negro juega primero, y eso le da ventaja: empieza antes a rodear espacio. Para compensarla, Blanco recibe al final unos puntos extra que se llaman komi. Cuánto vale lo fijan las reglas de cada partida o torneo, así que no hay un único valor: en los ejercicios de conteo de esta lección, el komi es de 5,5 puntos. Se cuenta igual que en la lección anterior (piedras sobre el tablero más espacio rodeado por un solo color) y, al final, se le suman 5,5 a los puntos de Blanco. Como ese komi termina en medio punto, acá un empate es imposible: siempre gana alguien. Por ejemplo, si Negro tiene 43 puntos y Blanco 38, Negro parece ganar por 5, pero con el komi Blanco llega a 43,5 y gana por medio punto. En las partidas de práctica de tengen, con las reglas chinas que vienen elegidas de entrada, vas a ver un komi de 7: cambia el número, no la idea.",
+      "Para sortear los colores se sigue usando el nigiri. Pero ahora que Blanco recibe komi, puede que alguno de los dos prefiera jugar con blancas: por eso, desde esta lección, quien gana el sorteo elige el color. En los ejercicios de jugada, encontrá la jugada que captura las piedras que ponen en duda un territorio. En los de conteo, contá los puntos de cada color y anotá los de Blanco con los 5,5 del komi ya sumados."
+    ],
+    "exercises": [
+      {
+        "id": "b3-l12-01",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 2, "y": 1 }, { "x": 2, "y": 2 }, { "x": 2, "y": 3 }, { "x": 2, "y": 4 }, { "x": 7, "y": 4 },
+            { "x": 8, "y": 4 }, { "x": 2, "y": 5 }, { "x": 7, "y": 5 }, { "x": 2, "y": 6 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 },
+            { "x": 2, "y": 7 }, { "x": 2, "y": 8 }
+          ],
+          "white": [
+            { "x": 3, "y": 0 }, { "x": 3, "y": 1 }, { "x": 3, "y": 2 }, { "x": 3, "y": 3 }, { "x": 7, "y": 3 }, { "x": 8, "y": 3 },
+            { "x": 3, "y": 4 }, { "x": 6, "y": 4 }, { "x": 3, "y": 5 }, { "x": 6, "y": 5 }, { "x": 3, "y": 6 }, { "x": 6, "y": 6 },
+            { "x": 3, "y": 7 }, { "x": 7, "y": 7 }, { "x": 8, "y": 7 }, { "x": 3, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 1,
+        "tree": {
+          "comment": "Negro se metió en el territorio blanco del lado derecho y armó un grupo de cinco piedras con un solo ojo, en (8,5). Por fuera ya no le queda ninguna libertad. Juegan blancas: despejá el territorio.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 8, "y": 5 } },
+              "correct": true,
+              "comment": "Jugar en el ojo no es suicidio, porque captura: salen las cinco piedras negras. Con un solo ojo la invasión no podía vivir, y esos puntos vuelven a ser territorio blanco.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 6, "y": 7 } },
+              "correct": false,
+              "comment": "Conecta tus piedras, pero no le quita nada al grupo negro: por fuera ya no tenía libertades. La única que le queda es el ojo, y ahí está la captura.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l12-02",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 6, "y": 4 }, { "x": 0, "y": 5 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 },
+            { "x": 5, "y": 5 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 }
+          ],
+          "white": [
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 },
+            { "x": 6, "y": 3 }, { "x": 7, "y": 3 }, { "x": 8, "y": 3 }, { "x": 6, "y": 5 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "El límite negro de abajo tiene una conexión abierta en (6,5), y Blanco se metió justo ahí. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 6, "y": 6 } },
+              "correct": true,
+              "comment": "La piedra blanca tenía una sola libertad, en (6,6): capturada. Por eso una conexión abierta funciona como un límite cerrado: el que se mete, pierde la piedra.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 4 } },
+              "correct": false,
+              "comment": "La piedra negra de (6,4) no corría peligro: tenía dos libertades. La que estaba en atari era la blanca, y si no la capturás, Blanco sigue en (6,6) y parte tu límite en dos.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l12-03",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 0 }, { "x": 4, "y": 1 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 4, "y": 4 }, { "x": 5, "y": 4 },
+            { "x": 6, "y": 4 }, { "x": 7, "y": 4 }, { "x": 8, "y": 4 }
+          ],
+          "white": [
+            { "x": 4, "y": 0 }, { "x": 3, "y": 1 }, { "x": 3, "y": 2 }, { "x": 3, "y": 3 }, { "x": 3, "y": 4 }, { "x": 3, "y": 5 },
+            { "x": 4, "y": 5 }, { "x": 5, "y": 5 }, { "x": 6, "y": 5 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Blanco estiró su límite sobre el borde de arriba con la piedra de (4,0), pegada a tu cerco. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 3, "y": 0 } },
+              "correct": true,
+              "comment": "Esa piedra blanca tenía una sola libertad: capturada. Una piedra de límite que se puede capturar no cierra nada, y ahora el borde de arriba queda de tu lado.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 1 } },
+              "correct": false,
+              "comment": "Conectar tu piedra de (5,0) no está mal, pero no resuelve: la blanca de (4,0) sigue ahí y Blanco la conecta en (3,0). Con una sola libertad, había que capturarla ahora.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l12-04",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 2, "y": 1 }, { "x": 2, "y": 2 }, { "x": 2, "y": 3 }, { "x": 2, "y": 4 }, { "x": 2, "y": 5 },
+            { "x": 3, "y": 5 }, { "x": 4, "y": 5 }, { "x": 5, "y": 5 }, { "x": 6, "y": 5 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 }
+          ],
+          "white": [
+            { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 1, "y": 2 }, { "x": 1, "y": 3 }, { "x": 1, "y": 4 }, { "x": 1, "y": 5 },
+            { "x": 1, "y": 6 }, { "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 6, "y": 6 },
+            { "x": 7, "y": 6 }, { "x": 8, "y": 6 }
+          ]
+        },
+        "correctScore": { "black": 42, "white": 39 },
+        "komi": 5.5
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l12-05",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 1 }, { "x": 6, "y": 1 }, { "x": 7, "y": 1 }, { "x": 8, "y": 1 }, { "x": 0, "y": 2 }, { "x": 1, "y": 2 },
+            { "x": 2, "y": 2 }, { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 5, "y": 2 }, { "x": 0, "y": 4 }, { "x": 1, "y": 4 },
+            { "x": 2, "y": 4 }, { "x": 3, "y": 4 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 }, { "x": 3, "y": 7 }, { "x": 3, "y": 8 }
+          ],
+          "white": [
+            { "x": 6, "y": 2 }, { "x": 7, "y": 2 }, { "x": 8, "y": 2 }, { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 },
+            { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 }, { "x": 6, "y": 3 }, { "x": 4, "y": 4 }, { "x": 4, "y": 5 },
+            { "x": 4, "y": 6 }, { "x": 4, "y": 7 }, { "x": 4, "y": 8 }
+          ]
+        },
+        "correctScore": { "black": 44, "white": 37 },
+        "komi": 5.5
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l12-06",
+        "collection": "bloque-3-leccion-12",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 0 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 }, { "x": 5, "y": 3 }, { "x": 5, "y": 4 }, { "x": 0, "y": 5 },
+            { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 }
+          ],
+          "white": [
+            { "x": 6, "y": 0 }, { "x": 6, "y": 1 }, { "x": 6, "y": 2 }, { "x": 6, "y": 3 }, { "x": 6, "y": 4 }, { "x": 6, "y": 5 },
+            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 5, "y": 6 },
+            { "x": 7, "y": 7 }
+          ]
+        },
+        "correctScore": { "black": 35, "white": 45 },
+        "komi": 5.5
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": { "rank": "20k", "boardSize": 9 }
   }
 ]
