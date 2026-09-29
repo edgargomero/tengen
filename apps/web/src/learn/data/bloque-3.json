@@ -299,5 +299,224 @@
     ],
     "checkpoint": false,
     "practiceOpponent": { "rank": "20k", "boardSize": 9 }
+  },
+  {
+    "id": "b3-l13",
+    "block": 3,
+    "workshop": 13,
+    "title": "Red, conexión diagonal y semeai",
+    "theory": [
+      "En la Lección 5 viste la escalera: se persigue a una piedra con ataris sucesivos, en zigzag, hasta que choca con el borde o con una piedra que le corta el camino. La red, que en japonés se llama geta, captura de otra manera. En vez de correr detrás de la piedra, se juega una piedra cerca de ella, muchas veces en diagonal, que le cubre de antemano las salidas. La piedra atrapada todavía tiene dos libertades, así que no está en atari, pero no importa hacia dónde intente salir: cada extensión termina al lado de piedras que ya la esperan, y alcanza con una jugada para cerrarle el paso. Después de uno o dos intentos, la cadena queda en atari y sin ningún lugar a donde ir.",
+      "La escalera, en cambio, depende de lo que haya en su camino, porque la persecución cruza medio tablero. Si en el camino hay una piedra del que huye, la cadena se conecta con ella, gana libertades y la escalera fracasa. Si hay una piedra del que persigue, la escalera termina ahí mismo, antes de llegar al borde: la última extensión choca con esa piedra y queda con una sola libertad. Antes de empezar una escalera, conviene mirar por dónde va a pasar.",
+      "En la Lección 5 también apareció la diagonal con hueco: dos piedras propias en diagonal, con los dos puntos vecinos que comparten todavía vacíos. Ahí surgió casi de rebote, al salvar una piedra en atari. Ahora la usamos a propósito, como técnica para unir grupos, y se llama conexión diagonal. Las piedras todavía no forman una sola cadena, pero el rival no puede impedir que lo hagan: si ocupa uno de los dos puntos, jugás el otro y quedan unidas. Por eso, cuando el rival se mete en uno, la respuesta es inmediata: el otro punto. Si no respondés, en la jugada siguiente puede ocupar también ese y dejar las piedras cortadas. Y a veces una cadena con solo dos libertades está más segura de lo que parece, si esas dos libertades son justo los dos puntos de una conexión diagonal con otro grupo tuyo.",
+      "A veces un grupo tuyo y uno del rival quedan encerrados uno contra otro, sin ojos, y ninguno puede escapar: la única manera de salvar el propio es capturar el del rival. Eso es una carrera de captura, que en japonés se llama semeai. La decide la cuenta de libertades. Cada jugada le quita una libertad al grupo rival, así que, en carreras simples como las de esta lección, gana el que tiene más libertades, y si tienen las mismas, gana el que juega primero. Mientras dura la carrera, reforzar tu grupo sin sumarle libertades, o atacar en otro lado, es regalarle el turno al rival. Cuando las dos cadenas quedan con una sola libertad, la cuenta se terminó: quien juega, captura. Si esa última libertad es la misma para las dos, jugar ahí no es suicidio, porque la jugada captura.",
+      "En los ejercicios de esta lección, cada maniobra ya llegó a su momento decisivo: la red está tendida y la piedra que quiso escapar quedó en atari, la escalera llegó al final de su camino, una cadena tuya depende de una conexión diagonal o la carrera está por definirse. Te toca la jugada que lo resuelve: capturar, o sacar tus piedras del atari."
+    ],
+    "exercises": [
+      {
+        "id": "b3-l13-01",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 2, "y": 3 }, { "x": 5, "y": 3 }, { "x": 2, "y": 4 }, { "x": 4, "y": 4 }
+          ],
+          "white": [
+            { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 3, "y": 4 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "La piedra blanca de (3,3) quedó atrapada en una red: la piedra negra de (4,4), en diagonal, le cubría de antemano las dos salidas. Blanco intentó salir por (4,3), Negro le cerró el paso en (5,3) y Blanco probó entonces por (3,4). Ahora las tres piedras blancas están en atari. Juegan negras: terminá la captura.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 3, "y": 5 } },
+              "correct": true,
+              "comment": "Era su última libertad: capturás las tres piedras. No hizo falta perseguirlas por el tablero, porque la red ya había cerrado las salidas y cada intento de escape terminó al lado de una piedra negra.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 4 } },
+              "correct": false,
+              "comment": "Unís dos piedras de la red, pero no capturás: las tres blancas siguen en atari, con su libertad en (3,5). Si Blanco se extiende ahí, su cadena de cuatro queda con tres libertades, (2,5), (4,5) y (3,6), y sale de la red.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l13-02",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 6, "y": 4 }, { "x": 5, "y": 5 }, { "x": 6, "y": 5 }, { "x": 4, "y": 6 }, { "x": 5, "y": 6 }
+          ],
+          "white": [
+            { "x": 6, "y": 3 }, { "x": 5, "y": 4 }, { "x": 4, "y": 5 }, { "x": 7, "y": 5 }, { "x": 3, "y": 6 }, { "x": 6, "y": 6 },
+            { "x": 4, "y": 7 }, { "x": 5, "y": 7 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Blanco viene persiguiendo en escalera a las piedras negras, en zigzag desde abajo a la izquierda hacia arriba a la derecha. Negro se acaba de extender a (6,4), pero ahí chocó con la piedra blanca de (6,3), que estaba en el camino: su cadena de cinco quedó en atari antes de llegar al borde. Juegan blancas: terminá la captura.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 7, "y": 4 } },
+              "correct": true,
+              "comment": "Última libertad: capturás las cinco piedras. La piedra blanca de (6,3) hizo el trabajo del borde, y la escalera terminó en el medio del tablero.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 4 } },
+              "correct": false,
+              "comment": "Unís tus piedras de (5,4) y (4,5), pero no era urgente, y la cadena negra sigue en atari. Si Negro se extiende a (7,4), vuelve a tener dos libertades, (7,3) y (8,4).",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l13-03",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 2, "y": 5 }, { "x": 1, "y": 6 }, { "x": 1, "y": 7 }, { "x": 3, "y": 7 }, { "x": 1, "y": 8 }, { "x": 3, "y": 8 }
+          ],
+          "white": [
+            { "x": 3, "y": 5 }, { "x": 2, "y": 6 }, { "x": 2, "y": 7 }, { "x": 2, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Tus tres piedras de abajo a la izquierda estaban en conexión diagonal con la de (3,5): compartían los puntos (2,5) y (3,6). Negro se metió en (2,5) y las dejó en atari. Juegan blancas: salvalas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 6 } },
+              "correct": true,
+              "comment": "Ocupás el otro punto de la conexión: las tres piedras se unen con la de (3,5) en una sola cadena de cinco, con tres libertades. Esa es la conexión diagonal: si el rival toma uno de los dos puntos, jugás el otro.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 4 } },
+              "correct": false,
+              "comment": "Ponés en atari a la piedra negra que cortó (le queda solo (1,5)), pero tus tres piedras seguían en atari: Negro juega (3,6) y las captura antes.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l13-04",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 3 }, { "x": 6, "y": 3 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 }
+          ],
+          "white": [
+            { "x": 8, "y": 4 }, { "x": 6, "y": 5 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Tus dos piedras de la derecha, en (7,5) y (8,5), están en atari: su única libertad es (7,4). Más arriba tenés otras dos piedras negras, en (5,3) y (6,3). Juegan negras: salvá las dos piedras en atari.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 7, "y": 4 } },
+              "correct": true,
+              "comment": "Salís del atari y la cadena queda con solo dos libertades, (6,4) y (7,3). Parece poco, pero son justo los dos puntos que la piedra nueva comparte en diagonal con la de (6,3): si Blanco ocupa uno, jugás el otro y te unís a tus piedras de arriba.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 6, "y": 4 } },
+              "correct": false,
+              "comment": "Sumás una piedra a tu grupo de arriba, pero las dos de la derecha seguían en atari: Blanco juega (7,4) y las captura.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l13-05",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 5, "y": 0 }, { "x": 6, "y": 0 }, { "x": 2, "y": 1 }, { "x": 6, "y": 1 }, { "x": 2, "y": 2 },
+            { "x": 6, "y": 2 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 }
+          ],
+          "white": [
+            { "x": 3, "y": 0 }, { "x": 4, "y": 0 }, { "x": 7, "y": 0 }, { "x": 3, "y": 1 }, { "x": 4, "y": 1 }, { "x": 7, "y": 1 },
+            { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 5, "y": 2 }, { "x": 7, "y": 2 }, { "x": 6, "y": 3 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Tus cuatro piedras de arriba, en (5,0), (6,0), (6,1) y (6,2), y las siete blancas que tienen a la izquierda están encerradas una contra otra, en carrera: ninguna de las dos cadenas puede escapar. A las dos les queda una sola libertad, y es la misma. Juegan negras.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 1 } },
+              "correct": true,
+              "comment": "Quien jugaba primero en (5,1) ganaba la carrera: capturás las siete piedras blancas, y tu cadena, ahora de cinco, queda con tres libertades. No es suicidio, porque la jugada captura.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 7, "y": 3 } },
+              "correct": false,
+              "comment": "Ponés en atari a la piedra blanca de (6,3), pero la carrera se decidía en (5,1): Blanco juega ahí primero y captura tus cuatro piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l13-06",
+        "collection": "bloque-3-leccion-13",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 7, "y": 5 }, { "x": 6, "y": 6 }, { "x": 5, "y": 7 }, { "x": 8, "y": 7 }, { "x": 5, "y": 8 }, { "x": 7, "y": 8 },
+            { "x": 8, "y": 8 }
+          ],
+          "white": [
+            { "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 6, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "En el rincón de abajo a la derecha, tus tres piedras y las tres negras de la esquina están en carrera, cada cadena contra la otra. Las dos tienen una sola libertad, pero no es la misma. Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 8, "y": 6 } },
+              "correct": true,
+              "comment": "Capturás las tres piedras negras antes de que Negro capture las tuyas: con las dos cadenas en atari, gana quien juega primero. Tus tres piedras quedan con tres libertades.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 7, "y": 6 } },
+              "correct": false,
+              "comment": "Extender tu cadena no le suma libertades: queda de cuatro piedras y con una sola libertad, (8,6), que ahora es también la de la cadena negra. Negro juega ahí primero y captura tus cuatro piedras.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": { "rank": "20k", "boardSize": 9 }
   }
 ]
