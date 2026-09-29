@@ -319,28 +319,29 @@
         "boardSize": 9,
         "setup": {
           "black": [
-            { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 2, "y": 3 }, { "x": 5, "y": 3 }, { "x": 2, "y": 4 }, { "x": 4, "y": 4 }
+            { "x": 3, "y": 2 }, { "x": 2, "y": 3 }, { "x": 4, "y": 3 }, { "x": 1, "y": 4 }, { "x": 5, "y": 4 }, { "x": 3, "y": 5 },
+            { "x": 4, "y": 5 }
           ],
           "white": [
-            { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 3, "y": 4 }
+            { "x": 3, "y": 3 }, { "x": 2, "y": 4 }, { "x": 3, "y": 4 }, { "x": 4, "y": 4 }
           ]
         },
         "toPlay": "black",
         "objective": "matar",
         "difficulty": 2,
         "tree": {
-          "comment": "La piedra blanca de (3,3) quedó atrapada en una red: la piedra negra de (4,4), en diagonal, le cubría de antemano las dos salidas. Blanco intentó salir por (4,3), Negro le cerró el paso en (5,3) y Blanco probó entonces por (3,4). Ahora las tres piedras blancas están en atari. Juegan negras: terminá la captura.",
+          "comment": "Las dos piedras blancas de (3,4) y (4,4) tenían dos salidas, (3,3) y (2,4). Negro no las persiguió: jugó en (2,3), en diagonal, el punto que toca las dos salidas a la vez. Esa es la red. Blanco intentó salir por (3,3), Negro le cerró el paso en (3,2) y Blanco probó por la otra salida, (2,4), donde ya lo esperaba la piedra negra de (1,4). Ahora las cuatro piedras blancas están en atari. Juegan negras: terminá la captura.",
           "children": [
             {
-              "move": { "color": "black", "vertex": { "x": 3, "y": 5 } },
+              "move": { "color": "black", "vertex": { "x": 2, "y": 5 } },
               "correct": true,
-              "comment": "Era su última libertad: capturás las tres piedras. No hizo falta perseguirlas por el tablero, porque la red ya había cerrado las salidas y cada intento de escape terminó al lado de una piedra negra.",
+              "comment": "Era su última libertad: capturás las cuatro piedras. No hizo falta perseguirlas por el tablero, porque la piedra de (2,3) ya cubría las dos salidas y cada intento de escape terminó al lado de una piedra negra.",
               "children": []
             },
             {
-              "move": { "color": "black", "vertex": { "x": 5, "y": 4 } },
+              "move": { "color": "black", "vertex": { "x": 2, "y": 2 } },
               "correct": false,
-              "comment": "Unís dos piedras de la red, pero no capturás: las tres blancas siguen en atari, con su libertad en (3,5). Si Blanco se extiende ahí, su cadena de cuatro queda con tres libertades, (2,5), (4,5) y (3,6), y sale de la red.",
+              "comment": "Unís tres piedras de la red, pero no capturás: las cuatro blancas siguen en atari, con su libertad en (2,5). Si Blanco se extiende ahí, su cadena de cinco queda con dos libertades, (1,5) y (2,6), y sigue corriendo hacia abajo.",
               "children": []
             }
           ]
