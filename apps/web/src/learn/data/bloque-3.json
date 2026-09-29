@@ -519,5 +519,234 @@
     ],
     "checkpoint": false,
     "practiceOpponent": { "rank": "20k", "boardSize": 9 }
+  },
+  {
+    "id": "b3-l14",
+    "block": 3,
+    "workshop": 14,
+    "title": "Hane, semeai y seki",
+    "theory": [
+      "El hane es una jugada que rodea la punta de una piedra o de una cadena rival: se juega en diagonal a una piedra propia, pegada al extremo de la cadena del rival, para cerrarle el paso por ese lado. En una carrera de captura sirve para quitarle una libertad al rival o para que no se escape. Y si la cadena rival ya está en atari, con su única libertad en la punta, el hane directamente la captura.",
+      "Un hane en la primera línea, pegado al borde, tiene un riesgo: el rival lo puede poner en atari contra el borde. En ese caso hay que conectarlo enseguida con tus piedras. Si lo dejás capturar, el rival recupera la libertad que el hane le había quitado.",
+      "En la Lección 13 viste carreras simples. En las de esta lección aparecen libertades compartidas: puntos vacíos que tocan a las dos cadenas a la vez. Si ocupás una, le quitás una libertad al rival, pero también a tu cadena, y hasta la podés dejar en atari. Por eso, en general, primero se tapan las libertades de afuera, las que son solo del rival, y las compartidas quedan para el final. La excepción es una jugada que, además de tapar, le suma a tu cadena libertades nuevas.",
+      "La cuenta no cambia solo tapando: también se suma. Tu cadena gana libertades si se extiende hacia puntos vacíos, si se conecta con otras piedras tuyas o si captura una piedra rival que la tiene cortada. Si una cadena tuya está en atari, la carrera empieza por ahí: primero la salvás. Y nunca conviene tapar una libertad propia, porque es regalarle al rival una jugada de la cuenta.",
+      "Hay carreras que no gana nadie. El caso más simple: dos grupos sin ojos que comparten dos libertades y no tienen ninguna otra. Si uno de los dos ocupa una de esas libertades, su grupo queda con una sola, la otra compartida, y el rival lo captura jugando ahí. Por eso ninguno de los dos se acerca, y los dos grupos quedan vivos en el tablero. Eso se llama seki, y es la excepción que se anunció en las Lecciones 12 y 13: un grupo que vive sin tener dos ojos y sin capturar al rival. Al contar, los puntos vacíos de un seki no son de nadie.",
+      "En los ejercicios de esta lección no hay seki: en todos, la carrera ya llegó a su punto decisivo y alguien la gana. Te toca la jugada que la resuelve: capturar, o salvar tus piedras en atari. Antes de jugar, contá las libertades de las dos cadenas, fijate cuáles son compartidas y preguntate qué cambia tu jugada en esa cuenta."
+    ],
+    "exercises": [
+      {
+        "id": "b3-l14-01",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 1, "y": 1 }, { "x": 2, "y": 1 }, { "x": 1, "y": 2 }, { "x": 4, "y": 2 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 },
+            { "x": 4, "y": 3 }, { "x": 2, "y": 4 }, { "x": 4, "y": 4 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 }
+          ],
+          "white": [
+            { "x": 3, "y": 2 }, { "x": 5, "y": 2 }, { "x": 3, "y": 3 }, { "x": 5, "y": 3 }, { "x": 3, "y": 4 }, { "x": 5, "y": 4 },
+            { "x": 4, "y": 5 }, { "x": 5, "y": 5 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Arriba, tus tres piedras de (3,2), (3,3) y (3,4) y las tres negras que tienen al lado están encerradas una contra otra, en carrera. Juegan blancas: capturá.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 1 } },
+              "correct": true,
+              "comment": "Capturás las tres piedras negras con un hane: tu piedra de (4,1) queda en diagonal a las tuyas de (3,2) y (5,2) y rodea la punta de la cadena negra, justo en su única libertad. Tu cadena queda con cinco libertades. Si esperabas, Negro se extendía ahí y su cadena pasaba a tener tres libertades, (3,1), (5,1) y (4,0), contra dos de la tuya.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 2 } },
+              "correct": false,
+              "comment": "Tapás una libertad de tu propia cadena: queda de cuatro piedras y con una sola libertad, (3,1). Negro juega ahí y captura tus cuatro piedras antes de que vos captures las suyas.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l14-02",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 3, "y": 7 }, { "x": 5, "y": 7 },
+            { "x": 6, "y": 7 }, { "x": 3, "y": 8 }, { "x": 6, "y": 8 }
+          ],
+          "white": [
+            { "x": 0, "y": 5 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 }, { "x": 4, "y": 6 },
+            { "x": 0, "y": 7 }, { "x": 1, "y": 7 }, { "x": 2, "y": 7 }, { "x": 4, "y": 7 }, { "x": 1, "y": 8 }, { "x": 5, "y": 8 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Abajo a la izquierda, tus seis piedras y las cuatro blancas del rincón están encerradas una contra otra, en carrera. Juegan negras: ganá la carrera.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 4, "y": 8 } },
+              "correct": true,
+              "comment": "Capturás la piedra blanca de (5,8), que estaba en atari. Tu cadena, ahora de siete piedras, queda con dos libertades, (2,8) y (5,8), y Blanco no puede ocupar (5,8), porque su piedra no tendría libertades: por ahí te unís cuando quieras con tus piedras de la derecha. La cadena blanca del rincón queda encerrada y pierde la carrera.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 2, "y": 8 } },
+              "correct": false,
+              "comment": "Tapás la libertad que compartían las dos cadenas, así que también le quitás una a la tuya: tu cadena de siete queda en atari, con (4,8) como única libertad. La blanca también queda en atari, pero juega Blanco: en (4,8) captura tus siete piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l14-03",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 8, "y": 0 }, { "x": 6, "y": 1 }, { "x": 8, "y": 1 }, { "x": 6, "y": 2 }, { "x": 8, "y": 2 }, { "x": 6, "y": 3 },
+            { "x": 8, "y": 3 }, { "x": 6, "y": 4 }, { "x": 8, "y": 4 }, { "x": 7, "y": 5 }
+          ],
+          "white": [
+            { "x": 7, "y": 1 }, { "x": 7, "y": 2 }, { "x": 7, "y": 3 }, { "x": 7, "y": 4 }, { "x": 6, "y": 5 }, { "x": 6, "y": 6 },
+            { "x": 7, "y": 6 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "A la derecha, tus cuatro piedras, de (7,1) a (7,4), y las cinco negras del borde están en carrera, y tu cadena quedó en atari. Juegan blancas: salvala.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 8, "y": 5 } },
+              "correct": true,
+              "comment": "Capturás la piedra negra de (7,5), que separaba tu cadena de tus piedras de abajo. Tu cadena queda con dos libertades, (7,0) y (7,5), y Negro no puede ocupar (7,5), porque su piedra no tendría libertades. Además, tu piedra nueva le quitó una libertad a la cadena negra del borde, que queda en atari en (7,0).",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 7, "y": 0 } },
+              "correct": false,
+              "comment": "Salís por tu única libertad, pero extenderte no te suma libertades: tu cadena queda de cinco piedras con una sola, (6,0). La negra también quedó en atari, pero juega Negro: en (6,0) captura tus cinco piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l14-04",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 0, "y": 2 }, { "x": 1, "y": 2 }, { "x": 2, "y": 2 }, { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 },
+            { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 2, "y": 4 }
+          ],
+          "white": [
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 },
+            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "vivir",
+        "difficulty": 2,
+        "tree": {
+          "comment": "A la izquierda, tus cuatro piedras, de (0,3) a (3,3), y las tres negras de abajo están encerradas una contra otra, en carrera, y tu cadena quedó en atari. Juegan blancas: salvala.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 3, "y": 4 } },
+              "correct": true,
+              "comment": "Te extendés por tu única libertad, que también era una libertad de la cadena negra. Tu cadena, ahora de cinco, suma dos libertades nuevas, (4,4) y (3,5), y la negra queda en atari en (0,5), un punto por donde no puede escapar, porque su piedra no tendría libertades. Esta vez ocupar una libertad compartida te convenía, porque además te sumó libertades.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 0, "y": 5 } },
+              "correct": false,
+              "comment": "Ponés en atari a la cadena negra, pero la tuya seguía en atari: las dos quedan con la misma última libertad, (3,4), y juega Negro. Ahí captura tus cuatro piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l14-05",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 6, "y": 6 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 },
+            { "x": 3, "y": 7 }, { "x": 8, "y": 7 }, { "x": 4, "y": 8 }, { "x": 8, "y": 8 }
+          ],
+          "white": [
+            { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 }, { "x": 5, "y": 5 }, { "x": 6, "y": 5 },
+            { "x": 7, "y": 5 }, { "x": 8, "y": 5 }, { "x": 1, "y": 6 }, { "x": 1, "y": 7 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 },
+            { "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 1, "y": 8 }, { "x": 2, "y": 8 }, { "x": 5, "y": 8 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "vivir",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Abajo a la derecha, tu grupo y la cadena blanca de cinco piedras están en carrera. Recién jugaste un hane en (4,8), en la primera línea, rodeando la punta de la cadena blanca. Blanco respondió en (4,7) y lo dejó en atari contra el borde. Juegan negras: salvá esa piedra.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 3, "y": 8 } },
+              "correct": true,
+              "comment": "Conectás el hane con tu grupo. Tu cadena, ahora de once piedras, queda con tres libertades, (2,6), (2,7) y (7,8), contra dos de la cadena blanca, (6,8) y (7,8), y la de (7,8) es de las dos. Con una libertad de afuera más que el rival, la carrera es tuya, y es gracias al hane: sin él, Blanco tendría también la libertad de (4,8).",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 7, "y": 8 } },
+              "correct": false,
+              "comment": "Ponés en atari a la cadena blanca, pero tu hane seguía en atari: Blanco lo captura en (3,8). Su cadena recupera la libertad de (4,8), un punto que la une con su pared y que vos no podés ocupar, porque tu piedra no tendría libertades. Tu grupo queda encerrado por la pared blanca y pierde la carrera.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l14-06",
+        "collection": "bloque-3-leccion-14",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 0, "y": 1 }, { "x": 1, "y": 1 }, { "x": 2, "y": 1 }
+          ],
+          "white": [
+            { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 2, "y": 0 }, { "x": 4, "y": 1 }, { "x": 0, "y": 2 }, { "x": 2, "y": 2 },
+            { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 },
+            { "x": 4, "y": 3 }
+          ]
+        },
+        "toPlay": "black",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Arriba a la izquierda, tus tres piedras de la segunda línea y las tres blancas de la primera están encerradas una contra otra, en carrera. Juegan negras: capturá.",
+          "children": [
+            {
+              "move": { "color": "black", "vertex": { "x": 3, "y": 0 } },
+              "correct": true,
+              "comment": "Capturás las tres piedras con un hane en la primera línea: tu piedra de (3,0) queda en diagonal a la de (2,1) y rodea la punta de la cadena blanca, justo en su única libertad. Tus tres piedras quedan con cinco libertades. Si Blanco llegaba antes a (3,0), su cadena quedaba con (3,1) y (4,0), dos puntos pegados a su pared.",
+              "children": []
+            },
+            {
+              "move": { "color": "black", "vertex": { "x": 5, "y": 0 } },
+              "correct": false,
+              "comment": "Cerrás el borde un punto más lejos, pero no capturás. Blanco se extiende en (3,0) y su cadena queda con dos libertades, (3,1) y (4,0): cualquiera de las dos la une con su pared, y no podés tapar las dos. Tus tres piedras siguen encerradas y pierden la carrera.",
+              "children": []
+            }
+          ]
+        }
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": { "rank": "20k", "boardSize": 9 }
   }
 ]
