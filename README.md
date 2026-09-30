@@ -42,8 +42,8 @@ real" es un gate **manual** documentado, acotado por el requisito de WebGPU.
 ## Apoyar el proyecto
 
 tengen es gratuito, sin publicidad y de código abierto (AGPL-3.0). Si te sirve para jugar o aprender Go
-y querés ayudar a sostenerlo, podés apoyarlo en
-[GitHub Sponsors](https://github.com/sponsors/edgargomero).
+y querés ayudar a sostenerlo, podés hacer una donación del monto que quieras en
+[Mercado Pago](https://link.mercadopago.cl/kntortravel).
 
 ## Agradecimientos
 

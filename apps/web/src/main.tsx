@@ -365,8 +365,8 @@ function ModeMenu(_props: RoutableProps) {
       />
       <p class="hint">
         tengen es gratuito y de código abierto.{' '}
-        <a href="https://github.com/sponsors/edgargomero" target="_blank" rel="noopener noreferrer">
-          Apóyalo en GitHub Sponsors
+        <a href="https://link.mercadopago.cl/kntortravel" target="_blank" rel="noopener noreferrer">
+          Apóyalo con una donación
         </a>
         .
       </p>
