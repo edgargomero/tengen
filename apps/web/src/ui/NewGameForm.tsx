@@ -8,9 +8,14 @@ import { HUMAN_RANKS } from '@tengen/engine'
 import type { GameConfig, HumanColorChoice } from '../game/gameConfig'
 import { resolveHumanColor, validateConfig } from '../game/gameConfig'
 import { kataStrengthOptions } from '../game/opponentStrength'
+import type { RoomConfig } from '@tengen/go-rules'
 
 interface NewGameFormProps {
   onStart(config: GameConfig): void
+  // Habilita el oponente "Una persona (online)". Recibe el RoomConfig (sin `rules`; el nigiri viaja
+  // como 'nigiri': lo resuelve el servidor, no el cliente). Si devuelve una promesa que se rechaza,
+  // el formulario muestra el aviso de error. Sin esta prop la opción no se ofrece.
+  onStartOnline?(config: RoomConfig): void | Promise<void>
   onBack(): void
   // `initial` prellena el estado de inicio del formulario (se lee una sola vez al montar).
   // Se usa para Task 13 (Aprender: "Practicar contra Human SL"). Sin especificar, el comportamiento
@@ -37,11 +42,11 @@ function defaultMainTimeMin(size: BoardSize): number {
 const DEFAULT_BYOYOMI_PERIODS = 5
 const DEFAULT_BYOYOMI_SECONDS = 30
 
-export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
+export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGameFormProps) {
   // Tamaño por defecto: 9×9 (partida más corta y rápida — mejor primera experiencia jugable que
   // 19×19; además el usuario puede subir de tamaño cuando quiera).
   const [boardSize, setBoardSize] = useState<BoardSize>(initial?.boardSize ?? 9)
-  const [opponentKind, setOpponentKind] = useState<'human' | 'kata'>(initial?.opponentKind ?? 'kata')
+  const [opponentKind, setOpponentKind] = useState<'human' | 'kata' | 'online'>(initial?.opponentKind ?? 'kata')
   const [humanRank, setHumanRank] = useState<HumanRank>(initial?.humanRank ?? '5k')
   // Qué fuerzas se ofrecen depende del dispositivo: en móvil hay UNA (25 visitas ≈ 15 s por jugada
   // a las ~1,5 visitas/s medidas en un iPhone 12); en escritorio siguen las tres. Se calcula en cada
@@ -94,6 +99,11 @@ export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
   function handleSubmit(evt: Event): void {
     evt.preventDefault()
     setErrorMsg(null)
+    if (opponentKind === 'online') {
+      if (!onStartOnline) return
+      submitOnline(onStartOnline)
+      return
+    }
     const opponent: RankLevel =
       opponentKind === 'human' ? { kind: 'human', rank: humanRank } : { kind: 'kata', visits: kataVisits }
     // El sorteo del nigiri (único Math.random() del feature) ocurre ACÁ, una sola vez. Con el color
@@ -123,12 +133,38 @@ export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
     }
   }
 
+  // Online: el color 'nigiri' NO se sortea acá (lo resuelve el servidor al entrar el rival), y
+  // `rules` no viaja: las reglas de la sala son las de `@tengen/go-rules` (área).
+  function submitOnline(start: (config: RoomConfig) => void | Promise<void>): void {
+    const config: RoomConfig = {
+      boardSize,
+      komi,
+      handicap,
+      creatorColor: colorLocked ? 'black' : colorChoice,
+      ...(clockEnabled
+        ? {
+            clock: {
+              mainTimeMs: mainTimeMin * 60_000,
+              byoyomiPeriods,
+              byoyomiPeriodMs: byoyomiSeconds * 1000,
+            },
+          }
+        : {}),
+    }
+    const fail = () => setErrorMsg('No se pudo crear la partida online. Revisa tu conexión e intenta de nuevo.')
+    try {
+      Promise.resolve(start(config)).catch(fail)
+    } catch {
+      fail()
+    }
+  }
+
   // Lo que el pliegue muestra CERRADO: el estado real de lo que hay dentro. Un disclosure que
   // sólo dice "Reglas y reloj" obliga a abrirlo para saber con qué se va a jugar; con el resumen,
   // el formulario entero es honesto sin scrollear. Se recalcula en cada render — es concatenar
   // cinco strings.
   const ajustesResumen = [
-    rules === 'chinese' ? 'chinas' : 'japonesas',
+    ...(opponentKind === 'online' ? [] : [rules === 'chinese' ? 'chinas' : 'japonesas']),
     `komi ${komi}`,
     handicap === 0 ? 'sin handicap' : `${handicap} piedras`,
     clockEnabled ? `${mainTimeMin} min + ${byoyomiPeriods}×${byoyomiSeconds} s` : 'sin reloj',
@@ -187,6 +223,16 @@ export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
             >
               Human SL (estilo humano)
             </button>
+            {onStartOnline && (
+              <button
+                type="button"
+                aria-pressed={opponentKind === 'online'}
+                class={opponentKind === 'online' ? 'active' : ''}
+                onClick={() => setOpponentKind('online')}
+              >
+                Una persona (online)
+              </button>
+            )}
           </div>
 
           {/* Con una sola fuerza posible no se dibuja una fila de un botón: una elección de una
@@ -291,6 +337,7 @@ export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
           <span class="form-details-current">{ajustesResumen}</span>
         </summary>
         <div class="form-details-body">
+          {opponentKind !== 'online' && (
           <div class="field">
             <span class="eyebrow" id="new-game-rules-label">Reglas</span>
             <div class="choice-row" role="group" aria-labelledby="new-game-rules-label">
@@ -312,6 +359,7 @@ export function NewGameForm({ onStart, onBack, initial }: NewGameFormProps) {
               </button>
             </div>
           </div>
+          )}
 
           <div class="field-row">
             <label class="field">

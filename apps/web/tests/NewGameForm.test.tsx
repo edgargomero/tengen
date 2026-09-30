@@ -14,6 +14,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/preact'
 import '@testing-library/jest-dom/vitest'
 import { NewGameForm } from '../src/ui/NewGameForm'
 import type { GameConfig } from '../src/game/gameConfig'
+import type { RoomConfig } from '@tengen/go-rules'
 import { CHROME_IOS, CHROME_MAC } from './fixtures/userAgents'
 
 /**
@@ -253,5 +254,69 @@ describe('NewGameForm — prop `initial` (prefill del formulario)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
     expect(onStart).toHaveBeenCalledOnce()
     expect(onStart.mock.calls[0]![0].boardSize).toBe(13)
+  })
+})
+
+describe('NewGameForm — oponente "Una persona (online)"', () => {
+  function renderOnline() {
+    const onStart = vi.fn<(c: GameConfig) => void>()
+    const onStartOnline = vi.fn<(c: RoomConfig) => void>()
+    render(<NewGameForm onStart={onStart} onStartOnline={onStartOnline} onBack={vi.fn()} />)
+    return { onStart, onStartOnline }
+  }
+
+  it('ofrece una tercera opción y al elegirla oculta fuerza, nivel y reglas', () => {
+    renderOnline()
+    expect(screen.getByText('Reglas')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
+    expect(screen.getByRole('button', { name: 'Una persona (online)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('Fuerza')).toBeNull()
+    expect(screen.queryByText('Nivel')).toBeNull()
+    expect(screen.queryByText('Reglas')).toBeNull()
+  })
+
+  it('"Empezar" llama onStartOnline con el RoomConfig (sin rules, nigiri sin sortear)', () => {
+    const { onStart, onStartOnline } = renderOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
+    fireEvent.click(screen.getByRole('button', { name: '13×13' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nigiri, color al azar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(onStart).not.toHaveBeenCalled()
+    expect(onStartOnline).toHaveBeenCalledOnce()
+    const cfg = onStartOnline.mock.calls[0]![0]
+    expect(cfg).toEqual({
+      boardSize: 13,
+      komi: 7,
+      handicap: 0,
+      creatorColor: 'nigiri',
+      clock: { mainTimeMs: 20 * 60_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
+    })
+    expect('rules' in cfg).toBe(false)
+  })
+
+  it('sin reloj omite clock; con handicap fuerza negro', () => {
+    const { onStartOnline } = renderOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
+    fireEvent.click(screen.getByRole('button', { name: '19×19' }))
+    fireEvent.change(screen.getByRole('combobox', { name: /Handicap/ }), { target: { value: '4' } })
+    fireEvent.click(screen.getByLabelText('Sin reloj'))
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    const cfg = onStartOnline.mock.calls[0]![0]
+    expect(cfg.creatorColor).toBe('black')
+    expect(cfg.handicap).toBe(4)
+    expect('clock' in cfg).toBe(false)
+  })
+
+  it('un rechazo de onStartOnline se muestra como aviso', async () => {
+    const onStartOnline = vi.fn().mockRejectedValue(new Error('sin red'))
+    render(<NewGameForm onStart={vi.fn()} onStartOnline={onStartOnline} onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(await screen.findByText(/No se pudo crear la partida online/)).toBeInTheDocument()
+  })
+
+  it('sin onStartOnline no ofrece la opción', () => {
+    renderForm()
+    expect(screen.queryByRole('button', { name: 'Una persona (online)' })).toBeNull()
   })
 })

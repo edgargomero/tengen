@@ -39,6 +39,10 @@ import { AppFrame } from './ui/AppFrame'
 import { AppVersionFooter } from './ui/AppVersionFooter'
 import { DiagnosticoView } from './ui/DiagnosticoView'
 import { NewGameForm } from './ui/NewGameForm'
+import { OnlineGameView } from './ui/OnlineGameView'
+import { createRoom } from './online/identity'
+import { onlineRoomIdFromPath } from './online/onlineRoute'
+import type { RoomConfig } from '@tengen/go-rules'
 import { PartidasView } from './ui/PartidasView'
 import { AprenderView } from './ui/AprenderView'
 import { PlayView } from './ui/PlayView'
@@ -186,6 +190,14 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
     setStartedHere(true)
   }
 
+  // Partida online: crea la sala y NAVEGA con el documento entero (no `route()`): la pantalla de la
+  // sala vive fuera del router y del gate de WebGPU (ver `Root`). Si `createRoom` lanza, el
+  // formulario muestra el aviso; si sale bien, la página se va y no hay nada más que hacer acá.
+  async function handleStartOnline(config: RoomConfig): Promise<void> {
+    const { roomId } = await createRoom(config)
+    window.location.assign(`/online/${encodeURIComponent(roomId)}`)
+  }
+
   function handleImport(config: GameConfig, tree: GameTree): void {
     setSession({ config, initialTree: tree })
     setSessionKey((k) => k + 1)
@@ -217,7 +229,7 @@ function PlayApp({ onBack }: { onBack(): void } & RoutableProps) {
   const practicaActiva = practiceWins(startedHere, prefill)
   if (session === null || practicaActiva) {
     return (
-      <NewGameForm onStart={handleStart} onBack={onBack} initial={practicaActiva ? prefill.initial : undefined} />
+      <NewGameForm onStart={handleStart} onStartOnline={handleStartOnline} onBack={onBack} initial={practicaActiva ? prefill.initial : undefined} />
     )
   }
   return (
@@ -404,9 +416,12 @@ function Root() {
   // vez de usar el router porque el router vive DENTRO del gate. Como se llega con `<a href>` (navegación
   // completa del documento), el valor no cambia mientras este componente está montado.
   const diagnostico = window.location.pathname === DIAGNOSTICO_PATH
+  // La sala online se decide acá por la misma razón: jugar contra una persona no necesita WebGPU,
+  // y el router está dentro del gate. Se llega con navegación completa (`location.assign`).
+  const onlineRoomId = onlineRoomIdFromPath(window.location.pathname)
   return (
     <>
-      {diagnostico ? <DiagnosticoView /> : <App />}
+      {diagnostico ? <DiagnosticoView /> : onlineRoomId ? <OnlineGameView roomId={onlineRoomId} /> : <App />}
       <PwaToast
         updateReady={sw.updateReady}
         offlineReady={sw.offlineReady && offlineToast}
