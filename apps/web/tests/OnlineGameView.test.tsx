@@ -247,6 +247,27 @@ describe('OnlineGameView en juego', () => {
     expect(await screen.findByText(text)).toBeInTheDocument()
   })
 
+  it('perder por tiempo: el reloj del que cayó queda en 00:00 sin byoyomi', async () => {
+    const cfgRoom: RoomEvent = { ...created, config: { ...config, clock: clockCfg } }
+    const low = { mainTimeRemainingMs: 0, byoyomiPeriodsRemaining: 1, inByoyomi: true }
+    await play('creator', [
+      cfgRoom, joined, started,
+      { seq: 3, at: NOW, type: 'move', color: 'black', x: 4, y: 4, clock: low },
+      { seq: 4, at: NOW, type: 'timeout', color: 'white' },
+      { seq: 5, at: NOW, type: 'ended', result: 'B+T' },
+    ])
+    expect(await screen.findByText('Negro gana por tiempo')).toBeInTheDocument()
+    expect(screen.getByText('Blanco (rival)').parentElement).toHaveTextContent('00:00')
+    expect(screen.getByText('Blanco (rival)').parentElement).not.toHaveTextContent('byoyomi')
+    expect(screen.getByText('Negro (vos)').parentElement).toHaveTextContent('byoyomi 1')
+  })
+
+  it('las pantallas de tarjeta (espera) van centradas como el resto', async () => {
+    await play('creator', [created])
+    expect(await screen.findByText('Esperando rival')).toBeInTheDocument()
+    expect(document.querySelector('main.card-screen.mode-menu')).not.toBeNull()
+  })
+
   it('cuenta regresiva local del reloj en turno, recalculada desde turnStartedAt en cada evento', async () => {
     let now = NOW + 10_000
     vi.spyOn(Date, 'now').mockImplementation(() => now)

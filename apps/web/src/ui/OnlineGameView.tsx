@@ -57,7 +57,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
 
   if (conn.status === 'not-found') {
     return (
-      <main class="card-screen">
+      <main class="card-screen mode-menu">
         <h1>Partida online</h1>
         <p class="notice notice--danger">Esta partida no existe o ya expiró</p>
         <div class="action-row">
@@ -71,7 +71,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
 
   if (state === null) {
     return (
-      <main class="card-screen">
+      <main class="card-screen mode-menu">
         <h1>Partida online</h1>
         <p class="hint">Conectando…</p>
       </main>
@@ -80,7 +80,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
 
   if (state.phase === 'waiting') {
     return (
-      <main class="card-screen">
+      <main class="card-screen mode-menu">
         <h1>Esperando rival</h1>
         <ShareLink roomId={roomId} />
       </main>
@@ -174,6 +174,9 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
 
   function displayedClock(color: StoneColor) {
     if (!clock || !state.clocks) return null
+    // Perdió por tiempo: el último valor guardado es el de su jugada anterior; se muestra en cero.
+    const flagged = state.phase === 'ended' && state.result?.endsWith('+T') ? (state.result[0] === 'B' ? 'white' : 'black') : null
+    if (flagged === color) return { ms: 0, periodsRemaining: 0, inByoyomi: false }
     const live = ticking && state.toPlay === color && state.turnStartedAt !== undefined
     const elapsed = live ? Date.now() - state.turnStartedAt! : 0
     return displayClock(state.clocks[color], clock, elapsed)
