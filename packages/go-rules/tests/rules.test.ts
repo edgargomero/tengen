@@ -10,7 +10,7 @@ import {
   isMoveSequenceLegal,
   signMapOf,
   validateMove,
-} from '../src/game/rules'
+} from '../src/rules'
 
 // Serializa un conjunto de tuplas [x,y] a Set<string> para comparar sin depender del orden.
 function asSet(pts: [number, number][]): Set<string> {

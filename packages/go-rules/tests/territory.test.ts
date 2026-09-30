@@ -9,8 +9,8 @@
 // adjudicada a uno solo, por ejemplo).
 import { describe, expect, it } from 'vitest'
 import type { BoardSize } from '@tengen/engine'
-import { countArea } from '../src/game/territory'
-import type { SetupStones } from '../src/game/rules'
+import { countArea } from '../src/territory'
+import type { SetupStones } from '../src/rules'
 
 const SIZE: BoardSize = 9
 

@@ -21,7 +21,7 @@ import type { Analysis, BoardSize, MoveAnalysis, StoneColor, Vertex as TengenVer
 import type { GhostStone, HeatVertex, Marker } from '@sabaki/shudan'
 import type { GameNode as TengenGameNode, GameTree } from '../game/gameTree'
 import type { AnalysisStore } from './analysisStore'
-import { colorToSign } from '../game/coords'
+import { colorToSign } from '@tengen/go-rules'
 import { adaptGameNode } from './katrainAdapter'
 import { qualityCategoryForPointsLost } from './reviewSummary'
 import type { QualityTone } from './reviewSummary'

@@ -19,7 +19,7 @@ import type { BoardSize, Move, Rules, StoneColor } from '@tengen/engine'
 import sgf from '@sabaki/sgf'
 import type { SgfNode } from '@sabaki/sgf'
 import { GameTree, type GameNode } from './gameTree'
-import { handicapVertices, type SetupStones } from './rules'
+import { handicapVertices, type SetupStones } from '@tengen/go-rules'
 
 /** Vértice del motor {x,y} → coordenada SGF de 2 letras (columna=x primero, a=0). */
 export function vertexToSgf(v: { x: number; y: number }): string {

@@ -8,7 +8,7 @@
 // reintentarla sigue siendo fuera-de-arbol — el árbol de solución no se contamina.
 import type { Move, StoneColor } from '@tengen/engine'
 import { GameTree, type GameNode } from '../game/gameTree'
-import { validateMove } from '../game/rules'
+import { validateMove } from '@tengen/go-rules'
 import type { Exercise, ExerciseNode } from './exercise'
 
 export type SessionState = 'esperando' | 'respondiendo' | 'resuelto' | 'fallado'

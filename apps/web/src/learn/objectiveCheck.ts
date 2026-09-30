@@ -7,8 +7,7 @@
 // propio enunciado de FEDIBERGO admite más de una jugada válida en los problemas de defensa.
 import GoBoard from '@sabaki/go-board'
 import type { StoneColor } from '@tengen/engine'
-import { boardFromMoves, applyMove, capturesOf, validateMove } from '../game/rules'
-import { colorToSign } from '../game/coords'
+import { applyMove, boardFromMoves, capturesOf, colorToSign, validateMove } from '@tengen/go-rules'
 import type { Exercise } from './exercise'
 
 export interface ObjectiveCheckResult {

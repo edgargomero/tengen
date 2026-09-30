@@ -1,6 +1,6 @@
 import type { Move, RankLevel } from '@tengen/engine'
 import { describe, expect, it } from 'vitest'
-import { isGameOverByTwoPasses } from '../src/game/endgame'
+import { isGameOverByTwoPasses } from '@tengen/go-rules'
 import { GameTree } from '../src/game/gameTree'
 import { type StorageLike, clearGame, loadGame, saveGame } from '../src/game/persistence'
 import { exportSgf } from '../src/game/sgf'

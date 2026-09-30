@@ -21,7 +21,7 @@ import {
 } from '../learn/engineRefutation'
 import { recordResult } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'
-import { signMapOf } from '../game/rules'
+import { signMapOf } from '@tengen/go-rules'
 import { useBoundedBoardSize, type BoundedBoardSize } from './useBoundedBoardSize'
 
 /** Mismo tamaño de vértice que Analizar en 19×19 (`VERTEX_SIZE` de AnalyzeView, que no exporta). */

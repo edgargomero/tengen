@@ -7,8 +7,7 @@
 // es o bien un `Exercise` (jugada, con `tree`) o bien un `CountingExercise` (conteo, con `kind:
 // 'conteo'`) -- discriminados por `isCountingExercise`.
 import type { BoardSize } from '@tengen/engine'
-import type { SetupStones } from '../game/rules'
-import { countArea } from '../game/territory'
+import { countArea, type SetupStones } from '@tengen/go-rules'
 import type { Exercise } from './exercise'
 
 export interface CountingExercise {

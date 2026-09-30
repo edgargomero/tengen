@@ -16,7 +16,7 @@ import type { BoardSize, ClockConfig, ClockState, Move, Position, Rules, StoneCo
 import { initialClockState } from '@tengen/engine'
 import type GoBoard from '@sabaki/go-board'
 import type { GameConfig } from './gameConfig'
-import { boardFromMoves, currentTurn, type SetupStones } from './rules'
+import { boardFromMoves, currentTurn, type SetupStones } from '@tengen/go-rules'
 
 /** Metadata de la partida (subconjunto de GameConfig relevante al árbol + SGF; sin `opponent`). */
 export interface GameTreeMeta {

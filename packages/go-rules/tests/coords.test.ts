@@ -4,7 +4,7 @@ import {
   engineToSabakiVertex,
   sabakiToEngineVertex,
   signToColor,
-} from '../src/game/coords'
+} from '../src/coords'
 
 describe('engineToSabakiVertex / sabakiToEngineVertex', () => {
   it('round-trip motor→sabaki→motor conserva el vértice', () => {

@@ -10,7 +10,7 @@
 //   (marca explícita del SGF o heurística "primera rama = solución" con WARNING): la sesión no
 //   adivina nada en runtime. En nodos del rival `correct` no aplica.
 import type { BoardSize, Move, StoneColor } from '@tengen/engine'
-import { isMoveSequenceLegal, type SetupStones } from '../game/rules'
+import { isMoveSequenceLegal, type SetupStones } from '@tengen/go-rules'
 
 export type ExerciseObjective = 'matar' | 'vivir' | 'ko' | 'desconocido'
 

@@ -16,9 +16,7 @@
 // está presente.
 import { useMemo, useRef, useState } from 'preact/hooks'
 import { BoundedGoban } from '@sabaki/shudan'
-import { boardFromMoves, signMapOf } from '../game/rules'
-import { countArea } from '../game/territory'
-import { formatResult } from '../game/endgame'
+import { boardFromMoves, countArea, formatResult, signMapOf } from '@tengen/go-rules'
 import type { CountingExercise } from '../learn/countingExercise'
 import { recordResult } from '../learn/progress'
 import type { StorageLike } from '../game/persistence'

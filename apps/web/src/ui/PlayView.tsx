@@ -40,15 +40,23 @@ import type { GameSnapshot } from '../cloud/api'
 import { SyncBadge } from '../cloud/SyncBadge'
 import { buildGameSnapshot } from '../cloud/snapshot'
 import { useCloudSync } from '../cloud/useCloudSync'
-import { formatResult, isGameOverByTwoPasses } from '../game/endgame'
+import {
+  capturesOf,
+  colorToSign,
+  engineToSabakiVertex,
+  formatResult,
+  isGameOverByTwoPasses,
+  isMoveSequenceLegal,
+  sabakiToEngineVertex,
+  signMapOf,
+  validateMove,
+} from '@tengen/go-rules'
 import type { GameConfig } from '../game/gameConfig'
 import { networkForOpponent, oppositeColor, validateConfig } from '../game/gameConfig'
 import { kataStrengthLabel } from '../game/opponentStrength'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
-import { capturesOf, isMoveSequenceLegal, signMapOf, validateMove } from '../game/rules'
 import { exportSgf, importSgf } from '../game/sgf'
-import { colorToSign, engineToSabakiVertex, sabakiToEngineVertex } from '../game/coords'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
 import { useBoundedBoardSize } from './useBoundedBoardSize'

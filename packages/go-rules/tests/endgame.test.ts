@@ -1,6 +1,6 @@
 import type { Move } from '@tengen/engine'
 import { describe, expect, it } from 'vitest'
-import { formatResult, isGameOverByTwoPasses } from '../src/game/endgame'
+import { formatResult, isGameOverByTwoPasses } from '../src/endgame'
 
 describe('formatResult — sin resign (scoreLead persp. Negro)', () => {
   it('scoreLead positivo → B+X.X', () => {
