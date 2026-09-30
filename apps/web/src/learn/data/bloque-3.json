@@ -792,7 +792,7 @@
             {
               "move": { "color": "white", "vertex": { "x": 1, "y": 1 } },
               "correct": false,
-              "comment": "Unís tus dos piedras de adentro, pero no capturás nada: la cadena negra sigue con su última libertad en (4,0). Si Negro juega ahí, se une con su pared de afuera por (5,0), queda una sola cadena negra con doce libertades, y tu rincón queda abierto por el borde.",
+              "comment": "Unís tus dos piedras de adentro, pero no capturás nada: la cadena negra sigue con su última libertad en (4,0). Si Negro juega ahí, se une con su pared de afuera por (5,0) y queda una sola cadena negra con doce libertades: esas tres piedras ya no se pueden capturar, y los puntos (2,0), (3,0), (3,1) y (4,0) pasan a ser de Negro.",
               "children": []
             }
           ]
@@ -921,9 +921,9 @@
             { "x": 2, "y": 7 }, { "x": 5, "y": 7 }, { "x": 1, "y": 8 }, { "x": 2, "y": 8 }, { "x": 5, "y": 8 }
           ],
           "white": [
-            { "x": 3, "y": 0 }, { "x": 4, "y": 1 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 4, "y": 4 }, { "x": 0, "y": 5 },
-            { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 4, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 3, "y": 7 },
-            { "x": 4, "y": 7 }, { "x": 3, "y": 8 }, { "x": 4, "y": 8 }
+            { "x": 3, "y": 0 }, { "x": 3, "y": 1 }, { "x": 4, "y": 1 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 4, "y": 4 },
+            { "x": 0, "y": 5 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 4, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 },
+            { "x": 3, "y": 7 }, { "x": 4, "y": 7 }, { "x": 3, "y": 8 }, { "x": 4, "y": 8 }
           ]
         },
         "correctScore": { "black": 46, "white": 35 },
