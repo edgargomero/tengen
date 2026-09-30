@@ -7,8 +7,12 @@ import type { StorageLike } from '../game/persistence'
 import { getPlayerId, getSeatToken, setSeatToken, type FetchLike } from './identity'
 
 export interface RoomConnectionState {
-  /** `full`: el servidor cerró con 1013 (sala al tope de espectadores); terminal, sin reintentos. */
-  status: 'connecting' | 'open' | 'reconnecting' | 'not-found' | 'full'
+  /**
+   * `full`: el servidor cerró con 1013 (sala al tope de espectadores); terminal, sin reintentos.
+   * `replaced`: cerró con 4001 (el mismo dueño abrió el asiento en otra pestaña o dispositivo);
+   * terminal también: reconectar arrancaría una guerra de pestañas.
+   */
+  status: 'connecting' | 'open' | 'reconnecting' | 'not-found' | 'full' | 'replaced'
   seat?: SeatRole | 'spectator'
   events: RoomEvent[]
   lastRejected?: RejectReason
@@ -66,7 +70,7 @@ function defaultUrl(roomId: string, qs: string): string {
 export function connectRoom(
   roomId: string,
   opts: ConnectRoomOpts,
-): { send(intent: Intent): RejectReason | null; close(): void } {
+): { send(intent: Intent): RejectReason | null; joinAsPlayer(): void; close(): void } {
   const fetchFn: FetchLike = opts.fetchFn ?? ((i, init) => fetch(i, init))
   const sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)))
   const makeSocket = opts.socketFactory ?? ((url) => new WebSocket(url))
@@ -93,6 +97,10 @@ export function connectRoom(
   let forceReconnect: (() => void) | null = null
   // Comprueba la vida del socket ya (visibilitychange / online).
   let checkAlive: (() => void) | null = null
+  // `joinAsPlayer`: `join=1` en el PRÓXIMO upgrade (un solo uso: se limpia al recibir `welcome`) y
+  // reconexión inmediata, sin el `sleep` del backoff ni el estado visible `reconnecting`.
+  let joinNext = false
+  let reconnectNow = false
 
   const emit = () =>
     opts.onState({ status, seat, events: [...events], lastRejected, rejectCount, serverOffsetMs, presence })
@@ -124,6 +132,7 @@ export function connectRoom(
     switch (msg.t) {
       case 'welcome':
         if (msg.seatToken) setSeatToken(opts.storage, roomId, msg.seatToken)
+        joinNext = false
         seat = msg.seat
         merge(msg.events)
         noteServerNow(msg.serverNow)
@@ -158,6 +167,7 @@ export function connectRoom(
       const params = new URLSearchParams({ playerId: getPlayerId(opts.storage) })
       const token = getSeatToken(opts.storage, roomId)
       if (token) params.set('token', token)
+      if (joinNext) params.set('join', '1')
       if (events.length) params.set('lastSeq', String(events[events.length - 1]!.seq))
       const ws = makeSocket(defaultUrl(roomId, params.toString()))
       socket = ws
@@ -250,11 +260,21 @@ export function connectRoom(
       }
       const code = await openSocket()
       if (closed) return
+      if (code === 4001) {
+        // Otro dispositivo del mismo dueño tomó el asiento: terminal, sin reintentos.
+        status = 'replaced'
+        emit()
+        return
+      }
       if (code === 1013) {
         // Sala llena de espectadores: reintentar no sirve, es un estado terminal.
         status = 'full'
         emit()
         return
+      }
+      if (reconnectNow) {
+        reconnectNow = false
+        continue
       }
       status = 'reconnecting'
       emit()
@@ -274,7 +294,9 @@ export function connectRoom(
       if (!socket || status !== 'open') return 'illegal'
       // Intención ya en vuelo: el doble toque no se reenvía (el servidor rechazaría la copia como
       // `stale` y mostraría un aviso falso). Devuelve null: para quien toca, la jugada está "en camino".
-      if (inFlight) return null
+      // `resign` es la excepción: no depende de `seq` vigente, y rendirse nunca debe quedar trabado
+      // detrás de una jugada sin confirmar.
+      if (inFlight && intent.type !== 'resign') return null
       const msg: ClientMessage = { t: 'intent', intent }
       socket.send(JSON.stringify(msg))
       inFlight = true
@@ -282,6 +304,13 @@ export function connectRoom(
       if (ackTimer !== null) timers.clear(ackTimer)
       ackTimer = timers.set(() => forceReconnect?.(), ACK_TIMEOUT_MS)
       return null
+    },
+    joinAsPlayer() {
+      joinNext = true
+      // Sin socket vivo (caída en curso) el próximo upgrade ya lleva `join=1`; nada más que hacer.
+      if (!forceReconnect) return
+      reconnectNow = true
+      forceReconnect()
     },
     close() {
       closed = true

@@ -1,5 +1,6 @@
 // Textos en español de la pantalla de partida online (motivos de rechazo y resultado).
-import type { RejectReason, ScoreBreakdown, SideScore } from '@tengen/go-rules'
+import type { RejectReason, RoomState, ScoreBreakdown, SideScore } from '@tengen/go-rules'
+import type { StoneColor } from '@tengen/engine/types'
 
 const REJECT_TEXT: Record<RejectReason, string> = {
   stale: 'La partida cambió mientras jugabas; probá de nuevo',
@@ -53,4 +54,13 @@ export function scoreLines(score: ScoreBreakdown): { black: string; white: strin
     black: sideLine('Negro', score.black, score.rules),
     white: sideLine('Blanco', score.white, score.rules),
   }
+}
+
+/**
+ * Color que perdió por tiempo (resultado `+T` con la partida terminada), o `null`. Su reloj guardado
+ * es el de su jugada anterior: pantalla y SGF lo tratan como cero.
+ */
+export function flaggedColor(state: Pick<RoomState, 'phase' | 'result'>): StoneColor | null {
+  if (state.phase !== 'ended' || !state.result?.endsWith('+T')) return null
+  return state.result[0] === 'B' ? 'white' : 'black'
 }

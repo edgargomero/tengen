@@ -314,4 +314,58 @@ describe('connectRoom', () => {
     expect(sockets).toHaveLength(1)
     expect(sleeps).toHaveLength(0)
   })
+  it('resign salta la guarda de intención en vuelo; un move igual no', async () => {
+    const { sockets, conn } = setup()
+    await flush()
+    const sock = sockets[0]!
+    sock.emit({ t: 'welcome', seat: 'creator', events: base })
+    expect(conn.send({ type: 'move', x: 0, y: 0, seq: 3 })).toBeNull()
+    expect(sock.sent).toHaveLength(1)
+    expect(conn.send({ type: 'resign', seq: 3 })).toBeNull()
+    expect(sock.sent).toHaveLength(2)
+    expect(JSON.parse(sock.sent[1]!).intent.type).toBe('resign')
+  })
+
+  it('cierre 4001 → replaced, sin reintentos ni nuevo socket', async () => {
+    const { sockets, sleeps, states, last } = setup()
+    await flush()
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', events: base })
+    sockets[0]!.drop(4001)
+    await flush()
+    expect(last().status).toBe('replaced')
+    expect(sockets).toHaveLength(1)
+    expect(sleeps).toHaveLength(0)
+    expect(states.some((s) => s.status === 'reconnecting')).toBe(false)
+  })
+
+  it('el socket abandonado por heartbeat no dispara replaced aunque cierre con 4001', async () => {
+    const { sockets, timers, last } = setup()
+    await flush()
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', events: base })
+    timers.advance(15_000 + 5_000) // ping sin pong → se abandona
+    await flush()
+    sockets[0]!.drop(4001)
+    await flush()
+    expect(last().status).not.toBe('replaced')
+  })
+
+  it('joinAsPlayer: reconecta ya (sin sleep ni reconnecting) con join=1 una sola vez', async () => {
+    const { sockets, sleeps, states, conn, last } = setup()
+    await flush()
+    expect(sockets[0]!.url).not.toContain('join=1')
+    sockets[0]!.emit({ t: 'welcome', seat: 'spectator', events: [created] })
+    conn.joinAsPlayer()
+    await flush()
+    expect(sockets).toHaveLength(2)
+    expect(sockets[1]!.url).toContain('join=1')
+    expect(sleeps).toHaveLength(0)
+    expect(states.some((s) => s.status === 'reconnecting')).toBe(false)
+    sockets[1]!.emit({ t: 'welcome', seat: 'guest', seatToken: 'g', events: base })
+    expect(last().seat).toBe('guest')
+    // La siguiente reconexión ya no lleva join=1.
+    sockets[1]!.drop()
+    await flush()
+    expect(sockets).toHaveLength(3)
+    expect(sockets[2]!.url).not.toContain('join=1')
+  })
 })
