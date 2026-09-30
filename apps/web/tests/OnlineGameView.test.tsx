@@ -138,10 +138,27 @@ describe('OnlineGameView: marco, asiento y replaced', () => {
     await waitFor(() => expect(sockets.length).toBe(1))
     sockets[0]!.emit({ t: 'welcome', seat: 'spectator', events: [created] })
     fireEvent.click(await screen.findByRole('button', { name: 'Solo mirar' }))
-    expect(screen.queryByRole('button', { name: 'Jugar contra tu rival' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Solo mirar' })).toBeNull()
     expect(screen.getByText('Esperando rival')).toBeInTheDocument()
     expect(sockets).toHaveLength(1)
+    // Es espectador: no ve el link de invitación del creador, pero puede cambiar de idea.
+    expect(screen.queryByRole('button', { name: 'Copiar' })).toBeNull()
+    expect(screen.queryByText(/Pasale este link/)).toBeNull()
+    expect(screen.getByText(/La partida empieza cuando entre el invitado/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jugar contra tu rival' })).toBeInTheDocument()
+  })
+
+  it('tras tocar "Jugar contra tu rival" el botón queda deshabilitado ("Entrando…") y un segundo toque no reconecta', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'spectator', events: [created] })
+    const btn = await screen.findByRole('button', { name: 'Jugar contra tu rival' })
+    fireEvent.click(btn)
+    const entering = await screen.findByRole('button', { name: 'Entrando…' })
+    expect(entering).toBeDisabled()
+    fireEvent.click(entering)
+    await waitFor(() => expect(sockets.length).toBe(2))
+    expect(sockets).toHaveLength(2)
   })
 
   it('el creador en espera no ve la elección y sigue viendo el link', async () => {

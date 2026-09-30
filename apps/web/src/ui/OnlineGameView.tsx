@@ -47,6 +47,13 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
   const joinRef = useRef<(() => void) | null>(null)
   // "Solo mirar": el visitante declinó el asiento de invitado y queda en la espera de espectador.
   const [watchOnly, setWatchOnly] = useState(false)
+  // Tras tocar "Jugar contra tu rival" el botón queda deshabilitado hasta que llegue el `welcome`
+  // (la pantalla cambia): sin feedback el gesto natural es tocar de nuevo.
+  const [joining, setJoining] = useState(false)
+  const join = () => {
+    setJoining(true)
+    joinRef.current?.()
+  }
 
   useEffect(() => {
     const handle = connectRoom(roomId, {
@@ -136,8 +143,8 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
             <h1>Esta partida espera un rival</h1>
             <p class="hint">Todavía no tiene invitado: podés ser el rival o sólo mirar.</p>
             <div class="action-row">
-              <button type="button" class="primary" onClick={() => joinRef.current?.()}>
-                Jugar contra tu rival
+              <button type="button" class="primary" disabled={joining} onClick={join}>
+                {joining ? 'Entrando…' : 'Jugar contra tu rival'}
               </button>
               <button type="button" class="ghost" onClick={() => setWatchOnly(true)}>
                 Solo mirar
@@ -147,11 +154,24 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
         </OnlineFrame>
       )
     }
+    // El link de invitación es del creador; quien eligió "Solo mirar" espera sin invitar a nadie.
+    const isCreator = conn.seat === 'creator'
     return (
       <OnlineFrame>
         <main class="card-screen mode-menu">
           <h1>Esperando rival</h1>
-          <ShareLink roomId={roomId} />
+          {isCreator ? (
+            <ShareLink roomId={roomId} />
+          ) : (
+            <>
+              <p class="hint">La partida empieza cuando entre el invitado; la vas a ver desde acá.</p>
+              <div class="action-row">
+                <button type="button" class="ghost" disabled={joining} onClick={join}>
+                  {joining ? 'Entrando…' : 'Jugar contra tu rival'}
+                </button>
+              </div>
+            </>
+          )}
         </main>
       </OnlineFrame>
     )

@@ -306,6 +306,9 @@ export function connectRoom(
       return null
     },
     joinAsPlayer() {
+      // Idempotente mientras el join no fue confirmado por `welcome`: un segundo toque mataría el
+      // socket cuyo `welcome` trae el `seatToken` y el asiento de invitado se perdería para siempre.
+      if (joinNext) return
       joinNext = true
       // Sin socket vivo (caída en curso) el próximo upgrade ya lleva `join=1`; nada más que hacer.
       if (!forceReconnect) return
