@@ -186,6 +186,45 @@ describe('sala: handicap y reloj', () => {
   })
 })
 
+describe('sala: rendición tras vencer el reloj (M-2)', () => {
+  it('resign con el tiempo del que rinde ya vencido → timeout de él, no resign del rival', () => {
+    const base = started(cfg({ clock: CLOCK }))
+    const d = flagDeadline(project(base))!
+    // Negras (creador, en turno) se rinden pero su reloj ya venció: pierden por tiempo.
+    const r = reduce(base, 'creator', { type: 'resign', seq: 3 }, d)
+    expect('events' in r).toBe(true)
+    if (!('events' in r)) return
+    expect(r.events.map((e) => e.type)).toEqual(['timeout', 'ended'])
+    expect(r.events[1]).toMatchObject({ result: 'W+T' })
+  })
+
+  it('resign del rival (fuera de turno) con el reloj del jugador en turno vencido → pierde por tiempo el del turno', () => {
+    const base = started(cfg({ clock: CLOCK }))
+    const d = flagDeadline(project(base))!
+    const r = reduce(base, 'guest', { type: 'resign', seq: 3 }, d + 5)
+    if (!('events' in r)) throw new Error('rejected')
+    expect(r.events[0]).toMatchObject({ type: 'timeout', color: 'black' })
+    expect(r.events[1]).toMatchObject({ result: 'W+T' })
+  })
+
+  it('resign antes del deadline sigue siendo resign', () => {
+    const base = started(cfg({ clock: CLOCK }))
+    const d = flagDeadline(project(base))!
+    const r = reduce(base, 'creator', { type: 'resign', seq: 3 }, d - 1)
+    if (!('events' in r)) throw new Error('rejected')
+    expect(r.events[0]).toMatchObject({ type: 'resign', color: 'black' })
+  })
+})
+
+describe('sala: intenciones de tipo desconocido', () => {
+  it('validateIntentLocally y reduce rechazan un type fuera de move|pass|resign', () => {
+    const base = started()
+    const bogus = { type: 'explode', seq: 3 } as unknown as Intent
+    expect(validateIntentLocally(project(base), 'creator', bogus)).toBe('illegal')
+    expect(reduce(base, 'creator', bogus, T0 + 1)).toEqual({ rejected: 'illegal' })
+  })
+})
+
 describe('sala: fin de partida', () => {
   it('dos pases seguidos → ended con conteo de área + komi', () => {
     let ev = started(cfg({ komi: 0.5 }))

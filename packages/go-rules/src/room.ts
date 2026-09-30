@@ -129,6 +129,8 @@ export function validateIntentLocally(
   intent: Intent,
 ): RejectReason | null {
   if (seat === 'spectator') return 'not-a-player'
+  // Lista blanca: un tipo desconocido no debe caer en la rama de `pass`.
+  if (intent.type !== 'move' && intent.type !== 'pass' && intent.type !== 'resign') return 'illegal'
   if (state.phase === 'waiting') return 'not-started'
   if (state.phase === 'ended') return 'game-over'
   if (intent.seq !== state.nextSeq) return 'stale'
@@ -171,6 +173,12 @@ export function reduce(
   now: number,
 ): { events: RoomEvent[] } | { rejected: RejectReason } {
   const state = project(events)
+  // Si el reloj de quien está en turno ya venció, el timeout gana a cualquier intención (incluida
+  // la rendición de cualquiera de los dos): el resultado lo decide el tiempo, no quién escribió antes.
+  const deadline = flagDeadline(state)
+  if (seat !== 'spectator' && deadline !== undefined && state.toPlay && now >= deadline) {
+    return { events: timeoutEvents(state.toPlay, state.nextSeq, now) }
+  }
   const rejected = validateIntentLocally(state, seat, intent)
   if (rejected) return { rejected }
   if (seat === 'spectator' || !state.colors) return { rejected: 'not-a-player' }
