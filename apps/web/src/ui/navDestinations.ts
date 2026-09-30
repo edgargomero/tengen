@@ -9,6 +9,8 @@
 // evaluación: si el login se va, "Mis partidas" se borra de un array y la navegación no se entera.
 // Todo acá es puro (sin DOM, sin router), así que se testea en Node.
 
+import { GOOGLE_LOGIN_VISIBLE } from '../cloud/loginVisibility'
+
 export interface NavDestination {
   id: string
   label: string
@@ -17,14 +19,14 @@ export interface NavDestination {
 
 /** Los destinos que el marco ofrece, en el orden en que se dibujan.
  *
- * "Mis partidas" va SIEMPRE, con o sin sesión: sin ella lleva a la pantalla que ya existe e invita
- * a loguearse. Ocultarlo haría saltar el layout de 2 a 3 celdas al iniciar sesión — un marco que
+ * "Mis partidas" depende SOLO de si el login se ofrece (`GOOGLE_LOGIN_VISIBLE`), nunca del estado
+ * de la sesión: ocultarlo según la cuenta haría saltar el layout al iniciar sesión — un marco que
  * cambia de forma según el estado de la cuenta deja de ser un marco. */
 export const NAV_DESTINATIONS: readonly NavDestination[] = [
   { id: 'jugar', label: 'Jugar', path: '/jugar' },
   { id: 'analizar', label: 'Analizar', path: '/analizar' },
   { id: 'aprender', label: 'Aprender', path: '/aprender' },
-  { id: 'partidas', label: 'Mis partidas', path: '/partidas' },
+  ...(GOOGLE_LOGIN_VISIBLE ? [{ id: 'partidas', label: 'Mis partidas', path: '/partidas' }] : []),
 ]
 
 /** Etiqueta de UBICACIÓN ("dónde estás"), que no siempre coincide con la del destino: `/` no es un

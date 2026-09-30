@@ -12,6 +12,7 @@ import { getGame, listGames } from '../cloud/api'
 import { signInWithGoogle } from '../cloud/authClient'
 import { setPendingOpen } from '../cloud/pendingOpen'
 import { useSession } from '../cloud/useSession'
+import { GOOGLE_LOGIN_VISIBLE } from '../cloud/loginVisibility'
 
 /** fetch del browser, sin envoltorio inyectable: este componente no tiene test Node (el repo no
  * testea UI — ver Task 4), así que no hace falta la indirección que sí usa gameSync.ts. */
@@ -83,10 +84,16 @@ export function PartidasView(_props: RoutableProps) {
     return (
       <main class="card-screen partidas-view">
         <h1>Mis partidas</h1>
-        <p>Inicia sesión con Google para ver tus partidas guardadas en la nube.</p>
-        <button class="primary" onClick={signInWithGoogle}>
-          Iniciar sesión con Google
-        </button>
+        {GOOGLE_LOGIN_VISIBLE ? (
+          <>
+            <p>Inicia sesión con Google para ver tus partidas guardadas en la nube.</p>
+            <button class="primary" onClick={signInWithGoogle}>
+              Iniciar sesión con Google
+            </button>
+          </>
+        ) : (
+          <p>Las partidas en la nube no están disponibles. Tu partida en curso se guarda en este navegador.</p>
+        )}
       </main>
     )
   }

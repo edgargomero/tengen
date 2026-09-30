@@ -31,6 +31,7 @@ import { useRef } from 'preact/hooks'
 import { getCurrentUrl, route, useRouter } from 'preact-router'
 import { signInWithGoogle, type SessionUser } from '../cloud/authClient'
 import { useSession } from '../cloud/useSession'
+import { GOOGLE_LOGIN_VISIBLE } from '../cloud/loginVisibility'
 import { useOnlineStatus } from '../pwa/useOnlineStatus'
 import { NAV_DESTINATIONS, activeDestinationFor, locationLabelFor, normalizePath } from './navDestinations'
 import { NavigationGuardContext, type NavigationGuardRegistry } from './navigationGuard'
@@ -166,6 +167,7 @@ function SessionBadge({ user, pending }: SessionBadgeProps) {
   // medio segundo después es peor que no decir nada (mismo criterio que el pie del menú).
   if (pending) return null
   if (user === null) {
+    if (!GOOGLE_LOGIN_VISIBLE) return null
     return (
       <button type="button" class="topbar-session" onClick={signInWithGoogle}>
         Iniciar sesión

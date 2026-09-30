@@ -125,12 +125,9 @@ describe('ubicación y destino activo', () => {
 })
 
 describe('estado de sesión', () => {
-  it('sin sesión ofrece iniciarla — es lo que arregla el problema', () => {
-    // Sin sesión la partida no se guarda en la nube y hasta ahora nada lo decía fuera del menú.
+  it('sin sesión no ofrece iniciarla: el login de Google está oculto (GOOGLE_LOGIN_VISIBLE)', () => {
     renderEn('/jugar')
-    const boton = screen.getByRole('button', { name: 'Iniciar sesión' })
-    fireEvent.click(boton)
-    expect(mocks.signInWithGoogle).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Iniciar sesión' })).toBeNull()
   })
 
   it('con sesión muestra quién eres, sin ofrecer cerrarla', () => {

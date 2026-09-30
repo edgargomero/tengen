@@ -66,10 +66,8 @@ describe('NAV_DESTINATIONS', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('incluye "Mis partidas" — se ofrece con o sin sesión', () => {
-    // Ocultarlo sin sesión haría saltar el marco de 2 a 3 celdas al loguearse; la pantalla de
-    // invitación ya existe (`PartidasView`, rama `user === null`).
-    expect(NAV_DESTINATIONS.map((d) => d.path)).toContain('/partidas')
+  it('no incluye "Mis partidas" mientras el login de Google está oculto', () => {
+    expect(NAV_DESTINATIONS.map((d) => d.path)).not.toContain('/partidas')
   })
 
   it('cada destino tiene una ubicación con el mismo nombre', () => {
@@ -84,7 +82,7 @@ describe('NAV_DESTINATIONS', () => {
 describe('activeDestinationFor', () => {
   it('encuentra el destino de la ruta actual', () => {
     expect(activeDestinationFor('/analizar')?.id).toBe('analizar')
-    expect(activeDestinationFor('/partidas?code=abc')?.id).toBe('partidas')
+    expect(activeDestinationFor('/aprender?x=1')?.id).toBe('aprender')
   })
 
   it('no marca ninguno en el menú ni en una ruta desconocida', () => {

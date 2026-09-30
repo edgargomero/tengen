@@ -33,6 +33,7 @@ import { importSgf } from './game/sgf'
 import { signInWithGoogle, signOut } from './cloud/authClient'
 import { takePendingOpen } from './cloud/pendingOpen'
 import { useSession } from './cloud/useSession'
+import { GOOGLE_LOGIN_VISIBLE } from './cloud/loginVisibility'
 import { AnalyzeView } from './ui/AnalyzeView'
 import { AppFrame } from './ui/AppFrame'
 import { AppVersionFooter } from './ui/AppVersionFooter'
@@ -338,6 +339,8 @@ function ModeMenu(_props: RoutableProps) {
       {/* Login opcional (Fase 5): jugar/analizar sin cuenta sigue igual que siempre; loguearse
           solo habilita guardar/listar/reabrir en la nube. `pending` evita el parpadeo del botón
           de login mientras el get-session inicial está en vuelo. */}
+      {/* Con el login oculto, el pie solo aparece para una sesión que ya existía (para poder cerrarla). */}
+      {(GOOGLE_LOGIN_VISIBLE || (!pending && user !== null)) && (
       <div class="menu-footer menu-footer--session">
         {pending ? null : user !== null ? (
           <>
@@ -351,6 +354,7 @@ function ModeMenu(_props: RoutableProps) {
           <button onClick={signInWithGoogle}>Iniciar sesión con Google</button>
         )}
       </div>
+      )}
       {/* Qué versión corre este dispositivo + chequeo manual. El menú es el lugar: es la única
           pantalla sin tablero ni reloj, así que nada de esto compite con la partida. */}
       <AppVersionFooter
