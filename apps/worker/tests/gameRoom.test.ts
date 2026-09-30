@@ -399,9 +399,14 @@ describe('T2: privacidad, gesto, un socket por asiento, sala abandonada', () => 
     expect(again.closeCode).toBeUndefined()
     expect(guest.closeCode).toBeUndefined()
     expect(spec.closeCode).toBeUndefined()
-    guest.send({ t: 'intent', intent: { type: 'pass', seq: 3 } })
-    // el creador es negras: pasa el guest (blancas) fuera de turno; basta que el nuevo socket reciba difusión
-    await again.next((m) => m.t === 'rejected' || m.t === 'events' || m.t === 'presence')
+    // El socket NUEVO del creador (negras) juega y la difusión de eventos llega a los demás y a él mismo.
+    again.send({ t: 'intent', intent: { type: 'move', x: 4, y: 4, seq: 3 } })
+    const isMove = (m: Record<string, unknown>) => m.t === 'events' && (m.events as RoomEvent[])[0]?.type === 'move'
+    expect(await again.next(isMove)).toMatchObject({ t: 'events' })
+    await guest.next(isMove)
+    await spec.next(isMove)
+    // el socket viejo ya no recibe nada más: sigue cerrado con 4001
+    expect(creator.closeCode).toBe(4001)
   })
 
   it('R3: sala sin reloj en playing agenda alarm a último evento + 30 días; vencida se borra', async () => {

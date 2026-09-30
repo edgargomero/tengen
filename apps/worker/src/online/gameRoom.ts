@@ -218,7 +218,7 @@ export class GameRoom extends DurableObject<Env> {
     if (
       (state.phase === 'waiting' && created && now >= created.at + WAITING_TTL_MS) ||
       (state.phase === 'ended' && last && now >= last.at + ENDED_TTL_MS) ||
-      (state.phase === 'playing' && !state.config.clock && last && now >= last.at + IDLE_TTL_MS)
+      (state.phase === 'playing' && flagDeadline(state) === undefined && last && now >= last.at + IDLE_TTL_MS)
     ) {
       for (const ws of this.ctx.getWebSockets()) {
         try {
@@ -251,7 +251,8 @@ export class GameRoom extends DurableObject<Env> {
     let at: number | undefined
     if (state.phase === 'playing') {
       at = flagDeadline(state)
-      // Sin reloj no hay flag: alarm de abandono en último evento + 30 días.
+      // Sin flag (partida sin reloj) la sala se recolecta por abandono: mismo predicado que `alarm()`
+      // (`flagDeadline(state) === undefined`), para que nunca diverjan y queden en una alarm en el pasado.
       if (at === undefined && last) at = last.at + IDLE_TTL_MS
     }
     else if (state.phase === 'scoring') at = scoringDeadline(state)
