@@ -4,5 +4,6 @@
 import type { Lesson } from './lesson'
 import bloque1 from './data/bloque-1.json'
 import bloque2 from './data/bloque-2.json'
+import bloque3 from './data/bloque-3.json'
 
-export const CURRICULUM: readonly Lesson[] = [...bloque1, ...bloque2] as unknown as readonly Lesson[]
+export const CURRICULUM: readonly Lesson[] = [...bloque1, ...bloque2, ...bloque3] as unknown as readonly Lesson[]
