@@ -1,6 +1,6 @@
 // Fin de partida del "Modo Jugar" (Fase 2, Task 4). Módulo puro: formatea el resultado final
 // (resign o estimación de score) y detecta el fin por dos pases consecutivos. Sin UI, sin motor.
-import type { Move, StoneColor } from '@tengen/engine'
+import type { Move, StoneColor } from '@tengen/engine/types'
 
 /**
  * Resultado en formato estilo SGF RE ("B+7.5", "W+3.5", "Draw", "B+R", "W+R", "B+T", "W+T").

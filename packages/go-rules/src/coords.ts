@@ -10,7 +10,7 @@
 //
 // El pase ('pass') NO es un vértice de tablero: no se convierte aquí. Los callers manejan el
 // pase por separado (Move.vertex === 'pass').
-import type { StoneColor } from '@tengen/engine'
+import type { StoneColor } from '@tengen/engine/types'
 
 /** Vértice del motor {x,y} → tupla de go-board [x,y]. */
 export function engineToSabakiVertex(v: { x: number; y: number }): [number, number] {

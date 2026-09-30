@@ -5,7 +5,7 @@
 // Solo `import type` de @tengen/engine (el worker no debe arrastrar onnxruntime); el reloj viene
 // del subpath liviano '@tengen/engine/clock'.
 import { applyElapsed, initialClockState } from '@tengen/engine/clock'
-import type { BoardSize, ClockConfig, ClockState, Move, StoneColor } from '@tengen/engine'
+import type { BoardSize, ClockConfig, ClockState, Move, StoneColor } from '@tengen/engine/types'
 import { countArea } from './territory'
 import { boardFromMoves, currentTurn, signMapOf, validateMove, type SetupStones } from './rules'
 import { formatResult, isGameOverByTwoPasses } from './endgame'

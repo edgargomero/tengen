@@ -11,7 +11,7 @@
 // Task 2 (gameTree) por separado; aquí solo se maneja el tablero de reglas/visualización.
 import GoBoard from '@sabaki/go-board'
 import type { SignMap } from '@sabaki/go-board'
-import type { BoardSize, Move, StoneColor } from '@tengen/engine'
+import type { BoardSize, Move, StoneColor } from '@tengen/engine/types'
 import { colorToSign } from './coords'
 
 /**

@@ -1,12 +1,17 @@
 import { Hono } from 'hono'
 import { createAuth } from './auth'
 import { gamesApp } from './games'
+import { GameRoom } from './online/gameRoom'
+import { roomsApp } from './online/rooms'
+
+export { GameRoom }
 
 export interface Env {
   MODELS: R2Bucket
   ASSETS: Fetcher
   DB: D1Database
   LIMITER: RateLimit
+  GAME_ROOM: DurableObjectNamespace<GameRoom>
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
   BETTER_AUTH_SECRET: string
@@ -64,6 +69,9 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.ra
 
 // Partidas en la nube (requireUser adentro; escrituras con rate limit por usuario).
 app.route('/api/games', gamesApp)
+
+// Partidas online humano vs humano (un Durable Object por sala). Antes del fallback ASSETS.
+app.route('/api/rooms', roomsApp)
 
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))
 

@@ -11,7 +11,7 @@
 // Riesgo documentado, no de código: una piedra "muerta" por descuido en una posición curada cuenta
 // como viva y envenena a dame la región vecina. Fuera de alcance simular vida/muerte -- las
 // posiciones de conteo son curadas a mano sin ambigüedad, por diseño.
-import type { BoardSize } from '@tengen/engine'
+import type { BoardSize } from '@tengen/engine/types'
 import { boardFromMoves, type SetupStones } from './rules'
 
 /**
