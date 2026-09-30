@@ -716,30 +716,30 @@
         "boardSize": 9,
         "setup": {
           "black": [
-            { "x": 0, "y": 1 }, { "x": 1, "y": 1 }, { "x": 2, "y": 1 }
+            { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 2, "y": 0 }, { "x": 2, "y": 1 }, { "x": 3, "y": 1 }, { "x": 3, "y": 2 },
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 2, "y": 4 }
           ],
           "white": [
-            { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 2, "y": 0 }, { "x": 4, "y": 1 }, { "x": 0, "y": 2 }, { "x": 2, "y": 2 },
-            { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 },
-            { "x": 4, "y": 3 }
+            { "x": 5, "y": 0 }, { "x": 0, "y": 1 }, { "x": 1, "y": 1 }, { "x": 4, "y": 1 }, { "x": 5, "y": 1 }, { "x": 0, "y": 2 },
+            { "x": 1, "y": 2 }, { "x": 4, "y": 2 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }
           ]
         },
         "toPlay": "black",
         "objective": "matar",
-        "difficulty": 2,
+        "difficulty": 3,
         "tree": {
-          "comment": "Arriba a la izquierda, tus tres piedras de la segunda línea y las tres blancas de la primera están encerradas una contra otra, en carrera. Juegan negras: capturá.",
+          "comment": "Arriba a la izquierda, tus seis piedras de arriba y las cuatro blancas que tienen debajo están en carrera. Tu cadena tiene dos libertades y la blanca una sola, pero Blanco tiene su pared muy cerca. Juegan negras.",
           "children": [
             {
-              "move": { "color": "black", "vertex": { "x": 3, "y": 0 } },
+              "move": { "color": "black", "vertex": { "x": 2, "y": 2 } },
               "correct": true,
-              "comment": "Capturás las tres piedras con un hane en la primera línea: tu piedra de (3,0) queda en diagonal a la de (2,1) y rodea la punta de la cadena blanca, justo en su única libertad. Tus tres piedras quedan con cinco libertades. Si Blanco llegaba antes a (3,0), su cadena quedaba con (3,1) y (4,0), dos puntos pegados a su pared.",
+              "comment": "Capturás las cuatro piedras blancas. (2,2) era su última libertad y también una de las tuyas: una libertad compartida, de las que se tapan al final, y acá ya era el final. Además, era el punto por donde la cadena blanca se unía con su pared de (2,3). Tu cadena, ahora de siete piedras, queda con cuatro libertades.",
               "children": []
             },
             {
-              "move": { "color": "black", "vertex": { "x": 5, "y": 0 } },
+              "move": { "color": "black", "vertex": { "x": 3, "y": 0 } },
               "correct": false,
-              "comment": "Cerrás el borde un punto más lejos, pero no capturás. Blanco se extiende en (3,0) y su cadena queda con dos libertades, (3,1) y (4,0): cualquiera de las dos la une con su pared, y no podés tapar las dos. Tus tres piedras siguen encerradas y pierden la carrera.",
+              "comment": "Te extendés por el borde, pero no sumás nada: tu cadena, ahora de siete, sigue con dos libertades, (2,2) y (4,0). Blanco juega (2,2), se une con su pared por (2,3) y te deja en atari en (4,0), un punto donde no podés jugar, porque tu piedra no tendría libertades. En la jugada siguiente captura tus siete piedras.",
               "children": []
             }
           ]
