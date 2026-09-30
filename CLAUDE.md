@@ -11,10 +11,14 @@ App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataG
 ## Comandos
 
 - `npm test` — Vitest de todos los workspaces (`npm test -w @tengen/engine` para uno).
+  - Flaky bajo carga (paralelismo): `AprenderView`, `CountingExercisePlayer` y `NewGameForm` "en móvil" pueden fallar por timeout; re-correrlos aislados (`npx -w @tengen/web vitest run <archivo>`) antes de tratarlos como regresión.
 - `npm run typecheck` — `tsc --noEmit` de los 4 workspaces (`npx -w @tengen/engine tsc --noEmit` para uno; strict + noUncheckedIndexedAccess).
 - **CI** (`.github/workflows/ci.yml`): en cada PR y push a `main` corre `typecheck` → `npm test` → build del web. Hermético (sin modelos ni secretos): `build` no bundlea los ONNX y `test:nn` NO corre ahí. Frontera de testing en `docs/TESTING.md`.
 - `npm run dev -w @tengen/web` — Vite dev server de la SPA (Preact) sola, sin API.
 - `wrangler dev` (desde `apps/worker/`) — Worker local con la API real (auth, D1); necesario para probar login/partidas guardadas, ya que Vite solo no tiene API. Requiere `.dev.vars` (ver `.dev.vars.example`).
+  - Para probar **partidas online** alcanza un `.dev.vars` con valores dummy (sin OAuth real; borrarlo al terminar). Antes: `npm run build -w @tengen/web` y `npx wrangler d1 migrations apply tengen-db --local`. Bind por defecto (solo localhost), nunca `--ip 0.0.0.0`.
+  - Dos jugadores en un mismo Chrome = dos orígenes: `localhost:8787`, `127.0.0.1:8787` y `[::1]:8787` tienen localStorage (y `playerId`) separados.
+  - La PWA es `registerType: 'prompt'`: tras rebuildear, un origen ya visitado sigue sirviendo el bundle viejo desde el SW. Para probar el build nuevo, usar un origen sin visitar o aceptar el toast.
 - **Deploy a producción** (manual, sin CI todavía): `npm run build -w @tengen/web` y después `wrangler deploy` desde `apps/worker/` (su `assets.directory` en `wrangler.jsonc` apunta a `../web/dist`).
 - `packages/engine/scripts/download-models.sh` — descarga los ONNX publicados a `packages/engine/models/` (gitignored) validando bytes.
 - `npm run bench` — harness de benchmark en Chrome (`bench.html` vía Vite; requiere modelos descargados). El dev server sirve `/models/` y `/ort-dist/` (runtime de onnxruntime-web) vía middlewares propios en `vite.config.ts` — Vite no puede servir imports de módulo desde `public/`, y el worker de ORT exige header COEP: no "simplificar" eso.
@@ -24,6 +28,7 @@ App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataG
   - Red **sin** vectores propios (Human SL, y cualquier futura) → `npx tsx packages/engine/scripts/validate-humanv0-mixed.ts`, que compara la red contra su propio fp32 con el mismo input. Ojo con la métrica: para una red que **muestrea** (Human SL usa temperatura, no argmax) el veredicto lo da la **distancia de variación total** de la distribución de muestreo, no la diferencia de logit crudo — TV acota exactamente la probabilidad de que las dos versiones elijan jugadas distintas, y el logit exagera en un orden de magnitud lo que eso significa. Los umbrales se fijan ANTES de mirar los resultados.
 - Vectores de referencia del engine (herramienta local, no del producto): `packages/engine/scripts/setup-katago.sh` instala **KataGo desktop 1.16.5** (`brew install katago`) + descarga los `.bin.gz` oficiales, y `gen-reference.mjs` genera los fixtures `kata-raw-nn` (JSON committeado en `tests/fixtures/reference/`) contra los que se testea el encoding. `numSearchThreads=1`, `SYMMETRY=0` para determinismo.
 - Auditoría de contraste del diseño (herramienta local, no del producto): `apps/web/scripts/contrast-audit.js` se pega en la consola de Chrome sobre la app corriendo y `__contrastAudit()` devuelve los fallos de AA. Mide el **DOM renderizado** resolviendo el fondo efectivo capa por capa — calcular sobre la paleta NO alcanza: tres fallos reales (el botón primario a 2.71:1, `--tone-success`, `--tone-warning`) sobrevivieron a una ronda entera de aritmética sobre valores sueltos. Correr por pestaña y por tema: solo ve lo pintado en ese momento. El sistema de diseño está en `.kntor-design-atomic/system.md`.
+- Prueba manual en Chrome (extensión): si un clic por `ref` no dispara el handler de Preact, usar `element.click()` vía JS antes de sospechar del producto. Las intersecciones del tablero son `.shudan-vertex[data-x][data-y]`, clickeables con `.click()`.
 
 ## Datos medidos que gobiernan decisiones (fase 0, Chrome/WebGPU, Apple M1)
 
