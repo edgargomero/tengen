@@ -11,6 +11,7 @@ declare module 'cloudflare:test' {
 }
 
 const DAY = 24 * 60 * 60 * 1000
+const IDLE = 30 * DAY
 const CONFIG: RoomConfig = { boardSize: 9, komi: 6.5, handicap: 0, creatorColor: 'black' }
 const P1 = 'player-creator-01'
 const P2 = 'player-guest-0002'
@@ -101,7 +102,7 @@ async function startedRoom(config: RoomConfig = CONFIG) {
   const { roomId, seatToken } = await createRoom(config)
   const creator = await connect(roomId, { playerId: P1, token: seatToken })
   await creator.next((m) => m.t === 'welcome')
-  const guest = await connect(roomId, { playerId: P2 })
+  const guest = await connect(roomId, { playerId: P2, join: '1' })
   const gw = await guest.next((m) => m.t === 'welcome')
   await creator.next((m) => m.t === 'events')
   return { roomId, seatToken, guestToken: gw.seatToken as string, creator, guest }
@@ -174,7 +175,7 @@ describe('GameRoom por WebSocket', () => {
     const { roomId, seatToken } = await createRoom()
     const creator = await connect(roomId, { playerId: P1, token: seatToken })
     await creator.next((m) => m.t === 'welcome')
-    const guest = await connect(roomId, { playerId: P2 })
+    const guest = await connect(roomId, { playerId: P2, join: '1' })
     const gw = await guest.next((m) => m.t === 'welcome')
     expect(gw.seat).toBe('guest')
     expect(typeof gw.seatToken).toBe('string')
@@ -289,7 +290,8 @@ describe('GameRoom por WebSocket', () => {
     expect(again.closeCode).toBeUndefined()
     const g = await connect(roomId, { playerId: P2, token: guestToken })
     expect(await g.next((m) => m.t === 'welcome')).toMatchObject({ seat: 'guest' })
-    expect(creator.closeCode).toBeUndefined()
+    // un socket por asiento: el viejo del creador se desplaza con 4001
+    expect(await creator.waitClose()).toBe(4001)
   })
 
   it('I-2: el DO responde pong al ping crudo', async () => {
@@ -307,7 +309,7 @@ describe('GameRoom por WebSocket', () => {
     const w = await creator.next((m) => m.t === 'welcome')
     expect(typeof w.serverNow).toBe('number')
     expect(Math.abs((w.serverNow as number) - before)).toBeLessThan(10_000)
-    const guest = await connect(roomId, { playerId: P2 })
+    const guest = await connect(roomId, { playerId: P2, join: '1' })
     const gw = await guest.next((m) => m.t === 'welcome')
     expect(typeof gw.serverNow).toBe('number')
     const ev = await creator.next((m) => m.t === 'events')
@@ -344,6 +346,106 @@ describe('GameRoom por WebSocket', () => {
     guest.ws.close(1000)
     const p = await creator.next((m) => m.t === 'presence' && m.guest === false)
     expect(p).toMatchObject({ creator: true, guest: false })
+  })
+})
+
+describe('T2: privacidad, gesto, un socket por asiento, sala abandonada', () => {
+  const hasPlayerId = (evs: RoomEvent[]) => evs.some((e) => 'playerId' in e)
+
+  it('I-4: welcome y broadcast no llevan playerId; el storage sí lo conserva', async () => {
+    const { roomId, seatToken } = await createRoom()
+    const creator = await connect(roomId, { playerId: P1, token: seatToken })
+    const cw = await creator.next((m) => m.t === 'welcome')
+    expect(hasPlayerId(cw.events as RoomEvent[])).toBe(false)
+    const guest = await connect(roomId, { playerId: P2, join: '1' })
+    const gw = await guest.next((m) => m.t === 'welcome')
+    expect(hasPlayerId(gw.events as RoomEvent[])).toBe(false)
+    const ev = await creator.next((m) => m.t === 'events')
+    expect((ev.events as RoomEvent[]).map((e) => e.type)).toEqual(['joined', 'started'])
+    expect(hasPlayerId(ev.events as RoomEvent[])).toBe(false)
+    const spec = await connect(roomId, { playerId: P3 })
+    const sw = await spec.next((m) => m.t === 'welcome')
+    expect(hasPlayerId(sw.events as RoomEvent[])).toBe(false)
+    const stored = await runInDurableObject(stubOf(roomId), (_i, state) => state.storage.get<RoomEvent[]>('events'))
+    expect(stored!.filter((e) => 'playerId' in e).length).toBe(2)
+    const keys = await runInDurableObject(stubOf(roomId), async (_i, state) => [...(await state.storage.list()).keys()])
+    expect(keys).not.toContain('creatorPlayerId')
+  })
+
+  it('M-5: sin join=1 es espectador y la sala sigue en waiting; con join=1 es guest', async () => {
+    const { roomId } = await createRoom()
+    const spec = await connect(roomId, { playerId: P2 })
+    const w = await spec.next((m) => m.t === 'welcome')
+    expect(w.seat).toBe('spectator')
+    expect(w.seatToken).toBeUndefined()
+    const phase = await runInDurableObject(stubOf(roomId), async (_i, state) =>
+      project((await state.storage.get<RoomEvent[]>('events'))!).phase,
+    )
+    expect(phase).toBe('waiting')
+    const guest = await connect(roomId, { playerId: P2, join: '1' })
+    const gw = await guest.next((m) => m.t === 'welcome')
+    expect(gw.seat).toBe('guest')
+    expect(typeof gw.seatToken).toBe('string')
+    expect((gw.events as RoomEvent[]).map((e) => e.type)).toEqual(['created', 'joined', 'started'])
+  })
+
+  it('un socket por asiento: la segunda conexión del creador cierra la primera con 4001', async () => {
+    const { roomId, seatToken, creator, guest } = await startedRoom()
+    const spec = await connect(roomId, { playerId: P3 })
+    await spec.next((m) => m.t === 'welcome')
+    const again = await connect(roomId, { playerId: P1, token: seatToken })
+    await again.next((m) => m.t === 'welcome')
+    expect(await creator.waitClose()).toBe(4001)
+    expect(again.closeCode).toBeUndefined()
+    expect(guest.closeCode).toBeUndefined()
+    expect(spec.closeCode).toBeUndefined()
+    guest.send({ t: 'intent', intent: { type: 'pass', seq: 3 } })
+    // el creador es negras: pasa el guest (blancas) fuera de turno; basta que el nuevo socket reciba difusión
+    await again.next((m) => m.t === 'rejected' || m.t === 'events' || m.t === 'presence')
+  })
+
+  it('R3: sala sin reloj en playing agenda alarm a último evento + 30 días; vencida se borra', async () => {
+    const { roomId } = await startedRoom()
+    const stub = stubOf(roomId)
+    const { alarm, last } = await runInDurableObject(stub, async (_i, state) => {
+      const events = (await state.storage.get<RoomEvent[]>('events'))!
+      return { alarm: await state.storage.getAlarm(), last: events[events.length - 1]!.at }
+    })
+    expect(alarm).toBe(last + IDLE)
+    // antes del plazo la sala sigue
+    await rewind(roomId, IDLE - 60_000)
+    await runDurableObjectAlarm(stub)
+    expect((await SELF.fetch(`https://example.com/api/rooms/${roomId}`)).status).toBe(200)
+    const again = await runInDurableObject(stub, async (_i, state) => {
+      const events = (await state.storage.get<RoomEvent[]>('events'))!
+      return { alarm: await state.storage.getAlarm(), last: events[events.length - 1]!.at }
+    })
+    expect(again.alarm).toBe(again.last + IDLE)
+    // vencido
+    await rewind(roomId, 2 * 60_000)
+    expect(await runDurableObjectAlarm(stub)).toBe(true)
+    const keys = await runInDurableObject(stub, async (_i, state) => [...(await state.storage.list()).keys()])
+    expect(keys).toEqual([])
+    expect((await SELF.fetch(`https://example.com/api/rooms/${roomId}`)).status).toBe(404)
+  })
+
+  it('R3: una sala CON reloj no se ve afectada (alarm en flagDeadline)', async () => {
+    const clock = { mainTimeMs: 1000, byoyomiPeriods: 1, byoyomiPeriodMs: 1000 }
+    const { roomId } = await startedRoom({ ...CONFIG, clock })
+    const { alarm, deadline } = await runInDurableObject(stubOf(roomId), async (_i, state) => {
+      const events = (await state.storage.get<RoomEvent[]>('events'))!
+      return { alarm: await state.storage.getAlarm(), deadline: flagDeadline(project(events)) }
+    })
+    expect(alarm).toBe(deadline)
+  })
+
+  it('M-7: GET /api/rooms/:id con el limiter agotado da 429', async () => {
+    const { roomId } = await createRoom()
+    const { roomsApp } = await import('../src/online/rooms')
+    const limited = { ...env, LIMITER: { limit: async () => ({ success: false }) } }
+    const res = await roomsApp.request(`/${roomId}`, {}, limited)
+    expect(res.status).toBe(429)
+    expect(((await res.json()) as { error: string }).error).toBe('Demasiadas consultas seguidas; espera un momento.')
   })
 })
 

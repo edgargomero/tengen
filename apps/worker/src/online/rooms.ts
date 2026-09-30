@@ -80,6 +80,9 @@ roomsApp.post('/', async (c) => {
 })
 
 roomsApp.get('/:id', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+  const { success } = await c.env.LIMITER.limit({ key: `roomget:${ip}` })
+  if (!success) return c.json({ error: 'Demasiadas consultas seguidas; espera un momento.' }, 429)
   const stub = c.env.GAME_ROOM.get(c.env.GAME_ROOM.idFromName(c.req.param('id')))
   if (!(await stub.exists())) return c.json({ exists: false }, 404)
   return c.json({ exists: true })

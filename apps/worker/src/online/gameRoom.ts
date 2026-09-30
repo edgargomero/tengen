@@ -25,6 +25,8 @@ const MAX_SOCKETS = 50
 // El tope aplica sólo a espectadores: los dos asientos siempre pueden (re)conectar.
 const MAX_SPECTATORS = MAX_SOCKETS - 2
 const MAX_MESSAGE_LEN = 1024
+// Sala en juego sin reloj: si nadie mueve en 30 días se considera abandonada y se borra.
+const IDLE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 interface Tokens {
   creator?: string
@@ -48,6 +50,20 @@ function sanitizePlayerId(raw: string): string {
   return raw.length < 8 ? '' : raw
 }
 
+/**
+ * Copia los eventos sin `playerId` (created/joined): el id de jugador es un secreto de asiento y
+ * no debe difundirse a espectadores. El log guardado lo conserva (joinSeat lo usa).
+ * Cast deliberado: los tipos de go-rules exigen `playerId` en esos eventos, pero el cliente
+ * nunca lo lee, así que no se cambian los tipos compartidos.
+ */
+export function redactEvents(events: readonly RoomEvent[]): RoomEvent[] {
+  return events.map((e) => {
+    if (e.type !== 'created' && e.type !== 'joined') return e
+    const { playerId: _omit, ...rest } = e as RoomEvent & { playerId?: string }
+    return rest as unknown as RoomEvent
+  })
+}
+
 export class GameRoom extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -68,7 +84,6 @@ export class GameRoom extends DurableObject<Env> {
     await this.ctx.storage.put({
       events: createRoom(config, playerId, now),
       tokens: { creator: token } satisfies Tokens,
-      creatorPlayerId: playerId,
     })
     await this.ctx.storage.setAlarm(now + WAITING_TTL_MS)
     return token
@@ -94,6 +109,7 @@ export class GameRoom extends DurableObject<Env> {
     const rawPlayerId = url.searchParams.get('playerId') ?? ''
     const playerId = sanitizePlayerId(rawPlayerId)
     const token = url.searchParams.get('token')
+    const wantsJoin = url.searchParams.get('join') === '1'
     const lastSeqRaw = url.searchParams.get('lastSeq')
     const lastSeq = lastSeqRaw !== null && lastSeqRaw !== '' ? Number(lastSeqRaw) : NaN
 
@@ -105,7 +121,7 @@ export class GameRoom extends DurableObject<Env> {
 
     if (token && tokens.creator === token) seat = 'creator'
     else if (token && tokens.guest === token) seat = 'guest'
-    else if (playerId.length >= 8 && playerId.length <= 64) {
+    else if (wantsJoin && playerId.length >= 8 && playerId.length <= 64) {
       const join = joinSeat(events, playerId, Date.now())
       if (join) {
         seat = join.seat
@@ -126,7 +142,19 @@ export class GameRoom extends DurableObject<Env> {
 
     // A los sockets ya conectados se les difunde el join ANTES de aceptar al nuevo: el nuevo lo
     // recibe dentro del welcome.
-    if (fresh.length > 0) this.broadcast({ t: 'events', events: fresh, serverNow: Date.now() })
+    if (fresh.length > 0) this.broadcast({ t: 'events', events: redactEvents(fresh), serverNow: Date.now() })
+
+    // Un socket por asiento: el nuevo dueño desplaza a los previos (nunca a espectadores).
+    if (seat !== 'spectator') {
+      for (const old of this.ctx.getWebSockets()) {
+        if ((old.deserializeAttachment() as Attachment | null)?.seat !== seat) continue
+        try {
+          old.close(4001, 'Abierta en otro lado')
+        } catch {
+          // ya cerrado
+        }
+      }
+    }
 
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ seat, playerId } satisfies Attachment)
@@ -135,7 +163,7 @@ export class GameRoom extends DurableObject<Env> {
       t: 'welcome',
       seat,
       ...(seatToken ? { seatToken } : {}),
-      events: current.filter((e) => e.seq > sendFrom),
+      events: redactEvents(current.filter((e) => e.seq > sendFrom)),
       serverNow: Date.now(),
     })
     this.broadcastPresence()
@@ -163,7 +191,7 @@ export class GameRoom extends DurableObject<Env> {
     }
     const next = [...events, ...result.events]
     await this.ctx.storage.put('events', next)
-    this.broadcast({ t: 'events', events: result.events, serverNow: Date.now() })
+    this.broadcast({ t: 'events', events: redactEvents(result.events), serverNow: Date.now() })
     await this.reschedule(next)
   }
 
@@ -189,7 +217,8 @@ export class GameRoom extends DurableObject<Env> {
     const last = events[events.length - 1]
     if (
       (state.phase === 'waiting' && created && now >= created.at + WAITING_TTL_MS) ||
-      (state.phase === 'ended' && last && now >= last.at + ENDED_TTL_MS)
+      (state.phase === 'ended' && last && now >= last.at + ENDED_TTL_MS) ||
+      (state.phase === 'playing' && !state.config.clock && last && now >= last.at + IDLE_TTL_MS)
     ) {
       for (const ws of this.ctx.getWebSockets()) {
         try {
@@ -207,7 +236,7 @@ export class GameRoom extends DurableObject<Env> {
       if (out.length > 0) {
         const next = [...events, ...out]
         await this.ctx.storage.put('events', next)
-        this.broadcast({ t: 'events', events: out, serverNow: Date.now() })
+        this.broadcast({ t: 'events', events: redactEvents(out), serverNow: Date.now() })
         await this.reschedule(next)
         return
       }
@@ -220,7 +249,11 @@ export class GameRoom extends DurableObject<Env> {
     const state = project(events)
     const last = events[events.length - 1]
     let at: number | undefined
-    if (state.phase === 'playing') at = flagDeadline(state)
+    if (state.phase === 'playing') {
+      at = flagDeadline(state)
+      // Sin reloj no hay flag: alarm de abandono en último evento + 30 días.
+      if (at === undefined && last) at = last.at + IDLE_TTL_MS
+    }
     else if (state.phase === 'scoring') at = scoringDeadline(state)
     else if (state.phase === 'ended' && last) at = last.at + ENDED_TTL_MS
     else if (state.phase === 'waiting' && events[0]) at = events[0].at + WAITING_TTL_MS
