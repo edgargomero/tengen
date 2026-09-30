@@ -34,7 +34,7 @@ interface OnlineGameViewProps {
 }
 
 export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardBounds }: OnlineGameViewProps) {
-  const [conn, setConn] = useState<RoomConnectionState>({ status: 'connecting', events: [] })
+  const [conn, setConn] = useState<RoomConnectionState>({ status: 'connecting', events: [], rejectCount: 0, serverOffsetMs: 0 })
   const sendRef = useRef<((intent: Intent) => RejectReason | null) | null>(null)
 
   useEffect(() => {
@@ -60,6 +60,20 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
       <main class="card-screen mode-menu">
         <h1>Partida online</h1>
         <p class="notice notice--danger">Esta partida no existe o ya expiró</p>
+        <div class="action-row">
+          <a class="link-button primary" href="/jugar">
+            Nueva partida
+          </a>
+        </div>
+      </main>
+    )
+  }
+
+  if (conn.status === 'full') {
+    return (
+      <main class="card-screen mode-menu">
+        <h1>Partida online</h1>
+        <p class="notice notice--danger">La sala está llena</p>
         <div class="action-row">
           <a class="link-button primary" href="/jugar">
             Nueva partida
@@ -132,10 +146,12 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     seenEvents.current = eventCount
     setHint(null)
   }, [eventCount])
-  // El rechazo del servidor llega por `conn.lastRejected` (no hay otro canal): se muestra al cambiar.
+  // El rechazo del servidor llega por `conn.lastRejected`; se dispara por el contador (no por el
+  // motivo) para que el mismo rechazo dos veces seguidas se vuelva a mostrar.
   useEffect(() => {
-    if (conn.lastRejected) setHint(rejectMessage(conn.lastRejected))
-  }, [conn.lastRejected])
+    if (conn.rejectCount > 0 && conn.lastRejected) setHint(rejectMessage(conn.lastRejected))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conn.rejectCount])
   useEffect(() => {
     if (!playing) setConfirmingResign(false)
   }, [playing])
@@ -178,7 +194,8 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     const flagged = state.phase === 'ended' && state.result?.endsWith('+T') ? (state.result[0] === 'B' ? 'white' : 'black') : null
     if (flagged === color) return { ms: 0, periodsRemaining: 0, inByoyomi: false }
     const live = ticking && state.toPlay === color && state.turnStartedAt !== undefined
-    const elapsed = live ? Date.now() - state.turnStartedAt! : 0
+    // Hora del servidor estimada: el reloj del cliente puede estar adelantado o atrasado.
+    const elapsed = live ? Math.max(0, Date.now() + conn.serverOffsetMs - state.turnStartedAt!) : 0
     return displayClock(state.clocks[color], clock, elapsed)
   }
 

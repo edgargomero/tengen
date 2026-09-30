@@ -68,6 +68,15 @@ describe('OnlineGameView', () => {
     expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
   })
 
+  it('I-1: sala llena (cierre 1013): aviso y botón hacia /jugar, sin reconectar', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.onclose?.({ code: 1013 } as never)
+    expect(await screen.findByText('La sala está llena')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
+    expect(sockets).toHaveLength(1)
+  })
+
   it('creador esperando: muestra el link y Copiar (sin Compartir si no hay navigator.share)', async () => {
     const sockets = setup()
     await waitFor(() => expect(sockets.length).toBe(1))
@@ -174,12 +183,41 @@ describe('OnlineGameView en juego', () => {
     expect(document.querySelector('.shudan-sign_1')).toBeNull()
   })
 
+  it('M-1: el mismo motivo de rechazo dos veces seguidas se vuelve a mostrar', async () => {
+    const s = await play('creator', base)
+    await screen.findByText('Negro (vos)')
+    fireEvent.click(vertex(4, 4))
+    s.emit({ t: 'rejected', reason: 'illegal' })
+    const msg = await screen.findByRole('status')
+    expect(msg).toBeInTheDocument()
+    const text = msg.textContent
+    // el usuario vuelve a tocar (el aviso se limpia) y el servidor rechaza de nuevo por lo mismo
+    fireEvent.click(vertex(5, 5))
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+    s.emit({ t: 'rejected', reason: 'illegal' })
+    expect((await screen.findByRole('status')).textContent).toBe(text)
+  })
+
+  it('M-1: doble toque rápido: sale una sola intención y el stale tardío no muestra aviso', async () => {
+    const s = await play('creator', base)
+    await screen.findByText('Negro (vos)')
+    fireEvent.click(vertex(4, 4))
+    fireEvent.click(vertex(4, 4))
+    expect(s.sent).toHaveLength(1)
+    s.emit({ t: 'events', events: movesEvents([[4, 4]]) })
+    s.emit({ t: 'rejected', reason: 'stale' })
+    await waitFor(() => expect(vertex(4, 4).className).toContain('shudan-sign_1'))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('Pasar envía pass; Rendirse pide confirmación inline y luego envía resign', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const s = await play('creator', base)
     await screen.findByText('Negro (vos)')
     fireEvent.click(screen.getByRole('button', { name: 'Pasar' }))
     expect(intents(s)).toEqual([{ t: 'intent', intent: { type: 'pass', seq: 3 } }])
+    s.emit({ t: 'events', events: movesEvents(['pass']) }) // el servidor confirma el pase
+    await screen.findByText('Turno del rival')
     fireEvent.click(screen.getByRole('button', { name: 'Rendirse' }))
     expect(intents(s)).toHaveLength(1)
     expect(screen.getByText('¿Seguro que querés rendirte?')).toBeInTheDocument()
@@ -187,7 +225,7 @@ describe('OnlineGameView en juego', () => {
     expect(screen.queryByText('¿Seguro que querés rendirte?')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Rendirse' }))
     fireEvent.click(screen.getByRole('button', { name: 'Sí, rendirme' }))
-    expect(intents(s)[1]).toEqual({ t: 'intent', intent: { type: 'resign', seq: 3 } })
+    expect(intents(s)[1]).toEqual({ t: 'intent', intent: { type: 'resign', seq: 4 } })
     expect(confirmSpy).not.toHaveBeenCalled()
   })
 
@@ -266,6 +304,16 @@ describe('OnlineGameView en juego', () => {
     await play('creator', [created])
     expect(await screen.findByText('Esperando rival')).toBeInTheDocument()
     expect(document.querySelector('main.card-screen.mode-menu')).not.toBeNull()
+  })
+
+  it('I-3: la cuenta regresiva corrige el desfase entre el reloj del cliente y el del servidor', async () => {
+    // El reloj del cliente va 5 s atrás del servidor: sin corregir se vería 00:55 en vez de 00:50.
+    vi.spyOn(Date, 'now').mockImplementation(() => NOW + 5_000)
+    const cfgRoom: RoomEvent = { ...created, config: { ...config, clock: clockCfg } }
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', events: [cfgRoom, joined, started], serverNow: NOW + 10_000 })
+    expect(await screen.findByText('00:50')).toBeInTheDocument()
   })
 
   it('cuenta regresiva local del reloj en turno, recalculada desde turnStartedAt en cada evento', async () => {

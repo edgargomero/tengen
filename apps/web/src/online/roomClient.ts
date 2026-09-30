@@ -140,7 +140,7 @@ export function connectRoom(
         clearAck()
         // `stale` con el log ya más allá de lo enviado: la jugada quedó vieja porque entró otra
         // (típico del doble toque o de un cruce con el rival); avisar sería un falso positivo.
-        if (msg.reason === 'stale' && lastSeq >= lastSentSeq) break
+        if (msg.reason === 'stale' && lastSentSeq >= 0 && lastSeq >= lastSentSeq) break
         lastRejected = msg.reason
         rejectCount++
         break
