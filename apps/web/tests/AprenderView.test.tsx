@@ -201,6 +201,27 @@ describe('AprenderView — currículo', () => {
     expect(screen.getByTitle('Lección resuelta')).toBeInTheDocument()
   })
 
+  it('agrupa el currículo por bloque y abre solo el bloque de la próxima lección', () => {
+    const { container } = render(<AprenderView storage={memoryStorage()} />)
+    const blocks = [...container.querySelectorAll('details.form-details')] as HTMLDetailsElement[]
+    const expected = new Set(CURRICULUM.map((l) => l.block)).size
+    expect(blocks).toHaveLength(expected)
+    expect(blocks[0]!.textContent).toMatch(/Bloque 1/)
+    expect(blocks.map((b) => b.open)).toEqual(blocks.map((_, i) => i === 0))
+  })
+
+  it('con el Bloque 1 completo, el abierto es el Bloque 2 y el 1 muestra 5 de 5 en su tira', () => {
+    const storage = memoryStorage()
+    for (const lesson of CURRICULUM.filter((l) => l.block === 1)) {
+      for (const ex of lesson.exercises) recordResult(storage, ex.id, 'resuelto')
+    }
+    const { container } = render(<AprenderView storage={storage} />)
+    const blocks = [...container.querySelectorAll('details.form-details')] as HTMLDetailsElement[]
+    expect(blocks[0]!.open).toBe(false)
+    expect(blocks[1]!.open).toBe(true)
+    expect(screen.getByLabelText('5 de 5 lecciones completas')).toBeInTheDocument()
+  })
+
   it('abrir la Lección 1 no monta ModelGate (sin motor)', () => {
     render(<AprenderView storage={memoryStorage()} />)
     fireEvent.click(screen.getByRole('button', { name: /La jugada y la captura/i }))

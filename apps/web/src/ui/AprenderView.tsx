@@ -84,6 +84,25 @@ function lessonGlyph(
   return { glyph: '·', title: 'Lección pendiente', modifier: 'pendiente' }
 }
 
+function curriculumBlocks(lessons: readonly Lesson[]): { block: number; lessons: Lesson[] }[] {
+  const blocks: { block: number; lessons: Lesson[] }[] = []
+  for (const lesson of lessons) {
+    const current = blocks[blocks.length - 1]
+    if (current?.block === lesson.block) current.lessons.push(lesson)
+    else blocks.push({ block: lesson.block, lessons: [lesson] })
+  }
+  return blocks
+}
+
+/** El bloque donde está la próxima lección por hacer; si ya no queda ninguna, el último. */
+function currentBlock(lessons: readonly Lesson[], progress: ProgressMap): number | undefined {
+  const next = lessons.find((lesson) => {
+    const { modifier } = lessonGlyph(lessons, progress, lesson)
+    return modifier !== 'bloqueado' && modifier !== 'resuelto'
+  })
+  return (next ?? lessons[lessons.length - 1])?.block
+}
+
 export function AprenderView({ collections = COLLECTIONS, storage = window.localStorage }: AprenderViewProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [lessonSelection, setLessonSelection] = useState<LessonSelection | null>(null)
@@ -184,11 +203,12 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
 
   // El progreso se relee en cada render de la lista: volver del player ya refleja lo recién jugado.
   const progress = loadProgress(storage)
+  const openBlock = currentBlock(CURRICULUM, progress)
 
   return (
     <main class="card-screen aprender-list">
       <h1>Aprender</h1>
-      <p>Vida y muerte con el motor de verdad: si tu jugada no está en la solución, KataGo te muestra cuánto costó.</p>
+      <p>Un currículo progresivo, taller por taller: cada lección se abre al completar la anterior.</p>
       <p class="hint">
         Con gracias a la{' '}
         <a href="https://www.fedibergo.org/ensananza" target="_blank" rel="noopener noreferrer">
@@ -198,27 +218,52 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
       </p>
       <section class="aprender-collection">
         <h2>Currículo</h2>
-        <ul class="exercise-list">
-          {CURRICULUM.map((lesson) => {
-            const state = lessonGlyph(CURRICULUM, progress, lesson)
-            const unlocked = state.modifier !== 'bloqueado'
-            return (
-              <li key={lesson.id}>
-                <button
-                  type="button"
-                  class="exercise-row"
-                  disabled={!unlocked}
-                  onClick={() => unlocked && setLessonSelection({ lessonId: lesson.id, step: 'teoria' })}
-                >
-                  <span class={`exercise-state exercise-state--${state.modifier}`} title={state.title}>
-                    {state.glyph}
-                  </span>
-                  <span class="exercise-row-label">{lesson.title}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        {curriculumBlocks(CURRICULUM).map(({ block, lessons }) => {
+          const states = lessons.map((lesson) => lessonGlyph(CURRICULUM, progress, lesson))
+          const done = states.filter((s) => s.modifier === 'resuelto').length
+          const first = lessons[0]?.workshop
+          const last = lessons[lessons.length - 1]?.workshop
+          return (
+            <details key={block} class="form-details" open={block === openBlock}>
+              <summary>
+                <span class="eyebrow">Bloque {block}</span>
+                <span class="form-details-current">
+                  Talleres {first}–{last}
+                </span>
+                <span class="block-progress" aria-label={`${done} de ${lessons.length} lecciones completas`}>
+                  {states.map((s, i) => (
+                    <span key={i} class={`exercise-state exercise-state--${s.modifier}`} aria-hidden="true">
+                      {s.glyph}
+                    </span>
+                  ))}
+                </span>
+              </summary>
+              <div class="form-details-body">
+              <ul class="exercise-list">
+                {lessons.map((lesson, i) => {
+                  const state = states[i]!
+                  const unlocked = state.modifier !== 'bloqueado'
+                  return (
+                    <li key={lesson.id}>
+                      <button
+                        type="button"
+                        class="exercise-row"
+                        disabled={!unlocked}
+                        onClick={() => unlocked && setLessonSelection({ lessonId: lesson.id, step: 'teoria' })}
+                      >
+                        <span class={`exercise-state exercise-state--${state.modifier}`} title={state.title}>
+                          {state.glyph}
+                        </span>
+                        <span class="exercise-row-label">{lesson.title}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              </div>
+            </details>
+          )
+        })}
       </section>
       {collections.length === 0 && (
         <p class="hint">
@@ -229,6 +274,10 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
       {collections.map((collection) => (
         <section key={collection.id} class="aprender-collection">
           <h2>{collection.title}</h2>
+          <p class="hint">
+            Problemas sueltos, fuera del currículo. Acá juega el motor: si tu jugada no está en la solución,
+            KataGo te muestra cuánto costó.
+          </p>
           <ul class="exercise-list">
             {collection.exercises.map((exercise: Exercise, index: number) => {
               const state = stateGlyph(progress, exercise.id)

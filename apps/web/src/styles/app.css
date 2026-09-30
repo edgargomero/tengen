@@ -1531,6 +1531,21 @@ textarea:focus-visible {
   flex: 1;
 }
 
+/* Tira de progreso del bloque, en el summary de su `.form-details`: el mismo motivo ●○·– de cada
+   fila, una marca por lección. Plegado, el bloque sigue diciendo qué tan avanzado está. */
+.block-progress {
+  margin-left: auto;
+  display: flex;
+  flex: none;
+}
+
+/* En la fila, "bloqueado" puede ser --ink-4 porque vive en un botón `disabled` (exento de WCAG).
+   En la tira del summary NO hay control deshabilitado: el – es información, así que --ink-3 como
+   "pendiente" (atrapado por contrast-audit: 2.27 sobre la tarjeta). */
+.block-progress .exercise-state--bloqueado {
+  color: var(--ink-3);
+}
+
 .exercise-row-meta {
   font-size: var(--text-xs);
   color: var(--ink-3);

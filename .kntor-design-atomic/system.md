@@ -278,6 +278,14 @@ que el marco funciona como template). Dos niveles con estado interno, sin sub-ru
 
 - **Lista** — `.card-screen.aprender-list` (32rem), misma superficie que el menú y Mis partidas. SIN
   ModelGate: navegar la lista no descarga ningún modelo. Filas `.exercise-row` (ver molécula).
+- **Currículo por bloques (2026-09-30)** — cada bloque es un `.form-details` (SEGUNDO uso de la
+  molécula, no una clase nueva — mismo criterio que `.menu-footer`): summary = eyebrow "Bloque N" +
+  `.form-details-current` "Talleres a–b" + `.block-progress`, la tira del motivo ●○·– con una marca
+  por lección (plegado, el bloque sigue diciendo cuánto falta). Abierto SOLO el bloque de la próxima
+  lección por hacer (si no queda ninguna, el último). En la tira, "bloqueado" usa `--ink-3`, no
+  `--ink-4`: fuera de un `button:disabled` el – es información y no tiene la exención WCAG (2.27,
+  atrapado por contrast-audit). "Primeros pasos" (con motor) queda como sección aparte con su propio
+  hint; la intro de la página describe el currículo, no el motor.
 - **Player** — reusa el template "estudio de tablero" ENTERO (tablero héroe + rail): la franja de
   feedback vive en el `.rail-header` y es UNA (enunciado `--quote` → feedback del intento → veredicto
   del motor), nunca una pila de mensajes. El veredicto del motor jamás usa `success` (sin ownership no
