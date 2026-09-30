@@ -1,9 +1,16 @@
-// Pantalla de una partida online: conectando / no existe / esperando rival / partida en juego
-// (jugadores y espectadores) / fin con descarga de SGF.
+// Pantalla de una partida online: conectando / no existe / llena / abierta en otro dispositivo /
+// esperando rival (con elección de asiento para quien llega a una sala sin invitado) / partida en
+// juego (jugadores y espectadores) / conteo / fin con descarga de SGF.
 //
-// Vive FUERA del router y del gate de WebGPU (ver `online/onlineRoute.ts`), por eso tampoco usa
-// `AppFrame` (suscrito al router: sus enlaces llaman `route()`, que sin `<Router>` no navega) y toda
-// salida es un `<a href>` de verdad (navegación completa del documento).
+// Vive FUERA del router y del gate de WebGPU (ver `online/onlineRoute.ts`), por eso no usa `AppFrame`
+// (suscrito al router: sus enlaces llaman `route()`, que sin `<Router>` no navega) sino `OnlineFrame`,
+// que repite su encabezado con las mismas clases y la marca como `<a href="/">`; envuelve TODAS las
+// pantallas. Toda salida es un `<a href>` de verdad (navegación completa del documento).
+//
+// Elegir asiento: quien entra a una sala en espera sin tener asiento llega como espectador; el
+// servidor sólo le da el asiento libre de invitado si lo pide (`joinAsPlayer` → `join=1`), así que la
+// pantalla ofrece "Jugar contra tu rival" o "Solo mirar". `replaced`: el mismo dueño abrió el asiento
+// en otra pestaña o dispositivo y el servidor cerró éste (4001); es terminal.
 //
 // La verdad vive en el servidor: el tablero se dibuja SOLO desde el log de eventos proyectado, sin
 // jugada optimista — la piedra aparece cuando llega el evento `move`. La cuenta regresiva del reloj
@@ -19,7 +26,8 @@ import { displayClock, formatClockMs } from '../game/clockFormat'
 import type { FetchLike } from '../online/identity'
 import { connectRoom, type RoomConnectionState } from '../online/roomClient'
 import { roomToSgf } from '../online/roomSgf'
-import { rejectMessage, resultText, scoreLines } from '../online/roomText'
+import { flaggedColor, rejectMessage, resultText, scoreLines } from '../online/roomText'
+import { OnlineFrame } from './OnlineFrame'
 import { useBoundedBoardSize, type BoundedBoardSize } from './useBoundedBoardSize'
 
 const VERTEX_SIZE = { 9: 70, 13: 50, 19: 38 } as const
@@ -36,6 +44,9 @@ interface OnlineGameViewProps {
 export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardBounds }: OnlineGameViewProps) {
   const [conn, setConn] = useState<RoomConnectionState>({ status: 'connecting', events: [], rejectCount: 0, serverOffsetMs: 0 })
   const sendRef = useRef<((intent: Intent) => RejectReason | null) | null>(null)
+  const joinRef = useRef<(() => void) | null>(null)
+  // "Solo mirar": el visitante declinó el asiento de invitado y queda en la espera de espectador.
+  const [watchOnly, setWatchOnly] = useState(false)
 
   useEffect(() => {
     const handle = connectRoom(roomId, {
@@ -45,8 +56,10 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
       onState: setConn,
     })
     sendRef.current = handle.send
+    joinRef.current = handle.joinAsPlayer
     return () => {
       sendRef.current = null
+      joinRef.current = null
       handle.close()
     }
     // Las dependencias inyectables sólo cambian en tests; la sala se reconecta por `roomId`.
@@ -57,57 +70,102 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
 
   if (conn.status === 'not-found') {
     return (
-      <main class="card-screen mode-menu">
-        <h1>Partida online</h1>
-        <p class="notice notice--danger">Esta partida no existe o ya expiró</p>
-        <div class="action-row">
-          <a class="link-button primary" href="/jugar">
-            Nueva partida
-          </a>
-        </div>
-      </main>
+      <OnlineFrame>
+        <main class="card-screen mode-menu">
+          <h1>Partida online</h1>
+          <p class="notice notice--danger">Esta partida no existe o ya expiró</p>
+          <div class="action-row">
+            <a class="link-button primary" href="/jugar">
+              Nueva partida
+            </a>
+          </div>
+        </main>
+      </OnlineFrame>
+    )
+  }
+
+  if (conn.status === 'replaced') {
+    return (
+      <OnlineFrame>
+        <main class="card-screen mode-menu">
+          <h1>Partida online</h1>
+          <p class="notice notice--danger">Abriste esta partida en otra pestaña o dispositivo</p>
+          <div class="action-row">
+            <a class="link-button primary" href="/jugar">
+              Nueva partida
+            </a>
+          </div>
+        </main>
+      </OnlineFrame>
     )
   }
 
   if (conn.status === 'full') {
     return (
-      <main class="card-screen mode-menu">
-        <h1>Partida online</h1>
-        <p class="notice notice--danger">La sala está llena</p>
-        <div class="action-row">
-          <a class="link-button primary" href="/jugar">
-            Nueva partida
-          </a>
-        </div>
-      </main>
+      <OnlineFrame>
+        <main class="card-screen mode-menu">
+          <h1>Partida online</h1>
+          <p class="notice notice--danger">La sala está llena</p>
+          <div class="action-row">
+            <a class="link-button primary" href="/jugar">
+              Nueva partida
+            </a>
+          </div>
+        </main>
+      </OnlineFrame>
     )
   }
 
   if (state === null) {
     return (
-      <main class="card-screen mode-menu">
-        <h1>Partida online</h1>
-        <p class="hint">Conectando…</p>
-      </main>
+      <OnlineFrame>
+        <main class="card-screen mode-menu">
+          <h1>Partida online</h1>
+          <p class="hint">Conectando…</p>
+        </main>
+      </OnlineFrame>
     )
   }
 
   if (state.phase === 'waiting') {
+    // Espectador en una sala sin invitado: puede tomar el asiento libre o quedarse mirando.
+    if (conn.seat === 'spectator' && !watchOnly) {
+      return (
+        <OnlineFrame>
+          <main class="card-screen mode-menu">
+            <h1>Esta partida espera un rival</h1>
+            <p class="hint">Todavía no tiene invitado: podés ser el rival o sólo mirar.</p>
+            <div class="action-row">
+              <button type="button" class="primary" onClick={() => joinRef.current?.()}>
+                Jugar contra tu rival
+              </button>
+              <button type="button" class="ghost" onClick={() => setWatchOnly(true)}>
+                Solo mirar
+              </button>
+            </div>
+          </main>
+        </OnlineFrame>
+      )
+    }
     return (
-      <main class="card-screen mode-menu">
-        <h1>Esperando rival</h1>
-        <ShareLink roomId={roomId} />
-      </main>
+      <OnlineFrame>
+        <main class="card-screen mode-menu">
+          <h1>Esperando rival</h1>
+          <ShareLink roomId={roomId} />
+        </main>
+      </OnlineFrame>
     )
   }
 
   return (
-    <RoomBoard
-      state={state}
-      conn={conn}
-      boardBounds={boardBounds}
-      send={(intent) => (sendRef.current ? sendRef.current(intent) : 'illegal')}
-    />
+    <OnlineFrame>
+      <RoomBoard
+        state={state}
+        conn={conn}
+        boardBounds={boardBounds}
+        send={(intent) => (sendRef.current ? sendRef.current(intent) : 'illegal')}
+      />
+    </OnlineFrame>
   )
 }
 
@@ -154,8 +212,8 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn.rejectCount])
   useEffect(() => {
-    if (!playing) setConfirmingResign(false)
-  }, [playing])
+    if (!playing && !scoring) setConfirmingResign(false)
+  }, [playing, scoring])
 
   // Cuenta regresiva: sólo repinta; el valor sale de `turnStartedAt` del estado proyectado.
   const ticking = playing && clock !== undefined
@@ -184,10 +242,14 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     return map
   }, [boardSize, state.moves])
 
-  const dimmed = useMemo<[number, number][]>(() => (scoring ? state.dead.map((v) => [v.x, v.y]) : []), [scoring, state.dead])
+  // Muertas y territorio se ven en el conteo y en un final POR conteo (`state.score`). Condicionar a
+  // `score` y no a `ended`: una rendición durante el conteo o un B+F/W+F dejan `state.dead` poblado
+  // pero sin puntaje, y pintarlas ahí mostraría un conteo que nadie acordó.
+  const showCount = scoring || (state.phase === 'ended' && state.score !== undefined)
+  const dimmed = useMemo<[number, number][]>(() => (showCount ? state.dead.map((v) => [v.x, v.y]) : []), [showCount, state.dead])
   const paintMap = useMemo(
-    () => (scoring ? ownershipMap({ boardSize, handicap, moves: state.moves, dead: state.dead }) : undefined),
-    [scoring, boardSize, handicap, state.moves, state.dead],
+    () => (showCount ? ownershipMap({ boardSize, handicap, moves: state.moves, dead: state.dead }) : undefined),
+    [showCount, boardSize, handicap, state.moves, state.dead],
   )
   const liveScore = useMemo(
     () => (scoring ? scoreLines(scoreGame({ boardSize, handicap, moves: state.moves, dead: state.dead, rules: state.rules, komi: state.config.komi })) : null),
@@ -217,7 +279,7 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
   function displayedClock(color: StoneColor) {
     if (!clock || !state.clocks) return null
     // Perdió por tiempo: el último valor guardado es el de su jugada anterior; se muestra en cero.
-    const flagged = state.phase === 'ended' && state.result?.endsWith('+T') ? (state.result[0] === 'B' ? 'white' : 'black') : null
+    const flagged = flaggedColor(state)
     if (flagged === color) return { ms: 0, periodsRemaining: 0, inByoyomi: false }
     const live = ticking && state.toPlay === color && state.turnStartedAt !== undefined
     // Hora del servidor estimada: el reloj del cliente puede estar adelantado o atrasado.
@@ -258,6 +320,29 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
 
   const myAccepted = myColor !== undefined && state.accepted[myColor]
   const rivalAccepted = myColor !== undefined && state.accepted[myColor === 'black' ? 'white' : 'black']
+
+  // Confirmación inline de la rendición: la misma en juego y en conteo.
+  const resignConfirm = (
+    <>
+      <p class="hint">¿Seguro que querés rendirte?</p>
+      <div class="action-row">
+        <button
+          type="button"
+          class="primary"
+          disabled={!open}
+          onClick={() => {
+            setConfirmingResign(false)
+            sendIntent({ type: 'resign', seq: state.nextSeq })
+          }}
+        >
+          Sí, rendirme
+        </button>
+        <button type="button" class="ghost" onClick={() => setConfirmingResign(false)}>
+          Cancelar
+        </button>
+      </div>
+    </>
+  )
 
   const turnText = scoring
     ? 'Conteo'
@@ -346,25 +431,7 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
           {isPlayer && playing && (
             <div class="rail-footer">
               {confirmingResign ? (
-                <>
-                  <p class="hint">¿Seguro que querés rendirte?</p>
-                  <div class="action-row">
-                    <button
-                      type="button"
-                      class="primary"
-                      disabled={!open}
-                      onClick={() => {
-                        setConfirmingResign(false)
-                        sendIntent({ type: 'resign', seq: state.nextSeq })
-                      }}
-                    >
-                      Sí, rendirme
-                    </button>
-                    <button type="button" class="ghost" onClick={() => setConfirmingResign(false)}>
-                      Cancelar
-                    </button>
-                  </div>
-                </>
+                resignConfirm
               ) : (
                 <div class="action-row">
                   <button type="button" disabled={!open || !myTurn} onClick={() => sendIntent({ type: 'pass', seq: state.nextSeq })}>
@@ -380,19 +447,26 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
 
           {isPlayer && scoring && (
             <div class="rail-footer">
-              <div class="action-row">
-                <button
-                  type="button"
-                  class="primary"
-                  disabled={!open || myAccepted}
-                  onClick={() => sendIntent({ type: 'accept', seq: state.nextSeq })}
-                >
-                  {myAccepted ? 'Aceptaste, esperando al rival' : 'Aceptar'}
-                </button>
-                <button type="button" disabled={!open} onClick={() => sendIntent({ type: 'resume', seq: state.nextSeq })}>
-                  Seguir jugando
-                </button>
-              </div>
+              {confirmingResign ? (
+                resignConfirm
+              ) : (
+                <div class="action-row">
+                  <button
+                    type="button"
+                    class="primary"
+                    disabled={!open || myAccepted}
+                    onClick={() => sendIntent({ type: 'accept', seq: state.nextSeq })}
+                  >
+                    {myAccepted ? 'Aceptaste, esperando al rival' : 'Aceptar'}
+                  </button>
+                  <button type="button" disabled={!open} onClick={() => sendIntent({ type: 'resume', seq: state.nextSeq })}>
+                    Seguir jugando
+                  </button>
+                  <button type="button" disabled={!open} onClick={() => setConfirmingResign(true)}>
+                    Rendirse
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

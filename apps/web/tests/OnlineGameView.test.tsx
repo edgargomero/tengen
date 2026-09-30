@@ -104,6 +104,55 @@ describe('OnlineGameView', () => {
   })
 })
 
+describe('OnlineGameView: marco, asiento y replaced', () => {
+  it('toda pantalla lleva el encabezado: marca como enlace a / y "Partida online"', async () => {
+    setup(404)
+    await screen.findByText('Esta partida no existe o ya expiró')
+    expect(document.querySelector('header.topbar .topbar-location')).toHaveTextContent('Partida online')
+    const home = document.querySelector('a.topbar-home')
+    expect(home).toHaveAttribute('href', '/')
+    expect(home).toHaveTextContent('tengen')
+  })
+
+  it('cierre 4001: pantalla "Abriste esta partida en otra pestaña o dispositivo" y salida, sin reconectar', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', seatToken: 't', events: [created] })
+    sockets[0]!.onclose?.({ code: 4001 })
+    expect(await screen.findByText('Abriste esta partida en otra pestaña o dispositivo')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
+    expect(sockets).toHaveLength(1)
+  })
+
+  it('espectador en sala en espera: elige "Jugar contra tu rival" y se reconecta con join=1', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'spectator', events: [created] })
+    fireEvent.click(await screen.findByRole('button', { name: 'Jugar contra tu rival' }))
+    await waitFor(() => expect(sockets.length).toBe(2))
+    expect(sockets[1]!.url).toContain('join=1')
+  })
+
+  it('"Solo mirar" oculta la elección y deja la espera normal', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'spectator', events: [created] })
+    fireEvent.click(await screen.findByRole('button', { name: 'Solo mirar' }))
+    expect(screen.queryByRole('button', { name: 'Jugar contra tu rival' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Solo mirar' })).toBeNull()
+    expect(screen.getByText('Esperando rival')).toBeInTheDocument()
+    expect(sockets).toHaveLength(1)
+  })
+
+  it('el creador en espera no ve la elección y sigue viendo el link', async () => {
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', events: [created] })
+    expect(await screen.findByRole('button', { name: 'Copiar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Jugar contra tu rival' })).toBeNull()
+  })
+})
+
 // ─── Partida en juego (Task 6) ───
 const NOW = 1_700_000_000_000
 const clockCfg = { mainTimeMs: 60_000, byoyomiPeriods: 3, byoyomiPeriodMs: 30_000 }
@@ -435,5 +484,44 @@ describe('OnlineGameView en conteo', () => {
     cleanup()
     await play('creator', [...toScoring(), { seq: 8, at: NOW, type: 'ended', result: 'W+F' }])
     expect(await screen.findByText('Blanco gana por abandono')).toBeInTheDocument()
+  })
+
+  it('B-3: ended con score conserva muertas atenuadas y territorio; el toggle-dead ya no envía', async () => {
+    const dead = [{ x: 2, y: 2 }]
+    const score = scoreGame({ boardSize: 9, handicap: 0, moves: gameMoves(), dead, rules: 'chinese', komi: 6.5 })
+    const accepted = (seq: number, color: 'black' | 'white'): RoomEvent => ({ seq, at: NOW, type: 'accepted', color })
+    const s = await play('creator', [
+      ...toScoring([deadToggled(8, 2, 2)]),
+      accepted(9, 'black'),
+      accepted(10, 'white'),
+      { seq: 11, at: NOW, type: 'ended', result: score.result, score },
+    ])
+    await screen.findByText(resultText(score.result))
+    expect(vertex(2, 2)).toHaveClass('shudan-dimmed')
+    expect(document.querySelector('.shudan-paint_1')).not.toBeNull()
+    fireEvent.click(vertex(2, 2))
+    expect(intents(s)).toEqual([])
+  })
+
+  it('B-3: rendición durante el conteo (sin score) no muestra muertas ni territorio', async () => {
+    await play('creator', [...toScoring([deadToggled(8, 2, 2)]), { seq: 9, at: NOW, type: 'ended', result: 'W+R' }])
+    await screen.findByText('Partida terminada')
+    expect(vertex(2, 2)).not.toHaveClass('shudan-dimmed')
+    expect(document.querySelector('.shudan-paint_1')).toBeNull()
+  })
+
+  it('Rendirse en el conteo: confirmación inline y envía resign', async () => {
+    const s = await play('creator', toScoring())
+    fireEvent.click(await screen.findByRole('button', { name: 'Rendirse' }))
+    expect(intents(s)).toEqual([])
+    expect(screen.getByText('¿Seguro que querés rendirte?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, rendirme' }))
+    expect(intents(s)).toEqual([{ t: 'intent', intent: { type: 'resign', seq: 8 } }])
+  })
+
+  it('el espectador en el conteo no ve Rendirse', async () => {
+    await play('spectator', toScoring())
+    await screen.findByText('Conteo')
+    expect(screen.queryByRole('button', { name: 'Rendirse' })).toBeNull()
   })
 })

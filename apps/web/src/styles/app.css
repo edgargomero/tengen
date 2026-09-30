@@ -639,6 +639,24 @@ textarea:focus-visible {
   padding: var(--sp-0) var(--sp-1);
 }
 
+/* La marca como `<a href="/">` (pantallas online, fuera del Router): hereda el aspecto del botón —
+   que trae borde, radio, cursor y `font: inherit` del átomo `button`— para que no cambie de una
+   pantalla a otra. Un ancla no tiene nada de eso, y además subraya. */
+a.topbar-home {
+  font: inherit;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.topbar-home:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 .topbar-home:hover:not(:disabled) {
   background: var(--control-hover);
 }
@@ -1366,6 +1384,12 @@ textarea:focus-visible {
      inicio, y sin el `env()` suelto el final del contenido quedaría debajo. */
   padding-bottom: max(var(--nav-inset), env(safe-area-inset-bottom));
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+/* El marco de las pantallas online no tiene barra inferior (sólo un enlace al menú arriba), así que
+   no reserva el `--nav-inset` que sí descuenta `.app-frame-main`: dejaría una franja vacía. */
+.app-frame-main--bare {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ═══ Nivel 4: TEMPLATE "estudio de tablero" ═══════════════════════════════════════════════════
