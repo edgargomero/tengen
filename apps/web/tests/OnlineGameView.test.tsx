@@ -15,7 +15,7 @@ class MemStorage {
 class FakeSocket {
   onopen: (() => void) | null = null
   onmessage: ((e: { data: string }) => void) | null = null
-  onclose: (() => void) | null = null
+  onclose: ((e?: { code?: number }) => void) | null = null
   onerror: (() => void) | null = null
   sent: string[] = []
   constructor(public url: string) {}
@@ -71,7 +71,7 @@ describe('OnlineGameView', () => {
   it('I-1: sala llena (cierre 1013): aviso y botón hacia /jugar, sin reconectar', async () => {
     const sockets = setup()
     await waitFor(() => expect(sockets.length).toBe(1))
-    sockets[0]!.onclose?.({ code: 1013 } as never)
+    sockets[0]!.onclose?.({ code: 1013 })
     expect(await screen.findByText('La sala está llena')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
     expect(sockets).toHaveLength(1)
