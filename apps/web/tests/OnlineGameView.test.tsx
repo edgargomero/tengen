@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/pr
 import '@testing-library/jest-dom/vitest'
 import type { RoomConfig, RoomEvent } from '@tengen/go-rules'
 import { initialClockState } from '@tengen/engine/clock'
+import { project, scoreGame } from '@tengen/go-rules'
+import { resultText, scoreLines } from '../src/online/roomText'
 import { OnlineGameView } from '../src/ui/OnlineGameView'
 
 class MemStorage {
@@ -334,5 +336,104 @@ describe('OnlineGameView en juego', () => {
     expect(screen.getByText('01:00')).toBeInTheDocument()
     now = NOW + 25_000
     await waitFor(() => expect(screen.getByText('00:55')).toBeInTheDocument())
+  })
+})
+
+// ─── Modo conteo (Task 5) ───
+describe('OnlineGameView en conteo', () => {
+  const toScoring = (extra: RoomEvent[] = []): RoomEvent[] => [
+    ...base,
+    ...movesEvents([[4, 4], [2, 2], 'pass', 'pass']),
+    { seq: 7, at: NOW, type: 'scoring' },
+    ...extra,
+  ]
+  const gameMoves = () => project([...base, ...movesEvents([[4, 4], [2, 2]])]).moves
+  const liveScore = (dead: Array<{ x: number; y: number }>) =>
+    scoreLines(scoreGame({ boardSize: 9, handicap: 0, moves: gameMoves(), dead, rules: 'chinese', komi: 6.5 }))
+  const deadToggled = (seq: number, x: number, y: number): RoomEvent => ({ seq, at: NOW, type: 'dead-toggled', color: 'black', x, y })
+
+  it('scoring: rail con Conteo, líneas en vivo, botones, piedras muertas atenuadas y territorio pintado', async () => {
+    await play('creator', toScoring([deadToggled(8, 2, 2)]))
+    expect(await screen.findByText('Conteo')).toBeInTheDocument()
+    const lines = liveScore([{ x: 2, y: 2 }])
+    expect(screen.getByText(lines.black)).toBeInTheDocument()
+    expect(screen.getByText(lines.white)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aceptar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Seguir jugando' })).toBeEnabled()
+    expect(vertex(2, 2)).toHaveClass('shudan-dimmed')
+    expect(vertex(4, 4)).not.toHaveClass('shudan-dimmed')
+    expect(document.querySelector('.shudan-paint_1')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Pasar' })).toBeNull()
+  })
+
+  it('clic en piedra envía toggle-dead con seq; clic en vacío no envía nada', async () => {
+    const s = await play('creator', toScoring())
+    await screen.findByText('Conteo')
+    fireEvent.click(vertex(6, 6))
+    expect(intents(s)).toEqual([])
+    fireEvent.click(vertex(2, 2))
+    expect(intents(s)).toEqual([{ t: 'intent', intent: { type: 'toggle-dead', x: 2, y: 2, seq: 8 } }])
+  })
+
+  it('Aceptar envía accept; con aceptación propia queda deshabilitado; con la del rival avisa', async () => {
+    const s = await play('creator', toScoring())
+    fireEvent.click(await screen.findByRole('button', { name: 'Aceptar' }))
+    expect(intents(s)).toEqual([{ t: 'intent', intent: { type: 'accept', seq: 8 } }])
+    s.emit({ t: 'events', events: [{ seq: 8, at: NOW, type: 'accepted', color: 'black' }] })
+    const mine = await screen.findByRole('button', { name: 'Aceptaste, esperando al rival' })
+    expect(mine).toBeDisabled()
+    cleanup()
+    await play('creator', toScoring([{ seq: 8, at: NOW, type: 'accepted', color: 'white' }]))
+    expect(await screen.findByText('El rival aceptó')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aceptar' })).toBeEnabled()
+  })
+
+  it('Seguir jugando envía resume', async () => {
+    const s = await play('creator', toScoring())
+    fireEvent.click(await screen.findByRole('button', { name: 'Seguir jugando' }))
+    expect(intents(s)).toEqual([{ t: 'intent', intent: { type: 'resume', seq: 8 } }])
+  })
+
+  it('cuenta regresiva de 5 min desde el último evento de conteo, corregida con serverOffsetMs', async () => {
+    // Reloj del cliente 5 s atrás del servidor; el servidor está 30 s después del evento: quedan 04:30.
+    vi.spyOn(Date, 'now').mockImplementation(() => NOW + 25_000)
+    const sockets = setup()
+    await waitFor(() => expect(sockets.length).toBe(1))
+    sockets[0]!.emit({ t: 'welcome', seat: 'creator', events: toScoring(), serverNow: NOW + 30_000 })
+    expect(await screen.findByText('04:30')).toBeInTheDocument()
+  })
+
+  it('reconexión: el welcome ya con scoring + muertas + aceptación muestra lo mismo', async () => {
+    vi.spyOn(Date, 'now').mockImplementation(() => NOW + 60_000)
+    await play('creator', toScoring([deadToggled(8, 2, 2), { seq: 9, at: NOW + 10_000, type: 'accepted', color: 'white' }]))
+    expect(await screen.findByText('Conteo')).toBeInTheDocument()
+    expect(vertex(2, 2)).toHaveClass('shudan-dimmed')
+    expect(screen.getByText('El rival aceptó')).toBeInTheDocument()
+    expect(screen.getByText(liveScore([{ x: 2, y: 2 }]).black)).toBeInTheDocument()
+    expect(screen.getByText('04:10')).toBeInTheDocument()
+  })
+
+  it('espectador en conteo: ve conteo y marcas, sin botones ni envío al tocar', async () => {
+    const s = await play('spectator', toScoring([deadToggled(8, 2, 2)]))
+    expect(await screen.findByText('Conteo')).toBeInTheDocument()
+    expect(vertex(2, 2)).toHaveClass('shudan-dimmed')
+    expect(screen.getByText(liveScore([{ x: 2, y: 2 }]).black)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Aceptar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Seguir jugando' })).toBeNull()
+    fireEvent.click(vertex(2, 2))
+    expect(intents(s)).toEqual([])
+  })
+
+  it('ended con score: resultado y las dos líneas de desglose; W+F dice abandono', async () => {
+    const score = scoreGame({ boardSize: 9, handicap: 0, moves: gameMoves(), dead: [], rules: 'chinese', komi: 6.5 })
+    const accepted = (seq: number, color: 'black' | 'white'): RoomEvent => ({ seq, at: NOW, type: 'accepted', color })
+    await play('creator', [...toScoring(), accepted(8, 'black'), accepted(9, 'white'), { seq: 10, at: NOW, type: 'ended', result: score.result, score }])
+    const lines = scoreLines(score)
+    expect(await screen.findByText(lines.black)).toBeInTheDocument()
+    expect(screen.getByText(lines.white)).toBeInTheDocument()
+    expect(screen.getByText(resultText(score.result))).toBeInTheDocument()
+    cleanup()
+    await play('creator', [...toScoring(), { seq: 8, at: NOW, type: 'ended', result: 'W+F' }])
+    expect(await screen.findByText('Blanco gana por abandono')).toBeInTheDocument()
   })
 })

@@ -12,14 +12,14 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { BoundedGoban } from '@sabaki/shudan'
 import type { Marker } from '@sabaki/shudan'
 import type { StoneColor } from '@tengen/engine/types'
-import { boardFromMoves, capturesOf, project, signMapOf } from '@tengen/go-rules'
+import { boardFromMoves, capturesOf, ownershipMap, project, scoreGame, scoringDeadline, signMapOf } from '@tengen/go-rules'
 import type { Intent, RejectReason, RoomState } from '@tengen/go-rules'
 import type { StorageLike } from '../game/persistence'
 import { displayClock, formatClockMs } from '../game/clockFormat'
 import type { FetchLike } from '../online/identity'
 import { connectRoom, type RoomConnectionState } from '../online/roomClient'
 import { roomToSgf } from '../online/roomSgf'
-import { rejectMessage, resultText } from '../online/roomText'
+import { rejectMessage, resultText, scoreLines } from '../online/roomText'
 import { useBoundedBoardSize, type BoundedBoardSize } from './useBoundedBoardSize'
 
 const VERTEX_SIZE = { 9: 70, 13: 50, 19: 38 } as const
@@ -135,6 +135,7 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
   const isPlayer = seat === 'creator' || seat === 'guest'
   const myColor = isPlayer ? state.colors?.[seat] : undefined
   const playing = state.phase === 'playing'
+  const scoring = state.phase === 'scoring'
   const open = conn.status === 'open'
   const myTurn = playing && myColor !== undefined && myColor === state.toPlay
   const eventCount = conn.events.length
@@ -163,6 +164,12 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     const id = setInterval(() => setTick((n) => n + 1), 250)
     return () => clearInterval(id)
   }, [ticking])
+  // Conteo: la cuenta regresiva de 5 min también es puro display; el que decide es la alarm del DO.
+  useEffect(() => {
+    if (!scoring) return
+    const id = setInterval(() => setTick((n) => n + 1), 250)
+    return () => clearInterval(id)
+  }, [scoring])
 
   const board = useMemo(() => boardFromMoves(boardSize, handicap, state.moves), [boardSize, handicap, state.moves])
   const signMap = useMemo(() => signMapOf(board), [board])
@@ -177,6 +184,19 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     return map
   }, [boardSize, state.moves])
 
+  const dimmed = useMemo<[number, number][]>(() => (scoring ? state.dead.map((v) => [v.x, v.y]) : []), [scoring, state.dead])
+  const paintMap = useMemo(
+    () => (scoring ? ownershipMap({ boardSize, handicap, moves: state.moves, dead: state.dead }) : undefined),
+    [scoring, boardSize, handicap, state.moves, state.dead],
+  )
+  const liveScore = useMemo(
+    () => (scoring ? scoreLines(scoreGame({ boardSize, handicap, moves: state.moves, dead: state.dead, rules: state.rules, komi: state.config.komi })) : null),
+    [scoring, boardSize, handicap, state.moves, state.dead, state.rules, state.config.komi],
+  )
+  const endScore = state.phase === 'ended' && state.score ? scoreLines(state.score) : null
+  const deadline = scoringDeadline(state)
+  const countdownMs = deadline === undefined ? null : Math.max(0, deadline - (Date.now() + conn.serverOffsetMs))
+
   function sendIntent(intent: Intent): void {
     setHint(null)
     const rejected = send(intent)
@@ -184,7 +204,13 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
   }
 
   function handleVertexClick(v: [number, number]): void {
-    if (!isPlayer || !playing || !open) return
+    if (!isPlayer || !open) return
+    if (scoring) {
+      // Sólo las piedras se marcan: tocar un punto vacío no hace nada.
+      if (signMap[v[1]]?.[v[0]]) sendIntent({ type: 'toggle-dead', x: v[0], y: v[1], seq: state.nextSeq })
+      return
+    }
+    if (!playing) return
     sendIntent({ type: 'move', x: v[0], y: v[1], seq: state.nextSeq })
   }
 
@@ -230,7 +256,12 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
     )
   }
 
-  const turnText = !playing
+  const myAccepted = myColor !== undefined && state.accepted[myColor]
+  const rivalAccepted = myColor !== undefined && state.accepted[myColor === 'black' ? 'white' : 'black']
+
+  const turnText = scoring
+    ? 'Conteo'
+    : !playing
     ? 'Partida terminada'
     : myColor === undefined
       ? `Turno de ${colorName(state.toPlay ?? 'black')}`
@@ -246,6 +277,8 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
             <BoundedGoban
               signMap={signMap}
               markerMap={markerMap}
+              dimmedVertices={dimmed}
+              paintMap={paintMap}
               maxWidth={bounds.maxWidth}
               maxHeight={bounds.maxHeight}
               maxVertexSize={VERTEX_SIZE[boardSize]}
@@ -279,10 +312,34 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
                 {hint}
               </p>
             )}
+            {liveScore && (
+              <div class="rail-meta">
+                <p class="hint">{liveScore.black}</p>
+                <p class="hint">{liveScore.white}</p>
+              </div>
+            )}
+            {scoring && countdownMs !== null && (
+              <p class="meta-row">
+                <span class="eyebrow">Tiempo para acordar</span>
+                <span class="play-clock-value">{formatClockMs(countdownMs)}</span>
+              </p>
+            )}
+            {scoring && isPlayer && rivalAccepted && <p class="notice notice--accent">El rival aceptó</p>}
+            {scoring && !isPlayer && (state.accepted.black || state.accepted.white) && (
+              <p class="notice notice--accent">
+                {[state.accepted.black && 'Negro aceptó', state.accepted.white && 'Blanco aceptó'].filter(Boolean).join(' · ')}
+              </p>
+            )}
             {state.phase === 'ended' && state.result !== undefined && (
               <p class="notice notice--accent">
                 <strong>{resultText(state.result)}</strong>
               </p>
+            )}
+            {endScore && (
+              <div class="rail-meta">
+                <p class="hint">{endScore.black}</p>
+                <p class="hint">{endScore.white}</p>
+              </div>
             )}
           </div>
 
@@ -318,6 +375,24 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {isPlayer && scoring && (
+            <div class="rail-footer">
+              <div class="action-row">
+                <button
+                  type="button"
+                  class="primary"
+                  disabled={!open || myAccepted}
+                  onClick={() => sendIntent({ type: 'accept', seq: state.nextSeq })}
+                >
+                  {myAccepted ? 'Aceptaste, esperando al rival' : 'Aceptar'}
+                </button>
+                <button type="button" disabled={!open} onClick={() => sendIntent({ type: 'resume', seq: state.nextSeq })}>
+                  Seguir jugando
+                </button>
+              </div>
             </div>
           )}
 
