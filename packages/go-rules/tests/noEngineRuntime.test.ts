@@ -8,7 +8,13 @@ const ENGINE = String.raw`['"]@tengen\/engine(\/[^'"]*)?['"]`
 const ENGINE_SPEC = new RegExp(ENGINE)
 
 /** Devuelve los fragmentos de `source` que traen valores de `@tengen/engine` (todo salvo `/clock` y `import type`). */
-export function findEngineValueImports(source: string): string[] {
+export function findEngineValueImports(rawSource: string): string[] {
+  // Sin comentarios: un "import type" dentro de un comentario no debe comerse el import real que sigue.
+  // Los literales de cadena se conservan tal cual (un `//` dentro de una cadena no es un comentario).
+  const source = rawSource.replace(
+    /('(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`)|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
+    (_m, str: string | undefined) => str ?? ' ',
+  )
   const hits: string[] = []
   const add = (stmt: string) => {
     const m = ENGINE_SPEC.exec(stmt)
@@ -16,8 +22,8 @@ export function findEngineValueImports(source: string): string[] {
     if (m[1] === '/clock') return
     hits.push(stmt.replace(/\s+/g, ' ').trim())
   }
-  // import/export … from '…' (multilínea incluida; [^;'"]* no cruza de una sentencia a otra con comillas).
-  const fromRe = /\b(import|export)(\s+type\b)?\s*([^;'"]*?)\s*\bfrom\s*(['"][^'"]+['"])/g
+  // import/export … from '…' (multilínea incluida; [^;'"=]* no cruza de una sentencia a otra: una cláusula de import nunca lleva `=`).
+  const fromRe = /\b(import|export)(\s+type\b)?\s*([^;'"=]*?)\s*\bfrom\s*(['"][^'"]+['"])/g
   for (const m of source.matchAll(fromRe)) {
     if (m[2]) continue // `import type` / `export type` se elide por completo
     add(`${m[1]} ${m[3]} from ${m[4]}`)
@@ -55,6 +61,19 @@ describe('findEngineValueImports (detectora)', () => {
   ]
   it.each(ok)('permite: %s', (src) => expect(findEngineValueImports(src)).toEqual([]))
   it.each(bad)('detecta: %s', (src) => expect(findEngineValueImports(src)).toHaveLength(1))
+  it('un comentario con "import type" no oculta el import de valor de la línea siguiente', () => {
+    const src = `// Módulo puro; solo \`import type\` de @tengen/engine.\nimport { initialClockState } from '@tengen/engine'\n`
+    expect(findEngineValueImports(src)).toHaveLength(1)
+    const block = `/* usa import type\n   de @tengen/engine */\nimport { x } from '@tengen/engine'\n`
+    expect(findEngineValueImports(block)).toHaveLength(1)
+  })
+  it('un import dentro de un comentario no cuenta', () => {
+    expect(findEngineValueImports(`// import { x } from '@tengen/engine'\n`)).toEqual([])
+  })
+  it('export type X = {…} no se come el import de valor siguiente', () => {
+    const src = `export type X = { a: number }\nimport { y } from '@tengen/engine'\n`
+    expect(findEngineValueImports(src)).toHaveLength(1)
+  })
   it('no cruza sentencias: un import permitido seguido de uno prohibido da un solo hallazgo', () => {
     const src = `import type { A } from '@tengen/engine'\nimport { b } from '@tengen/engine/types'\n`
     expect(findEngineValueImports(src)).toHaveLength(1)
