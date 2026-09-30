@@ -57,6 +57,7 @@ import { kataStrengthLabel } from '../game/opponentStrength'
 import { GameTree, type GameNode } from '../game/gameTree'
 import { saveGame } from '../game/persistence'
 import { exportSgf, importSgf } from '../game/sgf'
+import { formatClockMs } from '../game/clockFormat'
 import { ModelGate } from '../models/ModelGate'
 import { GameTreePanel } from './GameTreePanel'
 import { useBoundedBoardSize } from './useBoundedBoardSize'
@@ -107,14 +108,6 @@ function illegalMoveMessage(reason: 'ko' | 'suicide' | 'overwrite'): string {
 function formatDateForFilename(d: Date): string {
   const pad = (n: number): string => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-/** `mm:ss`, siempre 2 dígitos en ambos campos (`5:07` se ve como `05:07`). */
-function formatClockMs(ms: number): string {
-  const totalSeconds = Math.max(Math.ceil(ms / 1000), 0)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 /** Envuelve la pantalla de juego en `ModelGate`: garantiza el ONNX de la red del oponente en OPFS
