@@ -1,6 +1,6 @@
 // SGF de una partida online terminada: reusa el exporter de Jugar (mismo árbol, mismo codec de
-// reloj que `game/persistence.ts`). Las reglas de la sala son por área → `chinese`.
-import type { RoomState } from '@tengen/go-rules'
+// reloj que `game/persistence.ts`). Las reglas salen de la config de la sala (chinas si no declara).
+import { effectiveRules, type RoomState } from '@tengen/go-rules'
 import { GameTree } from '../game/gameTree'
 import { exportSgf } from '../game/sgf'
 import { encodeClockConfig, encodeClockState } from '../game/sgfClockCodec'
@@ -10,7 +10,7 @@ export function roomToSgf(state: RoomState): string {
   const tree = new GameTree({
     boardSize,
     komi,
-    rules: 'chinese',
+    rules: effectiveRules(state.config),
     handicap,
     humanColor: 'black',
     ...(state.result !== undefined ? { result: state.result } : {}),

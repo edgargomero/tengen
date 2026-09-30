@@ -265,17 +265,17 @@ describe('NewGameForm — oponente "Una persona (online)"', () => {
     return { onStart, onStartOnline }
   }
 
-  it('ofrece una tercera opción y al elegirla oculta fuerza, nivel y reglas', () => {
+  it('ofrece una tercera opción y al elegirla oculta fuerza y nivel, pero conserva Reglas', () => {
     renderOnline()
     expect(screen.getByText('Reglas')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
     expect(screen.getByRole('button', { name: 'Una persona (online)' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText('Fuerza')).toBeNull()
     expect(screen.queryByText('Nivel')).toBeNull()
-    expect(screen.queryByText('Reglas')).toBeNull()
+    expect(screen.getByText('Reglas')).toBeInTheDocument()
   })
 
-  it('"Empezar" llama onStartOnline con el RoomConfig (sin rules, nigiri sin sortear)', () => {
+  it('"Empezar" llama onStartOnline con el RoomConfig (rules chinese, nigiri sin sortear)', () => {
     const { onStart, onStartOnline } = renderOnline()
     fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
     fireEvent.click(screen.getByRole('button', { name: '13×13' }))
@@ -287,11 +287,23 @@ describe('NewGameForm — oponente "Una persona (online)"', () => {
     expect(cfg).toEqual({
       boardSize: 13,
       komi: 7,
+      rules: 'chinese',
       handicap: 0,
       creatorColor: 'nigiri',
       clock: { mainTimeMs: 20 * 60_000, byoyomiPeriods: 5, byoyomiPeriodMs: 30_000 },
     })
-    expect('rules' in cfg).toBe(false)
+  })
+
+  it('japonesas online: emite rules japanese con komi 6,5 y el resumen lo dice', () => {
+    const { onStartOnline } = renderOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Una persona (online)' }))
+    expect(screen.getByText(/chinas · komi 7/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Japonesas' }))
+    expect(screen.getByText(/japonesas · komi 6.5/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    const cfg = onStartOnline.mock.calls[0]![0]
+    expect(cfg.rules).toBe('japanese')
+    expect(cfg.komi).toBe(6.5)
   })
 
   it('sin reloj omite clock; con handicap fuerza negro', () => {

@@ -1,5 +1,5 @@
 // Textos en español de la pantalla de partida online (motivos de rechazo y resultado).
-import type { RejectReason } from '@tengen/go-rules'
+import type { RejectReason, ScoreBreakdown, SideScore } from '@tengen/go-rules'
 
 const REJECT_TEXT: Record<RejectReason, string> = {
   stale: 'La partida cambió mientras jugabas; probá de nuevo',
@@ -11,8 +11,8 @@ const REJECT_TEXT: Record<RejectReason, string> = {
   ko: 'Ko: no podés retomar enseguida',
   suicide: 'Esa jugada sería suicidio',
   occupied: 'Ese punto está ocupado',
-  scoring: 'La partida está en conteo',
-  'not-scoring': 'La partida no está en conteo',
+  scoring: 'Estamos contando: marcá las muertas, aceptá o seguí jugando',
+  'not-scoring': 'Eso solo se puede durante el conteo',
 }
 
 export function rejectMessage(reason: RejectReason): string {
@@ -27,6 +27,30 @@ export function resultText(result: string): string {
   const winner = m[1] === 'B' ? 'Negro' : 'Blanco'
   const how = m[2]!
   if (how === 'R') return `${winner} gana por rendición`
+  if (how === 'F') return `${winner} gana por abandono`
   if (how === 'T') return `${winner} gana por tiempo`
   return `${winner} gana por ${how.replace('.', ',')} puntos`
+}
+
+const num = (n: number): string => String(n).replace('.', ',')
+
+function sideLine(name: string, side: SideScore, rules: ScoreBreakdown['rules']): string {
+  const parts: string[] = []
+  if (rules === 'chinese') {
+    parts.push(`${side.stones} ${side.stones === 1 ? 'piedra' : 'piedras'}`)
+    parts.push(`${side.territory} territorio`)
+  } else {
+    parts.push(`${side.territory} territorio`)
+    parts.push(`${side.prisoners} ${side.prisoners === 1 ? 'prisionero' : 'prisioneros'}`)
+  }
+  if (side.komi !== 0) parts.push(`${num(side.komi)} komi`)
+  return `${name}: ${parts.join(' + ')} = ${num(side.total)}`
+}
+
+/** Desglose del conteo, una línea por lado (chinas: piedras + territorio; japonesas: territorio + prisioneros). */
+export function scoreLines(score: ScoreBreakdown): { black: string; white: string } {
+  return {
+    black: sideLine('Negro', score.black, score.rules),
+    white: sideLine('Blanco', score.white, score.rules),
+  }
 }

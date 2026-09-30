@@ -12,7 +12,7 @@ import type { RoomConfig } from '@tengen/go-rules'
 
 interface NewGameFormProps {
   onStart(config: GameConfig): void
-  // Habilita el oponente "Una persona (online)". Recibe el RoomConfig (sin `rules`; el nigiri viaja
+  // Habilita el oponente "Una persona (online)". Recibe el RoomConfig (con `rules`; el nigiri viaja
   // como 'nigiri': lo resuelve el servidor, no el cliente). Si devuelve una promesa que se rechaza,
   // el formulario muestra el aviso de error. Sin esta prop la opción no se ofrece.
   onStartOnline?(config: RoomConfig): void | Promise<void>
@@ -133,12 +133,12 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
     }
   }
 
-  // Online: el color 'nigiri' NO se sortea acá (lo resuelve el servidor al entrar el rival), y
-  // `rules` no viaja: las reglas de la sala son las de `@tengen/go-rules` (área).
+  // Online: el color 'nigiri' NO se sortea acá (lo resuelve el servidor al entrar el rival).
   function submitOnline(start: (config: RoomConfig) => void | Promise<void>): void {
     const config: RoomConfig = {
       boardSize,
       komi,
+      rules,
       handicap,
       creatorColor: colorLocked ? 'black' : colorChoice,
       ...(clockEnabled
@@ -164,7 +164,7 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
   // el formulario entero es honesto sin scrollear. Se recalcula en cada render — es concatenar
   // cinco strings.
   const ajustesResumen = [
-    ...(opponentKind === 'online' ? [] : [rules === 'chinese' ? 'chinas' : 'japonesas']),
+    rules === 'chinese' ? 'chinas' : 'japonesas',
     `komi ${komi}`,
     handicap === 0 ? 'sin handicap' : `${handicap} piedras`,
     clockEnabled ? `${mainTimeMin} min + ${byoyomiPeriods}×${byoyomiSeconds} s` : 'sin reloj',
@@ -337,7 +337,6 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
           <span class="form-details-current">{ajustesResumen}</span>
         </summary>
         <div class="form-details-body">
-          {opponentKind !== 'online' && (
           <div class="field">
             <span class="eyebrow" id="new-game-rules-label">Reglas</span>
             <div class="choice-row" role="group" aria-labelledby="new-game-rules-label">
@@ -359,7 +358,6 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
               </button>
             </div>
           </div>
-          )}
 
           <div class="field-row">
             <label class="field">
