@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SCORING_TIMEOUT_MS,
   createRoom,
   flagDeadline,
+  scoringDeadline,
   joinSeat,
   onAlarm,
   project,
@@ -235,6 +237,9 @@ describe('sala: fin de partida', () => {
     ev = play(ev, 'creator', { type: 'pass' }, T0 + 2)
     expect(project(ev).phase).toBe('playing')
     ev = play(ev, 'guest', { type: 'pass' }, T0 + 3)
+    expect(ev[ev.length - 1]).toMatchObject({ type: 'scoring' })
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 4)
+    ev = play(ev, 'guest', { type: 'accept' }, T0 + 5)
     // negro 36, blanco 27 + 0.5 komi → B+8.5
     expect(ev[ev.length - 1]).toMatchObject({ type: 'ended', result: 'B+8.5' })
     expect(project(ev).phase).toBe('ended')
@@ -249,6 +254,8 @@ describe('sala: fin de partida', () => {
     }
     ev = play(ev, 'creator', { type: 'pass' }, T0 + 2)
     ev = play(ev, 'guest', { type: 'pass' }, T0 + 3)
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 4)
+    ev = play(ev, 'guest', { type: 'accept' }, T0 + 5)
     expect(project(ev).result).toBe('B+2.0')
   })
 
@@ -256,5 +263,140 @@ describe('sala: fin de partida', () => {
     const ev = play(started(), 'guest', { type: 'resign' }, T0 + 5)
     expect(ev.slice(-2).map((e) => e.type)).toEqual(['resign', 'ended'])
     expect(project(ev).result).toBe('B+R')
+  })
+})
+
+describe('sala: fase de conteo', () => {
+  const REAL = 'gc cg gg cc de ef fe dd ee ce ec df eh ff gf dh db cb da ca ed dc eb fg fh ei fi ci di eg gh ei - di - -'
+  // Reproduce una partida (negro = creador, alterna) con pases '-'; los dos últimos pases abren el conteo.
+  function game(config: RoomConfig, seq = REAL): RoomEvent[] {
+    let ev = started(config)
+    seq.split(' ').forEach((c, i) => {
+      const seat: SeatRole = i % 2 === 0 ? 'creator' : 'guest'
+      ev = play(ev, seat, c === '-' ? { type: 'pass' } : { type: 'move', x: c.charCodeAt(0) - 97, y: c.charCodeAt(1) - 97 }, T0 + 10 + i)
+    })
+    return ev
+  }
+  // Tablero con muros: negro x=3, blanco x=6 (como los tests de área), listo para dos pases.
+  function walls(config: RoomConfig = cfg()): RoomEvent[] {
+    let ev = started(config)
+    for (let y = 0; y < 9; y++) {
+      ev = B(ev, 3, y)
+      ev = W(ev, 6, y)
+    }
+    ev = play(ev, 'creator', { type: 'pass' }, T0 + 2)
+    return play(ev, 'guest', { type: 'pass' }, T0 + 3)
+  }
+  const last = (ev: RoomEvent[]) => ev[ev.length - 1]!
+
+  it('1. dos pases → scoring (no ended); flagDeadline undefined', () => {
+    const ev = walls(cfg({ clock: CLOCK }))
+    expect(last(ev)).toMatchObject({ type: 'scoring' })
+    expect(ev.some((e) => e.type === 'ended')).toBe(false)
+    const s = project(ev)
+    expect(s.phase).toBe('scoring')
+    expect(s.toPlay).toBeUndefined()
+    expect(s.dead).toEqual([])
+    expect(flagDeadline(s)).toBeUndefined()
+  })
+
+  it('2. toggle-dead marca la cadena entera; segundo toggle la quita; vacío → illegal', () => {
+    let ev = walls()
+    ev = play(ev, 'creator', { type: 'toggle-dead', x: 6, y: 4 }, T0 + 4)
+    const s = project(ev)
+    expect(s.dead).toHaveLength(9)
+    expect(s.dead).toContainEqual({ x: 6, y: 0 })
+    ev = play(ev, 'guest', { type: 'toggle-dead', x: 6, y: 8 }, T0 + 5)
+    expect(project(ev).dead).toEqual([])
+    const seq = project(ev).nextSeq
+    expect(reduce(ev, 'creator', { type: 'toggle-dead', x: 0, y: 0, seq }, T0 + 6)).toEqual({ rejected: 'illegal' })
+    expect(reduce(ev, 'creator', { type: 'toggle-dead', x: 99, y: 0, seq }, T0 + 6)).toEqual({ rejected: 'illegal' })
+  })
+
+  it('3. aceptación previa se invalida al marcar; scoringDeadline = at del toggle + 5 min', () => {
+    let ev = walls()
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 4)
+    expect(project(ev).accepted).toEqual({ black: true, white: false })
+    ev = play(ev, 'guest', { type: 'toggle-dead', x: 6, y: 4 }, T0 + 50)
+    const s = project(ev)
+    expect(s.accepted).toEqual({ black: false, white: false })
+    expect(scoringDeadline(s)).toBe(T0 + 50 + SCORING_TIMEOUT_MS)
+  })
+
+  it('4. ambos aceptan: japonesas W+0.5; sin rules → chinas W+1.5', () => {
+    let ev = game(cfg({ komi: 6.5, rules: 'japanese' }))
+    expect(project(ev).phase).toBe('scoring')
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 100)
+    ev = play(ev, 'guest', { type: 'accept' }, T0 + 101)
+    expect(last(ev)).toMatchObject({ type: 'ended', result: 'W+0.5' })
+    const s = project(ev)
+    expect(s.phase).toBe('ended')
+    expect(s.score?.white.total).toBe(29.5)
+
+    let ev2 = game(cfg({ komi: 6.5 }))
+    ev2 = play(ev2, 'guest', { type: 'accept' }, T0 + 100)
+    ev2 = play(ev2, 'creator', { type: 'accept' }, T0 + 101)
+    expect(project(ev2).result).toBe('W+1.5')
+    expect(project(ev2).rules).toBe('chinese')
+  })
+
+  it('5. accept repetido → illegal; move en scoring → scoring; accept en playing → not-scoring', () => {
+    let ev = walls()
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 4)
+    const seq = project(ev).nextSeq
+    expect(reduce(ev, 'creator', { type: 'accept', seq }, T0 + 5)).toEqual({ rejected: 'illegal' })
+    expect(reduce(ev, 'guest', { type: 'move', x: 0, y: 0, seq }, T0 + 5)).toEqual({ rejected: 'scoring' })
+    expect(reduce(ev, 'guest', { type: 'pass', seq }, T0 + 5)).toEqual({ rejected: 'scoring' })
+    const pl = started()
+    const s = project(pl)
+    expect(validateIntentLocally(s, 'creator', { type: 'accept', seq: s.nextSeq })).toBe('not-scoring')
+    expect(validateIntentLocally(s, 'creator', { type: 'resume', seq: s.nextSeq })).toBe('not-scoring')
+    expect(validateIntentLocally(s, 'creator', { type: 'toggle-dead', x: 0, y: 0, seq: s.nextSeq })).toBe('not-scoring')
+  })
+
+  it('6. resume → playing, dead vacío, toPlay = currentTurn y el reloj no descuenta el conteo', () => {
+    let ev = walls(cfg({ clock: CLOCK }))
+    ev = play(ev, 'creator', { type: 'toggle-dead', x: 6, y: 4 }, T0 + 4)
+    ev = play(ev, 'guest', { type: 'resume' }, T0 + 200_000)
+    expect(last(ev)).toMatchObject({ type: 'resumed', by: 'white' })
+    const s = project(ev)
+    expect(s.phase).toBe('playing')
+    expect(s.dead).toEqual([])
+    expect(s.accepted).toEqual({ black: false, white: false })
+    expect(s.scoringSince).toBeUndefined()
+    expect(s.toPlay).toBe('black')
+    expect(s.turnStartedAt).toBe(T0 + 200_000)
+  })
+
+  it('7. tras resume, UN pase sigue playing; el segundo consecutivo → scoring', () => {
+    let ev = walls()
+    ev = play(ev, 'guest', { type: 'resume' }, T0 + 10)
+    ev = play(ev, 'creator', { type: 'pass' }, T0 + 11)
+    expect(project(ev).phase).toBe('playing')
+    ev = play(ev, 'guest', { type: 'pass' }, T0 + 12)
+    expect(last(ev)).toMatchObject({ type: 'scoring' })
+    expect(project(ev).phase).toBe('scoring')
+  })
+
+  it('8. resign en scoring → ended B+R si se rinde Blanco', () => {
+    const ev = play(walls(), 'guest', { type: 'resign' }, T0 + 5)
+    expect(ev.slice(-2).map((e) => e.type)).toEqual(['resign', 'ended'])
+    expect(project(ev).result).toBe('B+R')
+  })
+
+  it('9. onAlarm en scoring: antes → []; vencido con un aceptado → F; sin aceptados → resumed timeout', () => {
+    let ev = walls()
+    expect(scoringDeadline(project(walls()))).toBe(T0 + 3 + SCORING_TIMEOUT_MS)
+    expect(onAlarm(ev, T0 + 3 + SCORING_TIMEOUT_MS - 1)).toEqual([])
+    const none = onAlarm(ev, T0 + 3 + SCORING_TIMEOUT_MS)
+    expect(none).toHaveLength(1)
+    expect(none[0]).toMatchObject({ type: 'resumed', by: 'timeout' })
+    ev = play(ev, 'creator', { type: 'accept' }, T0 + 10)
+    const evs = onAlarm(ev, T0 + 10 + SCORING_TIMEOUT_MS)
+    expect(evs).toHaveLength(1)
+    expect(evs[0]).toMatchObject({ type: 'ended', result: 'B+F' })
+    let ev2 = walls()
+    ev2 = play(ev2, 'guest', { type: 'accept' }, T0 + 10)
+    expect(onAlarm(ev2, T0 + 10 + SCORING_TIMEOUT_MS)[0]).toMatchObject({ type: 'ended', result: 'W+F' })
   })
 })

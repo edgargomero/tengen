@@ -11,6 +11,8 @@ const REJECT_TEXT: Record<RejectReason, string> = {
   ko: 'Ko: no podés retomar enseguida',
   suicide: 'Esa jugada sería suicidio',
   occupied: 'Ese punto está ocupado',
+  scoring: 'La partida está en conteo',
+  'not-scoring': 'La partida no está en conteo',
 }
 
 export function rejectMessage(reason: RejectReason): string {
