@@ -44,14 +44,20 @@ conocidos; la puerta queda abierta al uso profesor↔alumno. Costo de infraestru
 - `POST /api/rooms` — cuerpo: `{ boardSize, komi, handicap, clock?, creatorColor: 'black'|'white'|'nigiri', playerId }`.
   Crea la sala (id aleatorio de 128 bits, base64url), registra `created` y devuelve
   `{ roomId, seatToken }`. Rate limit con el `LIMITER` existente.
-- `GET /api/rooms/:id/ws?playerId=…&token=…` — upgrade a WebSocket hacia el DO `idFromName(roomId)`.
-  - token válido → reconecta ese asiento;
-  - sin token y queda asiento libre → lo toma (`joined`), recibe su `seatToken`;
+- `GET /api/rooms/:id/ws?playerId=…&token=…[&join=1]` — upgrade a WebSocket hacia el DO `idFromName(roomId)`.
+  - token válido → reconecta ese asiento; si el mismo asiento ya tenía un socket abierto (otra
+    pestaña u otro dispositivo), el servidor cierra el anterior con código `4001` (un socket por asiento);
+  - sin token, con `join=1` y asiento libre → lo toma (`joined`), recibe su `seatToken`. El `join=1`
+    lo manda el cliente solo tras el gesto "Jugar contra tu rival": abrir el link no sienta a nadie
+    (una vista previa de mensajería o un espectador curioso no le roban el asiento al invitado);
   - si no → espectador.
+- `GET /api/rooms/:id` — existencia de la sala (el cliente lo consulta antes de cada upgrade); con rate
+  limit (`LIMITER`, clave `roomget:<ip>`).
 - `GameRoom` es un **envoltorio delgado**: sockets (Hibernation API), alarm, persistencia. Toda la
   lógica vive en una función pura (ver Lógica de la sala).
 - **Vida de la sala:** al terminar (`ended`) se programa una alarm a 30 días que borra el DO
-  (`deleteAll`). Una sala creada que nunca empezó expira a las 24 h.
+  (`deleteAll`). Una sala creada que nunca empezó expira a las 24 h. Una partida en juego **sin reloj**
+  (no hay flag que la cierre) se borra a los 30 días del último evento.
 
 ### Código compartido
 
@@ -73,10 +79,16 @@ conocidos; la puerta queda abierta al uso profesor↔alumno. Costo de infraestru
 ## Identidad (preparación de la etapa 2)
 
 - El navegador genera una vez `playerId` (aleatorio) y lo guarda en `localStorage`.
-- Los eventos `created`/`joined` registran el `playerId`, no solo el asiento.
+- Los eventos `created`/`joined` registran el `playerId`, no solo el asiento. **Ese `playerId` no sale
+  del servidor:** el DO lo quita de todo evento que difunde (`welcome` y broadcasts); solo vive en el
+  log guardado.
 - Etapa 1: sin nombres; la UI dice "Negro (vos)" / "Blanco (rival)".
 - Etapa 2: al crear el perfil con passkey, el `playerId` del navegador se vincula a la cuenta; las
-  partidas ya jugadas pasan a su historial sin migración.
+  partidas ya jugadas pasan a su historial sin migración. **La vinculación tiene que probar posesión
+  con un secreto** (el `seatToken` de cada sala o un secreto del navegador), **nunca solo con el
+  `playerId`**: es un identificador, no una credencial, y en la etapa 1 viajó en la URL del upgrade y
+  estuvo en los eventos difundidos hasta que se lo quitó (I-4, 2026-09-30) — hay que tratarlo como
+  potencialmente conocido por terceros.
 
 ## Lógica de la sala (función pura)
 

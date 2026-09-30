@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es tengen
 
-App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. Motor 100% client-side (encoding V7 + MCTS + Web Worker, adaptado de web-katrain) — **la fase engine ya no es un plan pendiente**: el código real (`apps/web/src/main.tsx`) tiene las rutas `/jugar`, `/analizar`, `/aprender` y `/partidas` funcionando sobre el motor, con cuentas (Google OAuth + D1), PWA offline y `/diagnostico`. La fase en desarrollo activo es **Aprender** (ejercicios de tsumego; veredicto de licencias en curso en `docs/research/fase-aprender/contenido-licencias.md`).
+App web pública y **gratuita** de Go/Baduk sobre Cloudflare: jugar contra KataGo y analizar partidas, con UI construida sobre los componentes oficiales de Sabaki. Motor 100% client-side (encoding V7 + MCTS + Web Worker, adaptado de web-katrain) — **la fase engine ya no es un plan pendiente**: el código real (`apps/web/src/main.tsx`) tiene las rutas `/jugar`, `/analizar`, `/aprender` y `/partidas` funcionando sobre el motor, con cuentas (Google OAuth + D1), PWA offline y `/diagnostico`. Además, **partidas online humano vs humano** (`/online/<roomId>`, creación en `/online/nueva`): una sala = un Durable Object `GameRoom` que es la autoridad (log de eventos + reloj + conteo), con la lógica pura compartida en `packages/go-rules`; esas rutas se resuelven en `Root` FUERA del router y del gate de WebGPU, porque jugar contra una persona no necesita el motor. Spec: `docs/superpowers/specs/2026-09-30-partidas-online-design.md`. La fase en desarrollo activo es **Aprender** (ejercicios de tsumego; veredicto de licencias en curso en `docs/research/fase-aprender/contenido-licencias.md`).
 
 **Lee primero la spec:** `docs/superpowers/specs/2026-07-08-tengen-design.md`. La investigación que respalda cada decisión (con cifras verificadas) está en `docs/research/`; los resultados medidos de fase 0 y el veredicto de licencias de pesos están en `docs/research/fase0/resultados.md`. **Para la fase engine:** el plan es `docs/superpowers/plans/2026-07-09-fase-engine.md`; los datos duros (encoding, MCTS, postproceso, contrato de `kata-raw-nn`) están en `docs/research/fase-engine/fuentes.md` y las decisiones de adaptación de web-katrain en `docs/research/fase-engine/decisiones-adaptacion.md`.
 
 ## Comandos
 
 - `npm test` — Vitest de todos los workspaces (`npm test -w @tengen/engine` para uno).
-- `npm run typecheck` — `tsc --noEmit` de los 3 workspaces (`npx -w @tengen/engine tsc --noEmit` para uno; strict + noUncheckedIndexedAccess).
+- `npm run typecheck` — `tsc --noEmit` de los 4 workspaces (`npx -w @tengen/engine tsc --noEmit` para uno; strict + noUncheckedIndexedAccess).
 - **CI** (`.github/workflows/ci.yml`): en cada PR y push a `main` corre `typecheck` → `npm test` → build del web. Hermético (sin modelos ni secretos): `build` no bundlea los ONNX y `test:nn` NO corre ahí. Frontera de testing en `docs/TESTING.md`.
 - `npm run dev -w @tengen/web` — Vite dev server de la SPA (Preact) sola, sin API.
 - `wrangler dev` (desde `apps/worker/`) — Worker local con la API real (auth, D1); necesario para probar login/partidas guardadas, ya que Vite solo no tiene API. Requiere `.dev.vars` (ver `.dev.vars.example`).
@@ -60,7 +60,7 @@ El producto depende de repos externos (KataGo, katago-onnx, onnxruntime-web, `@s
 
 ## Estructura
 
-Monorepo npm workspaces: `packages/engine` (MCTS + ONNX, sin UI, detrás de la interfaz `Engine`), `apps/web` (SPA Preact), `apps/worker` (Worker + D1 + R2). Testing: Vitest — dominio en Node (reglas, SGF, encoding contra vectores de referencia de KataGo desktop; MCTS con red mock determinista) + componentes presentacionales en jsdom (`@testing-library/preact`, opt-in por-archivo con `// @vitest-environment jsdom`). El motor real (WebGPU) es **gate manual**, no CI; Playwright smoke acotado queda como trabajo futuro. Convención completa en `docs/TESTING.md`.
+Monorepo npm workspaces: `packages/engine` (MCTS + ONNX, sin UI, detrás de la interfaz `Engine`), `packages/go-rules` (reglas, conteo y lógica pura de la sala online; la consumen el Worker y la SPA — **solo `import type` de `@tengen/engine`** más el subpath liviano `@tengen/engine/clock`, para que el Worker no arrastre onnxruntime; lo vigila `tests/noEngineRuntime.test.ts`), `apps/web` (SPA Preact), `apps/worker` (Worker Hono + D1 + R2 + el Durable Object `GameRoom` de las salas online, en `src/online/`). Testing: Vitest — dominio en Node (reglas, SGF, encoding contra vectores de referencia de KataGo desktop; MCTS con red mock determinista) + componentes presentacionales en jsdom (`@testing-library/preact`, opt-in por-archivo con `// @vitest-environment jsdom`). El motor real (WebGPU) es **gate manual**, no CI; Playwright smoke acotado queda como trabajo futuro. Convención completa en `docs/TESTING.md`.
 
 ## Idioma
 
