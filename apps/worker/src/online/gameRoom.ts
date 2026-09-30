@@ -12,13 +12,17 @@ import {
   type RoomConfig,
   type RoomEvent,
   type SeatRole,
+  PING,
+  PONG,
 } from '@tengen/go-rules'
+import type { ClientMessage, ServerMessage } from '@tengen/go-rules'
 import type { Env } from '../index'
-import type { ClientMessage, ServerMessage } from './rooms'
 
 const WAITING_TTL_MS = 24 * 60 * 60 * 1000
 const ENDED_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const MAX_SOCKETS = 50
+// El tope aplica sólo a espectadores: los dos asientos siempre pueden (re)conectar.
+const MAX_SPECTATORS = MAX_SOCKETS - 2
 const MAX_MESSAGE_LEN = 1024
 
 interface Tokens {
@@ -37,7 +41,19 @@ function newToken(): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/** Acota el playerId que va al attachment: 8..64 caracteres, o '' si no hay uno usable. */
+function sanitizePlayerId(raw: string): string {
+  if (raw.length > 64) return raw.slice(0, 64)
+  return raw.length < 8 ? '' : raw
+}
+
 export class GameRoom extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    // Latido de vida: el runtime contesta sin despertar al DO hibernado.
+    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG))
+  }
+
   private async loadEvents(): Promise<RoomEvent[]> {
     return (await this.ctx.storage.get<RoomEvent[]>('events')) ?? []
   }
@@ -73,14 +89,9 @@ export class GameRoom extends DurableObject<Env> {
     const client = pair[0]
     const server = pair[1]
 
-    if (this.ctx.getWebSockets().length >= MAX_SOCKETS) {
-      this.ctx.acceptWebSocket(server)
-      server.close(1013, 'Sala llena')
-      return new Response(null, { status: 101, webSocket: client })
-    }
-
     const url = new URL(request.url)
-    const playerId = url.searchParams.get('playerId') ?? ''
+    const rawPlayerId = url.searchParams.get('playerId') ?? ''
+    const playerId = sanitizePlayerId(rawPlayerId)
     const token = url.searchParams.get('token')
     const lastSeqRaw = url.searchParams.get('lastSeq')
     const lastSeq = lastSeqRaw !== null && lastSeqRaw !== '' ? Number(lastSeqRaw) : NaN
@@ -105,9 +116,16 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
 
+    // El tope se aplica DESPUÉS de resolver el asiento: sólo los espectadores se rechazan.
+    if (seat === 'spectator' && this.countSpectators() >= MAX_SPECTATORS) {
+      this.ctx.acceptWebSocket(server)
+      server.close(1013, 'Sala llena')
+      return new Response(null, { status: 101, webSocket: client })
+    }
+
     // A los sockets ya conectados se les difunde el join ANTES de aceptar al nuevo: el nuevo lo
     // recibe dentro del welcome.
-    if (fresh.length > 0) this.broadcast({ t: 'events', events: fresh })
+    if (fresh.length > 0) this.broadcast({ t: 'events', events: fresh, serverNow: Date.now() })
 
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ seat, playerId } satisfies Attachment)
@@ -117,6 +135,7 @@ export class GameRoom extends DurableObject<Env> {
       seat,
       ...(seatToken ? { seatToken } : {}),
       events: current.filter((e) => e.seq > sendFrom),
+      serverNow: Date.now(),
     })
     this.broadcastPresence()
     return new Response(null, { status: 101, webSocket: client })
@@ -143,7 +162,7 @@ export class GameRoom extends DurableObject<Env> {
     }
     const next = [...events, ...result.events]
     await this.ctx.storage.put('events', next)
-    this.broadcast({ t: 'events', events: result.events })
+    this.broadcast({ t: 'events', events: result.events, serverNow: Date.now() })
     await this.reschedule(next)
   }
 
@@ -187,7 +206,7 @@ export class GameRoom extends DurableObject<Env> {
       if (out.length > 0) {
         const next = [...events, ...out]
         await this.ctx.storage.put('events', next)
-        this.broadcast({ t: 'events', events: out })
+        this.broadcast({ t: 'events', events: out, serverNow: Date.now() })
         await this.reschedule(next)
         return
       }
@@ -205,6 +224,15 @@ export class GameRoom extends DurableObject<Env> {
     else if (state.phase === 'waiting' && events[0]) at = events[0].at + WAITING_TTL_MS
     if (at === undefined) await this.ctx.storage.deleteAlarm()
     else await this.ctx.storage.setAlarm(at)
+  }
+
+  private countSpectators(): number {
+    let n = 0
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null
+      if (!att || att.seat === 'spectator') n++
+    }
+    return n
   }
 
   private send(ws: WebSocket, msg: ServerMessage): void {

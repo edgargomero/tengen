@@ -24,7 +24,7 @@ class Client {
   private waiters: Array<() => void> = []
   constructor(readonly ws: WebSocket) {
     ws.addEventListener('message', (e) => {
-      this.msgs.push(JSON.parse(e.data as string) as Msg)
+      this.msgs.push(e.data === 'pong' ? { t: 'pong' } : (JSON.parse(e.data as string) as Msg))
       this.waiters.splice(0).forEach((w) => w())
     })
     ws.addEventListener('close', (e) => {
@@ -145,6 +145,16 @@ describe('rutas /api/rooms', () => {
     expect((await post({ config: { ...CONFIG, clock: { mainTimeMs: 0, byoyomiPeriods: 3, byoyomiPeriodMs: 0 } }, playerId: P1 })).status).toBe(400)
     expect((await post({ config: { ...CONFIG, clock: { mainTimeMs: -1, byoyomiPeriods: 1, byoyomiPeriodMs: 1000 } }, playerId: P1 })).status).toBe(400)
     expect((await post({ config: CONFIG, playerId: 'corto' })).status).toBe(400)
+    // M-3: topes de la config
+    const clock = { mainTimeMs: 60000, byoyomiPeriods: 3, byoyomiPeriodMs: 30000 }
+    const withClock = (over: object) => ({ config: { ...CONFIG, clock: { ...clock, ...over } }, playerId: P1 })
+    expect((await post(withClock({ mainTimeMs: 24 * 60 * 60 * 1000 + 1 }))).status).toBe(400)
+    expect((await post(withClock({ byoyomiPeriods: 31 }))).status).toBe(400)
+    expect((await post(withClock({ byoyomiPeriodMs: 10 * 60 * 1000 + 1 }))).status).toBe(400)
+    expect((await post({ config: { ...CONFIG, komi: 50.5 }, playerId: P1 })).status).toBe(400)
+    expect((await post({ config: { ...CONFIG, komi: -50.5 }, playerId: P1 })).status).toBe(400)
+    expect((await post(withClock({ mainTimeMs: 24 * 60 * 60 * 1000, byoyomiPeriods: 30, byoyomiPeriodMs: 10 * 60 * 1000 }))).status).toBe(201)
+    expect((await post({ config: { ...CONFIG, komi: -50 }, playerId: P1 })).status).toBe(201)
     expect((await post({ config: { ...CONFIG, boardSize: 19, handicap: 4 }, playerId: P1 })).status).toBe(201)
     expect((await post({ config: { ...CONFIG, clock: { mainTimeMs: 0, byoyomiPeriods: 3, byoyomiPeriodMs: 30000 } }, playerId: P1 })).status).toBe(201)
   })
@@ -264,6 +274,68 @@ describe('GameRoom por WebSocket', () => {
     for (let i = 0; i < 49; i++) await connect(roomId, { playerId: `watcher-${String(i).padStart(4, '0')}x` })
     const extra = await connect(roomId, { playerId: 'watcher-extra-0001' })
     expect(await extra.waitClose()).toBe(1013)
+  })
+
+  it('I-1: con la sala al tope de espectadores, el jugador que reconecta con token entra igual', async () => {
+    const { roomId, seatToken, guestToken, creator } = await startedRoom()
+    const all: Client[] = []
+    for (let i = 0; i < 48; i++) all.push(await connect(roomId, { playerId: `watcher-${String(i).padStart(4, '0')}x` }))
+    for (const w of all) await w.next((m) => m.t === 'welcome')
+    const extra = await connect(roomId, { playerId: 'watcher-extra-0001' })
+    expect(await extra.waitClose()).toBe(1013)
+    // reconexión del creador (su socket viejo sigue abierto, como en un socket medio abierto)
+    const again = await connect(roomId, { playerId: P1, token: seatToken, lastSeq: '2' })
+    expect(await again.next((m) => m.t === 'welcome')).toMatchObject({ seat: 'creator' })
+    expect(again.closeCode).toBeUndefined()
+    const g = await connect(roomId, { playerId: P2, token: guestToken })
+    expect(await g.next((m) => m.t === 'welcome')).toMatchObject({ seat: 'guest' })
+    expect(creator.closeCode).toBeUndefined()
+  })
+
+  it('I-2: el DO responde pong al ping crudo', async () => {
+    const { roomId, seatToken } = await createRoom()
+    const c = await connect(roomId, { playerId: P1, token: seatToken })
+    await c.next((m) => m.t === 'welcome')
+    c.send('ping')
+    expect(await c.next((m) => m.t === 'pong')).toEqual({ t: 'pong' })
+  })
+
+  it('I-3: welcome y events traen serverNow (Date.now() del DO)', async () => {
+    const before = Date.now()
+    const { roomId, seatToken } = await createRoom()
+    const creator = await connect(roomId, { playerId: P1, token: seatToken })
+    const w = await creator.next((m) => m.t === 'welcome')
+    expect(typeof w.serverNow).toBe('number')
+    expect(Math.abs((w.serverNow as number) - before)).toBeLessThan(10_000)
+    const guest = await connect(roomId, { playerId: P2 })
+    const gw = await guest.next((m) => m.t === 'welcome')
+    expect(typeof gw.serverNow).toBe('number')
+    const ev = await creator.next((m) => m.t === 'events')
+    expect(typeof ev.serverNow).toBe('number')
+    creator.send({ t: 'intent', intent: { type: 'move', x: 4, y: 4, seq: 3 } })
+    expect(typeof (await guest.next((m) => m.t === 'events' && (m.events as RoomEvent[])[0]?.type === 'move')).serverNow).toBe('number')
+  })
+
+  it('una intención de type desconocido se rechaza y no entra al log', async () => {
+    const { roomId, creator } = await startedRoom()
+    creator.send({ t: 'intent', intent: { type: 'explode', seq: 3 } })
+    expect(await creator.next((m) => m.t === 'rejected')).toMatchObject({ reason: 'illegal' })
+    const n = await runInDurableObject(stubOf(roomId), async (_i, state) => (await state.storage.get<RoomEvent[]>('events'))!.length)
+    expect(n).toBe(3)
+  })
+
+  it('M-4: el playerId del attachment se acota a 64 caracteres (o vacío si es demasiado corto)', async () => {
+    const { roomId } = await startedRoom()
+    const long = await connect(roomId, { playerId: 'x'.repeat(500) })
+    await long.next((m) => m.t === 'welcome')
+    const short = await connect(roomId, { playerId: 'ab' })
+    await short.next((m) => m.t === 'welcome')
+    const ids = await runInDurableObject(stubOf(roomId), (_i, state) =>
+      state.getWebSockets().map((ws) => (ws.deserializeAttachment() as { playerId: string }).playerId),
+    )
+    expect(ids.every((id) => id.length <= 64)).toBe(true)
+    expect(ids).toContain('x'.repeat(64))
+    expect(ids).toContain('')
   })
 
   it('presence: al cerrarse un socket ya no cuenta como conectado', async () => {

@@ -1,16 +1,14 @@
 // Rutas HTTP de las salas online. El estado vive en el Durable Object `GameRoom`; acá solo se
 // valida la entrada, se aplica rate limit y se delega al DO por RPC / fetch.
 import { Hono } from 'hono'
-import type { Intent, RejectReason, RoomConfig, RoomEvent, SeatRole } from '@tengen/go-rules'
+import type { RoomConfig } from '@tengen/go-rules'
 import type { Env } from '../index'
 
-// ── Protocolo de red (JSON por WebSocket) ──────────────────────────────────────────────────────
-export type ServerMessage =
-  | { t: 'welcome'; seat: SeatRole | 'spectator'; seatToken?: string; events: RoomEvent[] }
-  | { t: 'events'; events: RoomEvent[] }
-  | { t: 'rejected'; reason: RejectReason }
-  | { t: 'presence'; creator: boolean; guest: boolean }
-export type ClientMessage = { t: 'intent'; intent: Intent }
+// Topes de la config (defensa contra salas absurdas: relojes de años, komi gigantes).
+const MAX_MAIN_TIME_MS = 24 * 60 * 60 * 1000
+const MAX_BYOYOMI_PERIODS = 30
+const MAX_BYOYOMI_PERIOD_MS = 10 * 60 * 1000
+const MAX_KOMI = 50
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0
 
@@ -20,7 +18,7 @@ export function parseConfig(raw: unknown): RoomConfig | null {
   const r = raw as Record<string, unknown>
   const size = r.boardSize
   if (size !== 9 && size !== 13 && size !== 19) return null
-  if (typeof r.komi !== 'number' || !Number.isFinite(r.komi)) return null
+  if (typeof r.komi !== 'number' || !Number.isFinite(r.komi) || Math.abs(r.komi) > MAX_KOMI) return null
   const handicap = r.handicap
   if (
     handicap !== 0 &&
@@ -36,6 +34,9 @@ export function parseConfig(raw: unknown): RoomConfig | null {
     if (typeof c !== 'object' || c === null) return null
     if (!isInt(c.mainTimeMs) || !isInt(c.byoyomiPeriods) || !isInt(c.byoyomiPeriodMs)) return null
     // Reloj sin tiempo posible: el primer turno vencería al instante.
+    if (c.mainTimeMs > MAX_MAIN_TIME_MS || c.byoyomiPeriods > MAX_BYOYOMI_PERIODS || c.byoyomiPeriodMs > MAX_BYOYOMI_PERIOD_MS) {
+      return null
+    }
     if (c.mainTimeMs === 0 && (c.byoyomiPeriods === 0 || c.byoyomiPeriodMs === 0)) return null
     config.clock = { mainTimeMs: c.mainTimeMs, byoyomiPeriods: c.byoyomiPeriods, byoyomiPeriodMs: c.byoyomiPeriodMs }
   }
