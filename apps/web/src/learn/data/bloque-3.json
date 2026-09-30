@@ -748,5 +748,189 @@
     ],
     "checkpoint": false,
     "practiceOpponent": { "rank": "20k", "boardSize": 9 }
+  },
+  {
+    "id": "b3-l15",
+    "block": 3,
+    "workshop": 15,
+    "title": "Territorio, dos veces",
+    "theory": [
+      "En la Lección 12 viste las tres condiciones para que un espacio rodeado sea territorio: el límite cerrado, piedras del límite que no se puedan capturar, y poder capturar cualquier piedra que el rival meta adentro. Esta lección vuelve sobre las tres con casos más finos. El primero es el hueco. Un hueco en tu límite no solo deja entrar al rival: también le sirve de salida. Si las piedras que invadieron llegan a unirse por un hueco con sus piedras de afuera, ya no les hace falta formar ojos para vivir, y tu espacio deja de ser tuyo. Por eso, cuando una invasión puede escaparse por un hueco, hay que capturarla o cerrar el hueco antes de que lo haga; a veces una sola jugada hace las dos cosas.",
+      "La segunda condición también tiene su versión escondida. Las cadenas de tu límite, y también las piedras que ponés adentro para rodear a una invasión, tienen libertades de los dos lados. Cuando el rival invade, sus piedras de adentro les van quitando libertades desde adentro, mientras las de afuera las aprietan desde afuera. Así, una cadena tuya que parecía segura puede quedar a un paso del atari, y una parte de tu límite que se une con el resto solo a través de un punto vacío puede quedarse sin libertades y ser capturada; donde el rival captura, se abre un hueco. Antes de pasar, contá las libertades de tus cadenas que tocan a la invasión, no solo las de la invasión. Y si hay una parte de la invasión que podés capturar, fijate si esa captura también les devuelve libertades a tus piedras.",
+      "La tercera condición es poder capturar las piedras que el rival mete adentro, y acá está la forma más clara de romper un territorio: una invasión que forma dos ojos ya no se puede capturar. Sus piedras quedan vivas, y el espacio que ocupan pasa a ser del invasor. Al contar, eso sale solo, porque se cuenta como siempre: las piedras de la invasión son puntos de su color, y cada ojo es un espacio vacío rodeado solo por piedras de ese color, así que también suma para el invasor. No hace falta que todas las piedras de la invasión formen una sola cadena: si dos cadenas comparten los mismos dos ojos, el rival no puede jugar en ninguno, y las dos viven. Por eso, cuando una invasión está armando su segundo ojo, a veces alcanza con capturar la piedra justa para que ese ojo ya no se pueda cerrar. Al invasor le queda uno solo y no puede vivir, aunque sus piedras sigan sobre el tablero: en una partida, se terminan capturando. En los ejercicios de conteo, en cambio, sigue valiendo lo de siempre: toda piedra que queda sobre el tablero cuenta como viva.",
+      "Hay otra forma de que una invasión no se pueda capturar sin tener dos ojos: el seki. Pasa cuando las piedras de la invasión y las que la rodean se quitan libertades entre sí y ninguno de los dos puede atacar sin ponerse en atari. Las piedras de los dos quedan en el tablero hasta el final, así que ese espacio tampoco es tuyo. Cómo se cuentan los puntos de un seki depende de las reglas. Con las reglas chinas, las piedras cuentan para su dueño, un ojo que un grupo tenga dentro del seki también, y los puntos vacíos que comparten los dos grupos no son de nadie. Con las reglas japonesas, ningún punto vacío de un seki cuenta como territorio. No hace falta aprenderlo de memoria: esa diferencia es solo para el seki, en los ejercicios de esta lección no hay ninguno, y se cuentan por área, como en las lecciones anteriores.",
+      "En los ejercicios de jugada, encontrá la captura que deja tu territorio a salvo. En los de conteo, contá los puntos de cada color, también los de una invasión que vive con dos ojos, y anotá los de Blanco con los 5,5 del komi ya sumados."
+    ],
+    "exercises": [
+      {
+        "id": "b3-l15-01",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 2, "y": 0 }, { "x": 3, "y": 0 }, { "x": 5, "y": 0 }, { "x": 3, "y": 1 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 },
+            { "x": 5, "y": 3 }, { "x": 5, "y": 4 }, { "x": 0, "y": 5 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 3, "y": 5 },
+            { "x": 4, "y": 5 }, { "x": 5, "y": 5 }
+          ],
+          "white": [
+            { "x": 1, "y": 0 }, { "x": 2, "y": 1 }, { "x": 4, "y": 1 }, { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 },
+            { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 2, "y": 4 }, { "x": 3, "y": 4 }, { "x": 4, "y": 4 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 2,
+        "tree": {
+          "comment": "Negro se metió con tres piedras en tu rincón de arriba a la izquierda, pegadas al borde. Juegan blancas: que el rincón siga siendo tuyo.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 0 } },
+              "correct": true,
+              "comment": "Capturás las tres piedras: les quedaba una sola libertad, justo en el hueco que tu pared dejaba sobre el borde. La misma jugada cierra ese hueco, y el espacio del rincón queda rodeado solo por piedras blancas.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 1, "y": 1 } },
+              "correct": false,
+              "comment": "Unís tus dos piedras de adentro, pero no capturás nada: la cadena negra sigue con su última libertad en (4,0). Si Negro juega ahí, se une con su pared de afuera por (5,0), queda una sola cadena negra con doce libertades, y tu rincón queda abierto por el borde.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l15-02",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 },
+            { "x": 5, "y": 4 }, { "x": 0, "y": 5 }, { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 5, "y": 5 }, { "x": 5, "y": 6 },
+            { "x": 1, "y": 7 }, { "x": 5, "y": 7 }, { "x": 0, "y": 8 }, { "x": 1, "y": 8 }, { "x": 5, "y": 8 }
+          ],
+          "white": [
+            { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 2, "y": 4 }, { "x": 3, "y": 4 }, { "x": 4, "y": 4 }, { "x": 3, "y": 5 },
+            { "x": 4, "y": 5 }, { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 4, "y": 6 }, { "x": 4, "y": 7 }, { "x": 4, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Negro metió dos grupos en tu rincón de abajo a la izquierda, uno arriba y otro en la esquina, y tus dos piedras de (0,6) y (1,6) quedaron entre ellos. Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 2, "y": 6 } },
+              "correct": true,
+              "comment": "Capturás las tres piedras negras de arriba. Tus dos piedras se unen con la de (2,6) y pasan de dos libertades a seis. Al grupo de la esquina le quedan tres libertades y no le alcanza el lugar para dos ojos: aunque juegue primero, lo capturás.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 0, "y": 7 } },
+              "correct": false,
+              "comment": "Le quitás una libertad al grupo de la esquina, pero tus piedras de (0,6), (1,6) y (0,7) quedan con una sola libertad, (2,6), la misma que la cadena negra de arriba. Juegan negras: capturan primero ahí y se llevan tus tres piedras.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "b3-l15-03",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 6, "y": 6 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 }, { "x": 6, "y": 7 },
+            { "x": 7, "y": 7 }, { "x": 8, "y": 7 }, { "x": 4, "y": 8 }, { "x": 7, "y": 8 }
+          ],
+          "white": [
+            { "x": 3, "y": 5 }, { "x": 4, "y": 5 }, { "x": 5, "y": 5 }, { "x": 6, "y": 5 }, { "x": 7, "y": 5 }, { "x": 8, "y": 5 },
+            { "x": 3, "y": 6 }, { "x": 3, "y": 7 }, { "x": 3, "y": 8 }, { "x": 5, "y": 8 }
+          ]
+        },
+        "toPlay": "white",
+        "objective": "matar",
+        "difficulty": 3,
+        "tree": {
+          "comment": "Negro invadió tu rincón de abajo a la derecha. Ya tiene un ojo en la esquina, en (8,8), y está rodeando tu piedra de (5,8) para hacerse el segundo. Juegan blancas.",
+          "children": [
+            {
+              "move": { "color": "white", "vertex": { "x": 4, "y": 7 } },
+              "correct": true,
+              "comment": "Capturás la piedra negra de (4,8), que tenía una sola libertad. Ahora el espacio alrededor de tu piedra de (5,8) queda abierto hacia tu pared por (4,8), y Negro ya no puede cerrarlo para hacerse el segundo ojo. Al grupo le queda solo el de la esquina: aunque juegue primero, lo capturás.",
+              "children": []
+            },
+            {
+              "move": { "color": "white", "vertex": { "x": 5, "y": 7 } },
+              "correct": false,
+              "comment": "Unís tus piedras de (5,7) y (5,8), pero Negro conecta en (4,7) y tu cadena queda en atari en (6,8). No tiene salida: jugar ahí sería suicidio. Cuando Negro la capture, le quedan dos ojos: el espacio que dejan tus dos piedras y la esquina.",
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l15-04",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 5, "y": 0 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 }, { "x": 5, "y": 3 }, { "x": 5, "y": 4 }, { "x": 0, "y": 5 },
+            { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 5, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 3, "y": 7 },
+            { "x": 4, "y": 7 }, { "x": 3, "y": 8 }, { "x": 4, "y": 8 }
+          ],
+          "white": [
+            { "x": 6, "y": 0 }, { "x": 6, "y": 1 }, { "x": 6, "y": 2 }, { "x": 6, "y": 3 }, { "x": 6, "y": 4 }, { "x": 6, "y": 5 },
+            { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 }, { "x": 6, "y": 6 }, { "x": 1, "y": 7 }, { "x": 2, "y": 7 },
+            { "x": 5, "y": 7 }, { "x": 0, "y": 8 }, { "x": 2, "y": 8 }, { "x": 5, "y": 8 }
+          ]
+        },
+        "correctScore": { "black": 42, "white": 38 },
+        "komi": 5.5
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l15-05",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 1, "y": 2 }, { "x": 2, "y": 2 }, { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 5, "y": 2 }, { "x": 6, "y": 2 },
+            { "x": 7, "y": 2 }, { "x": 8, "y": 2 }, { "x": 0, "y": 3 }, { "x": 1, "y": 3 }, { "x": 2, "y": 7 }, { "x": 3, "y": 7 },
+            { "x": 4, "y": 7 }, { "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 2, "y": 8 }, { "x": 4, "y": 8 }, { "x": 6, "y": 8 }
+          ],
+          "white": [
+            { "x": 2, "y": 3 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 5, "y": 3 }, { "x": 6, "y": 3 }, { "x": 7, "y": 3 },
+            { "x": 8, "y": 3 }, { "x": 0, "y": 4 }, { "x": 1, "y": 4 }, { "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 },
+            { "x": 5, "y": 6 }, { "x": 6, "y": 6 }, { "x": 1, "y": 7 }, { "x": 7, "y": 7 }, { "x": 1, "y": 8 }, { "x": 7, "y": 8 }
+          ]
+        },
+        "correctScore": { "black": 39, "white": 42 },
+        "komi": 5.5
+      },
+      {
+        "kind": "conteo",
+        "id": "b3-l15-06",
+        "collection": "bloque-3-leccion-15",
+        "boardSize": 9,
+        "setup": {
+          "black": [
+            { "x": 4, "y": 0 }, { "x": 5, "y": 0 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 }, { "x": 5, "y": 3 }, { "x": 5, "y": 4 },
+            { "x": 5, "y": 5 }, { "x": 0, "y": 6 }, { "x": 1, "y": 6 }, { "x": 2, "y": 6 }, { "x": 5, "y": 6 }, { "x": 0, "y": 7 },
+            { "x": 2, "y": 7 }, { "x": 5, "y": 7 }, { "x": 1, "y": 8 }, { "x": 2, "y": 8 }, { "x": 5, "y": 8 }
+          ],
+          "white": [
+            { "x": 3, "y": 0 }, { "x": 4, "y": 1 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 4, "y": 4 }, { "x": 0, "y": 5 },
+            { "x": 1, "y": 5 }, { "x": 2, "y": 5 }, { "x": 4, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 }, { "x": 3, "y": 7 },
+            { "x": 4, "y": 7 }, { "x": 3, "y": 8 }, { "x": 4, "y": 8 }
+          ]
+        },
+        "correctScore": { "black": 46, "white": 35 },
+        "komi": 5.5
+      }
+    ],
+    "checkpoint": false,
+    "practiceOpponent": { "rank": "20k", "boardSize": 9 }
   }
 ]
