@@ -399,4 +399,64 @@ describe('sala: fase de conteo', () => {
     ev2 = play(ev2, 'guest', { type: 'accept' }, T0 + 10)
     expect(onAlarm(ev2, T0 + 10 + SCORING_TIMEOUT_MS)[0]).toMatchObject({ type: 'ended', result: 'W+F' })
   })
+
+  describe('T1: rendición sin seq y vencimiento del conteo', () => {
+    const STALE = 0 // seq viejo a propósito
+    const DUE = T0 + 3 + SCORING_TIMEOUT_MS
+
+    it('resign con seq viejo se acepta en playing (resign + ended)', () => {
+      const ev = started()
+      expect(validateIntentLocally(project(ev), 'guest', { type: 'resign', seq: STALE })).toBeNull()
+      const r = reduce(ev, 'guest', { type: 'resign', seq: STALE }, T0 + 5)
+      if ('rejected' in r) throw new Error('rejected: ' + r.rejected)
+      expect(r.events.map((e) => e.type)).toEqual(['resign', 'ended'])
+    })
+
+    it('resign con seq viejo se acepta en scoring (resign + ended)', () => {
+      const ev = walls()
+      expect(validateIntentLocally(project(ev), 'guest', { type: 'resign', seq: STALE })).toBeNull()
+      const r = reduce(ev, 'guest', { type: 'resign', seq: STALE }, T0 + 5)
+      if ('rejected' in r) throw new Error('rejected: ' + r.rejected)
+      expect(r.events.map((e) => e.type)).toEqual(['resign', 'ended'])
+      expect(r.events[1]).toMatchObject({ result: 'B+R' })
+    })
+
+    it('resign sigue rechazada: espectador, waiting, ended', () => {
+      const ev = started()
+      expect(validateIntentLocally(project(ev), 'spectator', { type: 'resign', seq: STALE })).toBe('not-a-player')
+      const waiting = createRoom(cfg(), 'alice', T0)
+      expect(validateIntentLocally(project(waiting), 'creator', { type: 'resign', seq: STALE })).toBe('not-started')
+      const ended = play(ev, 'creator', { type: 'resign' }, T0 + 5)
+      expect(validateIntentLocally(project(ended), 'guest', { type: 'resign', seq: STALE })).toBe('game-over')
+    })
+
+    it('intención llegada tras el plazo del conteo devuelve exactamente lo de onAlarm', () => {
+      const ev = walls()
+      const seq = project(ev).nextSeq
+      const intents: Intent[] = [
+        { type: 'toggle-dead', x: 6, y: 4, seq },
+        { type: 'accept', seq },
+        { type: 'resign', seq },
+      ]
+      for (const intent of intents) {
+        expect(reduce(ev, 'creator', intent, DUE)).toEqual({ events: onAlarm(ev, DUE) })
+      }
+      expect(onAlarm(ev, DUE)[0]).toMatchObject({ type: 'resumed', by: 'timeout' })
+      // Con un solo aceptado, el plazo termina la partida por F.
+      const one = play(ev, 'creator', { type: 'accept' }, T0 + 10)
+      const due1 = T0 + 10 + SCORING_TIMEOUT_MS
+      const r = reduce(one, 'guest', { type: 'resign', seq: project(one).nextSeq }, due1)
+      expect(r).toEqual({ events: onAlarm(one, due1) })
+      expect(onAlarm(one, due1)[0]).toMatchObject({ type: 'ended', result: 'B+F' })
+    })
+
+    it('espectador tras el plazo sigue recibiendo not-a-player; antes del plazo no cambia nada', () => {
+      const ev = walls()
+      const seq = project(ev).nextSeq
+      expect(reduce(ev, 'spectator', { type: 'accept', seq }, DUE)).toEqual({ rejected: 'not-a-player' })
+      const before = reduce(ev, 'creator', { type: 'accept', seq }, DUE - 1)
+      if ('rejected' in before) throw new Error('rejected: ' + before.rejected)
+      expect(before.events.map((e) => e.type)).toEqual(['accepted'])
+    })
+  })
 })

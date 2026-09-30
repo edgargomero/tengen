@@ -200,9 +200,12 @@ export function validateIntentLocally(
   if (!known.includes(intent.type)) return 'illegal'
   if (state.phase === 'waiting') return 'not-started'
   if (state.phase === 'ended') return 'game-over'
-  if (intent.seq !== state.nextSeq) return 'stale'
   const color = state.colors?.[seat]
   if (!color) return 'not-started'
+  // Rendirse siempre es posible: no exige seq, o una rendición tocada con otra intención en vuelo
+  // se perdería como `stale`.
+  if (intent.type === 'resign') return null
+  if (intent.seq !== state.nextSeq) return 'stale'
   if (intent.type === 'toggle-dead' || intent.type === 'accept' || intent.type === 'resume') {
     if (state.phase !== 'scoring') return 'not-scoring'
     if (intent.type === 'accept' && state.accepted[color]) return 'illegal'
@@ -214,7 +217,6 @@ export function validateIntentLocally(
     }
     return null
   }
-  if (intent.type === 'resign') return null
   if (state.phase === 'scoring') return 'scoring'
   if (color !== state.toPlay) return 'not-your-turn'
   if (intent.type === 'move') {
@@ -247,6 +249,12 @@ export function reduce(
   const deadline = flagDeadline(state)
   if (seat !== 'spectator' && deadline !== undefined && state.toPlay && now >= deadline) {
     return { events: timeoutEvents(state.toPlay, state.nextSeq, now) }
+  }
+  // Igual con el plazo del conteo: si ya venció, el resultado es el de la alarm (F o reanudación),
+  // no el de la intención que llegó tarde.
+  if (seat !== 'spectator' && state.phase === 'scoring') {
+    const limit = scoringDeadline(state)
+    if (limit !== undefined && now >= limit) return { events: onAlarm(events, now) }
   }
   const rejected = validateIntentLocally(state, seat, intent)
   if (rejected) return { rejected }
