@@ -159,6 +159,22 @@ describe('CountingExercisePlayer', () => {
     expect(progressOf(storage)['test-conteo-001']).toBeUndefined()
   })
 
+  it('tipear (evento input, sin perder foco) habilita Calificar', () => {
+    render(
+      <CountingExercisePlayer
+        exercise={countingExercise()}
+        storage={memoryStorage()}
+        boardBounds={BOUNDS}
+        onBackToList={() => {}}
+      />,
+    )
+    const gradeButton = screen.getByRole('button', { name: /calificar/i })
+    expect(gradeButton).toBeDisabled()
+    fireEvent.input(screen.getByLabelText(/puntos negro/i), { target: { value: '45' } })
+    fireEvent.input(screen.getByLabelText(/puntos blanco/i), { target: { value: '36' } })
+    expect(gradeButton).not.toBeDisabled()
+  })
+
   it('"Mostrar la respuesta" cuenta como intento fallado si no estaba ya resuelto, y revela el valor calculado en vivo', () => {
     const storage = memoryStorage()
     render(

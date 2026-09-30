@@ -101,13 +101,25 @@ const mocks = vi.hoisted(() => {
     exercises: [demoExercise('mix2-ex-1')],
   }
 
-  return { n, B, W, demoExercise, countingExercise, MIXED_LESSON, NEXT_LESSON }
+  // Dos conteos SEGUIDOS: para probar que el player se remonta (key) al pasar de uno al otro.
+  const TWO_COUNTS_LESSON: Lesson = {
+    id: 'mix-l3',
+    block: 99,
+    workshop: 3,
+    title: 'Lección de dos conteos de prueba',
+    theory: ['Teoría de prueba para dos conteos.'],
+    checkpoint: false,
+    practiceOpponent: { rank: '20k', boardSize: 9 },
+    exercises: [countingExercise('cnt-ex-1'), countingExercise('cnt-ex-2')],
+  }
+
+  return { n, B, W, demoExercise, countingExercise, MIXED_LESSON, NEXT_LESSON, TWO_COUNTS_LESSON }
 })
 const { demoExercise } = mocks
 
 vi.mock('../src/learn/curriculum', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/learn/curriculum')>()
-  return { CURRICULUM: [...actual.CURRICULUM, mocks.MIXED_LESSON, mocks.NEXT_LESSON] }
+  return { CURRICULUM: [...actual.CURRICULUM, mocks.MIXED_LESSON, mocks.NEXT_LESSON, mocks.TWO_COUNTS_LESSON] }
 })
 
 // jsdom no trae ResizeObserver y `useBoundedBoardSize` lo instancia al montar. El stub es inerte:
@@ -400,7 +412,7 @@ describe('AprenderView — currículo mixto (Exercise + CountingExercise)', () =
     const storage = memoryStorage()
     // Desbloquear la lección mixta: resolver los 6 ejercicios de la ÚLTIMA lección real (sea cual
     // sea su contenido -- no se hardcodea, solo su posición justo antes de la mixta).
-    const lastReal = CURRICULUM[CURRICULUM.length - 3]!
+    const lastReal = CURRICULUM[CURRICULUM.length - 4]!
     for (const ex of lastReal.exercises) recordResult(storage, ex.id, 'resuelto')
 
     render(<AprenderView storage={storage} />)
@@ -441,5 +453,31 @@ describe('AprenderView — currículo mixto (Exercise + CountingExercise)', () =
 
     render(<AprenderView storage={storage} />)
     expect(screen.getByRole('button', { name: /Lección siguiente de prueba/i })).not.toBeDisabled()
+  })
+
+  it('al pasar de un conteo a otro el player se remonta: inputs vacíos y habilitados, sin "¡Resuelto!" (key explícito)', async () => {
+    const storage = memoryStorage()
+    // Desbloquear la lección: resolver todo lo anterior a ella.
+    const idx = CURRICULUM.findIndex((l) => l.id === 'mix-l3')
+    for (const l of CURRICULUM.slice(0, idx)) for (const ex of l.exercises) recordResult(storage, ex.id, 'resuelto')
+
+    render(<AprenderView storage={storage} />)
+    fireEvent.click(screen.getByRole('button', { name: /Lección de dos conteos de prueba/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Empezar los \d+ problemas/i }))
+
+    fireEvent.change(screen.getByLabelText(/puntos negro/i), { target: { value: '45' } })
+    fireEvent.change(screen.getByLabelText(/puntos blanco/i), { target: { value: '36' } })
+    fireEvent.click(screen.getByRole('button', { name: /calificar/i }))
+    expect(await screen.findByText(/¡resuelto!/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /siguiente/i }))
+
+    const black = screen.getByLabelText(/puntos negro/i) as HTMLInputElement
+    const white = screen.getByLabelText(/puntos blanco/i) as HTMLInputElement
+    expect(black.value).toBe('')
+    expect(white.value).toBe('')
+    expect(black).not.toBeDisabled()
+    expect(white).not.toBeDisabled()
+    expect(screen.queryByText(/¡resuelto!/i)).not.toBeInTheDocument()
   })
 })

@@ -150,7 +150,6 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         // el tipo angosto que devuelve `isCountingExercise` (CountingExercise en un lado, Exercise
         // en el otro) en vez del tipo ancho `LessonExercise` que tendría si viviera en este objeto.
         const playerProps = {
-          key: exercise.id,
           storage,
           onBackToList: () => setLessonSelection(null),
           ...(hasNext
@@ -162,7 +161,7 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         // el motor (no tiene sentido pedirle a KataGo un veredicto sobre un puntaje que el alumno
         // escribe a mano).
         if (isCountingExercise(exercise)) {
-          return <CountingExercisePlayer {...playerProps} exercise={exercise} />
+          return <CountingExercisePlayer key={exercise.id} {...playerProps} exercise={exercise} />
         }
         // Esta rama renderiza sin motor para CUALQUIER lección de JUGADA de `CURRICULUM`, sin
         // importar el bloque -- el `engineless` de más abajo no condiciona por bloque. Es seguro
@@ -175,7 +174,7 @@ export function AprenderView({ collections = COLLECTIONS, storage = window.local
         // por esta misma rama, hereda el mismo ahorro sin necesitar una decisión aparte. El camino
         // CON motor (`ModelGate` + `EngineExercisePlayer`) sigue existiendo -- lo usa "Primeros
         // pasos" (Colecciones), la sección aparte más abajo.
-        return <ExercisePlayer {...playerProps} exercise={exercise} engineless />
+        return <ExercisePlayer key={exercise.id} {...playerProps} exercise={exercise} engineless />
       }
     }
     // Selección huérfana (currículo cambiado entre renders, o índice inválido): de vuelta a la

@@ -157,6 +157,7 @@ export function CountingExercisePlayer({
                 value={blackInput}
                 disabled={solved || revealed}
                 onChange={(e) => setBlackInput((e.target as HTMLInputElement).value)}
+                onInput={(e) => setBlackInput((e.target as HTMLInputElement).value)}
               />
             </label>
             <label class="rail-field">
@@ -167,6 +168,7 @@ export function CountingExercisePlayer({
                 value={whiteInput}
                 disabled={solved || revealed}
                 onChange={(e) => setWhiteInput((e.target as HTMLInputElement).value)}
+                onInput={(e) => setWhiteInput((e.target as HTMLInputElement).value)}
               />
             </label>
             <button type="submit" class="primary" disabled={!canGrade}>
