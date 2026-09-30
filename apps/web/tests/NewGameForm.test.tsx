@@ -332,3 +332,44 @@ describe('NewGameForm — oponente "Una persona (online)"', () => {
     expect(screen.queryByRole('button', { name: 'Una persona (online)' })).toBeNull()
   })
 })
+
+describe('NewGameForm — modo onlineOnly (crear sala sin motor)', () => {
+  it('oculta el grupo Oponente, la fuerza y el nivel', () => {
+    render(<NewGameForm onStartOnline={vi.fn()} onlineOnly onBack={vi.fn()} />)
+    expect(screen.queryByText('Oponente')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'KataGo' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Una persona (online)' })).toBeNull()
+    expect(screen.queryByText('Fuerza')).toBeNull()
+    expect(screen.queryByText('Nivel')).toBeNull()
+    expect(screen.getByText('Tu color')).toBeInTheDocument()
+  })
+
+  it('aun con initial de kata/human, enviar llama onStartOnline con un RoomConfig', () => {
+    const onStartOnline = vi.fn<(c: RoomConfig) => void>()
+    render(
+      <NewGameForm
+        onStartOnline={onStartOnline}
+        onlineOnly
+        onBack={vi.fn()}
+        initial={{ opponentKind: 'human' }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(onStartOnline).toHaveBeenCalledOnce()
+    const cfg = onStartOnline.mock.calls[0]![0]
+    expect(cfg.boardSize).toBe(9)
+    expect(cfg.rules).toBe('chinese')
+    expect(cfg.creatorColor).toBe('black')
+  })
+
+  it('un rechazo de onStartOnline se muestra como aviso', async () => {
+    render(<NewGameForm onStartOnline={vi.fn().mockRejectedValue(new Error('x'))} onlineOnly onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar partida' }))
+    expect(await screen.findByText(/No se pudo crear la partida online/)).toBeInTheDocument()
+  })
+
+  it('sin onlineOnly el Oponente sigue a la vista', () => {
+    render(<NewGameForm onStart={vi.fn()} onStartOnline={vi.fn()} onBack={vi.fn()} />)
+    expect(screen.getByText('Oponente')).toBeInTheDocument()
+  })
+})

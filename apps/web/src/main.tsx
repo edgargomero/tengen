@@ -41,7 +41,8 @@ import { DiagnosticoView } from './ui/DiagnosticoView'
 import { NewGameForm } from './ui/NewGameForm'
 import { OnlineGameView } from './ui/OnlineGameView'
 import { createRoom } from './online/identity'
-import { onlineRoomIdFromPath } from './online/onlineRoute'
+import { OnlineNewGame } from './ui/OnlineNewGame'
+import { isOnlineNewPath, onlineRoomIdFromPath } from './online/onlineRoute'
 import type { RoomConfig } from '@tengen/go-rules'
 import { PartidasView } from './ui/PartidasView'
 import { AprenderView } from './ui/AprenderView'
@@ -84,6 +85,10 @@ function NoWebGpu({ reason }: { reason: string }) {
       {/* `<a href>` y no `<Link>`: el router vive dentro del gate, así que desde acá no existe. */}
       <a class="link-button" href={DIAGNOSTICO_PATH}>
         Ver diagnóstico
+      </a>
+      {/* Jugar contra una persona no necesita WebGPU: salida para quien no puede usar el motor. */}
+      <a class="link-button" href="/online/nueva">
+        Jugar online contra una persona
       </a>
     </main>
   )
@@ -418,10 +423,12 @@ function Root() {
   const diagnostico = window.location.pathname === DIAGNOSTICO_PATH
   // La sala online se decide acá por la misma razón: jugar contra una persona no necesita WebGPU,
   // y el router está dentro del gate. Se llega con navegación completa (`location.assign`).
-  const onlineRoomId = onlineRoomIdFromPath(window.location.pathname)
+  // `/online/nueva` va ANTES: si no, "nueva" se tomaría como roomId.
+  const onlineNew = isOnlineNewPath(window.location.pathname)
+  const onlineRoomId = onlineNew ? null : onlineRoomIdFromPath(window.location.pathname)
   return (
     <>
-      {diagnostico ? <DiagnosticoView /> : onlineRoomId ? <OnlineGameView roomId={onlineRoomId} /> : <App />}
+      {diagnostico ? <DiagnosticoView /> : onlineNew ? <OnlineNewGame /> : onlineRoomId ? <OnlineGameView roomId={onlineRoomId} /> : <App />}
       <PwaToast
         updateReady={sw.updateReady}
         offlineReady={sw.offlineReady && offlineToast}

@@ -64,18 +64,18 @@ describe('OnlineGameView', () => {
     expect(screen.getByText('Conectando…')).toBeInTheDocument()
   })
 
-  it('not-found: aviso y botón Nueva partida hacia /jugar', async () => {
+  it('not-found: aviso y botón Nueva partida hacia /online/nueva', async () => {
     setup(404)
     expect(await screen.findByText('Esta partida no existe o ya expiró')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
+    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/online/nueva')
   })
 
-  it('I-1: sala llena (cierre 1013): aviso y botón hacia /jugar, sin reconectar', async () => {
+  it('I-1: sala llena (cierre 1013): aviso y botón hacia /online/nueva, sin reconectar', async () => {
     const sockets = setup()
     await waitFor(() => expect(sockets.length).toBe(1))
     sockets[0]!.onclose?.({ code: 1013 })
     expect(await screen.findByText('La sala está llena')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
+    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/online/nueva')
     expect(sockets).toHaveLength(1)
   })
 
@@ -120,7 +120,7 @@ describe('OnlineGameView: marco, asiento y replaced', () => {
     sockets[0]!.emit({ t: 'welcome', seat: 'creator', seatToken: 't', events: [created] })
     sockets[0]!.onclose?.({ code: 4001 })
     expect(await screen.findByText('Abriste esta partida en otra pestaña o dispositivo')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/jugar')
+    expect(screen.getByRole('link', { name: 'Nueva partida' })).toHaveAttribute('href', '/online/nueva')
     expect(sockets).toHaveLength(1)
   })
 
@@ -313,7 +313,7 @@ describe('OnlineGameView en juego', () => {
     const ended: RoomEvent = { seq: 5, at: NOW, type: 'ended', result: 'B+2.0' }
     await play('creator', [...base, ...movesEvents([[4, 4], [2, 2]]), ended])
     expect(await screen.findByText('Negro gana por 2,0 puntos')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Nueva partida online' })).toHaveAttribute('href', '/jugar')
+    expect(screen.getByRole('link', { name: 'Nueva partida online' })).toHaveAttribute('href', '/online/nueva')
     expect(screen.queryByRole('button', { name: 'Pasar' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Descargar SGF' }))
     const blob = (createObjectURL.mock.calls[0] as unknown as [Blob])[0]

@@ -11,11 +11,15 @@ import { kataStrengthOptions } from '../game/opponentStrength'
 import type { RoomConfig } from '@tengen/go-rules'
 
 interface NewGameFormProps {
-  onStart(config: GameConfig): void
+  // Opcional solo porque `onlineOnly` no lo usa; sin `onlineOnly` hay que pasarlo (si falta, enviar no hace nada).
+  onStart?(config: GameConfig): void
   // Habilita el oponente "Una persona (online)". Recibe el RoomConfig (con `rules`; el nigiri viaja
   // como 'nigiri': lo resuelve el servidor, no el cliente). Si devuelve una promesa que se rechaza,
   // el formulario muestra el aviso de error. Sin esta prop la opción no se ofrece.
   onStartOnline?(config: RoomConfig): void | Promise<void>
+  // Solo crear sala online (pantalla `/online/nueva`, sin motor): oculta el grupo Oponente entero y
+  // fija el oponente en 'online'. Requiere `onStartOnline`; sin él no tiene sentido.
+  onlineOnly?: boolean
   onBack(): void
   // `initial` prellena el estado de inicio del formulario (se lee una sola vez al montar).
   // Se usa para Task 13 (Aprender: "Practicar contra Human SL"). Sin especificar, el comportamiento
@@ -42,11 +46,13 @@ function defaultMainTimeMin(size: BoardSize): number {
 const DEFAULT_BYOYOMI_PERIODS = 5
 const DEFAULT_BYOYOMI_SECONDS = 30
 
-export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGameFormProps) {
+export function NewGameForm({ onStart, onStartOnline, onlineOnly, onBack, initial }: NewGameFormProps) {
   // Tamaño por defecto: 9×9 (partida más corta y rápida — mejor primera experiencia jugable que
   // 19×19; además el usuario puede subir de tamaño cuando quiera).
   const [boardSize, setBoardSize] = useState<BoardSize>(initial?.boardSize ?? 9)
-  const [opponentKind, setOpponentKind] = useState<'human' | 'kata' | 'online'>(initial?.opponentKind ?? 'kata')
+  const [opponentKind, setOpponentKind] = useState<'human' | 'kata' | 'online'>(
+    onlineOnly ? 'online' : (initial?.opponentKind ?? 'kata'),
+  )
   const [humanRank, setHumanRank] = useState<HumanRank>(initial?.humanRank ?? '5k')
   // Qué fuerzas se ofrecen depende del dispositivo: en móvil hay UNA (25 visitas ≈ 15 s por jugada
   // a las ~1,5 visitas/s medidas en un iPhone 12); en escritorio siguen las tres. Se calcula en cada
@@ -104,6 +110,7 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
       submitOnline(onStartOnline)
       return
     }
+    if (!onStart) return
     const opponent: RankLevel =
       opponentKind === 'human' ? { kind: 'human', rank: humanRank } : { kind: 'kata', visits: kataVisits }
     // El sorteo del nigiri (único Math.random() del feature) ocurre ACÁ, una sola vez. Con el color
@@ -204,46 +211,48 @@ export function NewGameForm({ onStart, onStartOnline, onBack, initial }: NewGame
             ya existen: la pista vive DENTRO del campo (`.field`, gap --sp-1 = agrupa) y el nivel
             —fuerza o rango— es HERMANO en el `.field-group` (gap --sp-3 = separa). Ese contraste
             4px adentro / 12px afuera es lo único que dice a qué fila pertenece cada eyebrow. */}
-        <div class="field">
-          <span class="eyebrow" id="new-game-opponent-label">Oponente</span>
-          <div class="choice-row" role="group" aria-labelledby="new-game-opponent-label">
-            <button
-              type="button"
-              aria-pressed={opponentKind === 'kata'}
-              class={opponentKind === 'kata' ? 'active' : ''}
-              onClick={() => setOpponentKind('kata')}
-            >
-              KataGo
-            </button>
-            <button
-              type="button"
-              aria-pressed={opponentKind === 'human'}
-              class={opponentKind === 'human' ? 'active' : ''}
-              onClick={() => setOpponentKind('human')}
-            >
-              Human SL (estilo humano)
-            </button>
-            {onStartOnline && (
+        {!onlineOnly && (
+          <div class="field">
+            <span class="eyebrow" id="new-game-opponent-label">Oponente</span>
+            <div class="choice-row" role="group" aria-labelledby="new-game-opponent-label">
               <button
                 type="button"
-                aria-pressed={opponentKind === 'online'}
-                class={opponentKind === 'online' ? 'active' : ''}
-                onClick={() => setOpponentKind('online')}
+                aria-pressed={opponentKind === 'kata'}
+                class={opponentKind === 'kata' ? 'active' : ''}
+                onClick={() => setOpponentKind('kata')}
               >
-                Una persona (online)
+                KataGo
               </button>
+              <button
+                type="button"
+                aria-pressed={opponentKind === 'human'}
+                class={opponentKind === 'human' ? 'active' : ''}
+                onClick={() => setOpponentKind('human')}
+              >
+                Human SL (estilo humano)
+              </button>
+              {onStartOnline && (
+                <button
+                  type="button"
+                  aria-pressed={opponentKind === 'online'}
+                  class={opponentKind === 'online' ? 'active' : ''}
+                  onClick={() => setOpponentKind('online')}
+                >
+                  Una persona (online)
+                </button>
+              )}
+            </div>
+
+            {/* Con una sola fuerza posible no se dibuja una fila de un botón: una elección de una
+                opción no es una elección. Va la pista que dice POR QUÉ, para que nadie busque los
+                niveles que faltan. */}
+            {opponentKind === 'kata' && kataOptions.length === 1 && (
+              <span class="field-hint">
+                En este dispositivo KataGo juega a fuerza baja: así responde en ~15 s por jugada.
+              </span>
             )}
           </div>
-
-          {/* Con una sola fuerza posible no se dibuja una fila de un botón: una elección de una
-              opción no es una elección. Va la pista que dice POR QUÉ, para que nadie busque los
-              niveles que faltan. */}
-          {opponentKind === 'kata' && kataOptions.length === 1 && (
-            <span class="field-hint">
-              En este dispositivo KataGo juega a fuerza baja: así responde en ~15 s por jugada.
-            </span>
-          )}
-        </div>
+        )}
 
         {opponentKind === 'kata' && kataOptions.length > 1 && (
           <div class="field">

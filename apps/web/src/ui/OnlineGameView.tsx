@@ -75,7 +75,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
           <h1>Partida online</h1>
           <p class="notice notice--danger">Esta partida no existe o ya expiró</p>
           <div class="action-row">
-            <a class="link-button primary" href="/jugar">
+            <a class="link-button primary" href="/online/nueva">
               Nueva partida
             </a>
           </div>
@@ -91,7 +91,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
           <h1>Partida online</h1>
           <p class="notice notice--danger">Abriste esta partida en otra pestaña o dispositivo</p>
           <div class="action-row">
-            <a class="link-button primary" href="/jugar">
+            <a class="link-button primary" href="/online/nueva">
               Nueva partida
             </a>
           </div>
@@ -107,7 +107,7 @@ export function OnlineGameView({ roomId, storage, socketFactory, fetchFn, boardB
           <h1>Partida online</h1>
           <p class="notice notice--danger">La sala está llena</p>
           <div class="action-row">
-            <a class="link-button primary" href="/jugar">
+            <a class="link-button primary" href="/online/nueva">
               Nueva partida
             </a>
           </div>
@@ -476,7 +476,7 @@ function RoomBoard({ state, conn, boardBounds, send }: RoomBoardProps) {
                 <button type="button" class="primary" onClick={downloadSgf}>
                   Descargar SGF
                 </button>
-                <a class="link-button" href="/jugar">
+                <a class="link-button" href="/online/nueva">
                   Nueva partida online
                 </a>
               </div>

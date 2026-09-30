@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { onlineRoomIdFromPath } from '../src/online/onlineRoute'
+import { isOnlineNewPath, onlineRoomIdFromPath } from '../src/online/onlineRoute'
 
 describe('onlineRoomIdFromPath', () => {
   it('extrae el roomId de /online/:id', () => {
@@ -12,5 +12,16 @@ describe('onlineRoomIdFromPath', () => {
   })
   it('decodifica el id', () => {
     expect(onlineRoomIdFromPath('/online/a%20b')).toBe('a b')
+  })
+})
+
+describe('isOnlineNewPath', () => {
+  it('acepta /online/nueva con y sin barra final', () => {
+    expect(isOnlineNewPath('/online/nueva')).toBe(true)
+    expect(isOnlineNewPath('/online/nueva/')).toBe(true)
+  })
+  it('rechaza cualquier otra ruta', () => {
+    for (const p of ['/', '/jugar', '/online', '/online/', '/online/abc', '/online/nueva/x', '/online/nuevax'])
+      expect(isOnlineNewPath(p)).toBe(false)
   })
 })
