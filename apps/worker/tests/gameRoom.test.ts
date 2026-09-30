@@ -3,7 +3,7 @@
 // runInDurableObject) antes de ejecutar la alarm, en vez de inyectar un reloj.
 import { env, runDurableObjectAlarm, runInDurableObject, SELF } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
-import { flagDeadline, project, type RoomConfig, type RoomEvent } from '@tengen/go-rules'
+import { flagDeadline, project, SCORING_TIMEOUT_MS, type RoomConfig, type RoomEvent } from '@tengen/go-rules'
 import type { Env } from '../src/index'
 
 declare module 'cloudflare:test' {
@@ -344,5 +344,83 @@ describe('GameRoom por WebSocket', () => {
     guest.ws.close(1000)
     const p = await creator.next((m) => m.t === 'presence' && m.guest === false)
     expect(p).toMatchObject({ creator: true, guest: false })
+  })
+})
+
+describe('fase de conteo y reglas', () => {
+  const post = (config: unknown) =>
+    SELF.fetch('https://example.com/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config, playerId: P1 }),
+    })
+  const alarmOf = (roomId: string) => runInDurableObject(stubOf(roomId), (_i, state) => state.storage.getAlarm())
+
+  async function toScoring(config: RoomConfig = CONFIG) {
+    const room = await startedRoom(config)
+    room.creator.send({ t: 'intent', intent: { type: 'pass', seq: 3 } })
+    await room.creator.next((m) => m.t === 'events')
+    await room.guest.next((m) => m.t === 'events')
+    room.guest.send({ t: 'intent', intent: { type: 'pass', seq: 4 } })
+    return room
+  }
+
+  it('1. rules: japanese y sin rules son válidas; aga da 400', async () => {
+    expect((await post({ ...CONFIG, rules: 'japanese' })).status).toBe(201)
+    expect((await post({ ...CONFIG, rules: 'chinese' })).status).toBe(201)
+    expect((await post(CONFIG)).status).toBe(201)
+    expect((await post({ ...CONFIG, rules: 'aga' })).status).toBe(400)
+  })
+
+  it('2. dos pases difunden scoring y la alarm queda en scoringSince + 5 min', async () => {
+    const { roomId, creator, guest } = await toScoring()
+    for (const c of [creator, guest]) {
+      const ev = await c.next((m) => m.t === 'events' && (m.events as RoomEvent[]).some((e) => e.type === 'scoring'))
+      expect((ev.events as RoomEvent[]).map((e) => e.type)).toEqual(['pass', 'scoring'])
+    }
+    const { alarm, since } = await runInDurableObject(stubOf(roomId), async (_i, state) => {
+      const events = (await state.storage.get<RoomEvent[]>('events'))!
+      return { alarm: await state.storage.getAlarm(), since: events[events.length - 1]!.at }
+    })
+    expect(alarm).toBe(since + SCORING_TIMEOUT_MS)
+  })
+
+  it('3. conteo vencido con solo el creador aceptado: ended X+F y alarm a +30 días', async () => {
+    const { roomId, creator, guest } = await toScoring()
+    await creator.next((m) => m.t === 'events')
+    await guest.next((m) => m.t === 'events')
+    creator.send({ t: 'intent', intent: { type: 'accept', seq: 6 } })
+    await creator.next((m) => m.t === 'events')
+    await guest.next((m) => m.t === 'events')
+    await rewind(roomId, 6 * 60_000)
+    expect(await runDurableObjectAlarm(stubOf(roomId))).toBe(true)
+    for (const c of [creator, guest]) {
+      const ev = await c.next((m) => m.t === 'events')
+      expect((ev.events as RoomEvent[]).map((e) => e.type)).toEqual(['ended'])
+      expect((ev.events as RoomEvent[])[0]).toMatchObject({ result: 'B+F' })
+      expect(typeof ev.serverNow).toBe('number')
+    }
+    const alarm = await alarmOf(roomId)
+    expect(Math.abs(alarm! - (Date.now() + 30 * DAY))).toBeLessThan(10_000)
+  })
+
+  it('4. conteo vencido sin aceptados: resumed timeout; con reloj la alarm vuelve a flagDeadline', async () => {
+    const clock = { mainTimeMs: 600_000, byoyomiPeriods: 1, byoyomiPeriodMs: 30_000 }
+    const { roomId, creator, guest } = await toScoring({ ...CONFIG, clock })
+    await creator.next((m) => m.t === 'events')
+    await guest.next((m) => m.t === 'events')
+    await rewind(roomId, 6 * 60_000)
+    expect(await runDurableObjectAlarm(stubOf(roomId))).toBe(true)
+    for (const c of [creator, guest]) {
+      const ev = await c.next((m) => m.t === 'events')
+      expect((ev.events as RoomEvent[]).map((e) => e.type)).toEqual(['resumed'])
+      expect((ev.events as RoomEvent[])[0]).toMatchObject({ by: 'timeout' })
+    }
+    const { alarm, deadline } = await runInDurableObject(stubOf(roomId), async (_i, state) => {
+      const events = (await state.storage.get<RoomEvent[]>('events'))!
+      return { alarm: await state.storage.getAlarm(), deadline: flagDeadline(project(events)) }
+    })
+    expect(deadline).toBeDefined()
+    expect(alarm).toBe(deadline)
   })
 })

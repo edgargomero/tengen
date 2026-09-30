@@ -29,6 +29,10 @@ export function parseConfig(raw: unknown): RoomConfig | null {
   const cc = r.creatorColor
   if (cc !== 'black' && cc !== 'white' && cc !== 'nigiri') return null
   const config: RoomConfig = { boardSize: size, komi: r.komi, handicap: handicap as number, creatorColor: cc }
+  if (r.rules !== undefined) {
+    if (r.rules !== 'chinese' && r.rules !== 'japanese') return null
+    config.rules = r.rules
+  }
   if (r.clock !== undefined) {
     const c = r.clock as Record<string, unknown> | null
     if (typeof c !== 'object' || c === null) return null

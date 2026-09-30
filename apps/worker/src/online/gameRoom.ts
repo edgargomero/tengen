@@ -9,6 +9,7 @@ import {
   onAlarm,
   project,
   reduce,
+  scoringDeadline,
   type RoomConfig,
   type RoomEvent,
   type SeatRole,
@@ -201,7 +202,7 @@ export class GameRoom extends DurableObject<Env> {
       await this.ctx.storage.deleteAll()
       return
     }
-    if (state.phase === 'playing') {
+    if (state.phase === 'playing' || state.phase === 'scoring') {
       const out = onAlarm(events, now)
       if (out.length > 0) {
         const next = [...events, ...out]
@@ -214,12 +215,13 @@ export class GameRoom extends DurableObject<Env> {
     await this.reschedule(events)
   }
 
-  /** Reprograma la alarm según la fase: flag, expiración de sala en espera, o +30 días al terminar. */
+  /** Reprograma la alarm según la fase: flag, plazo del conteo, expiración de sala en espera, o +30 días al terminar. */
   private async reschedule(events: readonly RoomEvent[]): Promise<void> {
     const state = project(events)
     const last = events[events.length - 1]
     let at: number | undefined
     if (state.phase === 'playing') at = flagDeadline(state)
+    else if (state.phase === 'scoring') at = scoringDeadline(state)
     else if (state.phase === 'ended' && last) at = last.at + ENDED_TTL_MS
     else if (state.phase === 'waiting' && events[0]) at = events[0].at + WAITING_TTL_MS
     if (at === undefined) await this.ctx.storage.deleteAlarm()
