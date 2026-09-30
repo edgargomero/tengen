@@ -610,30 +610,30 @@
         "boardSize": 9,
         "setup": {
           "black": [
-            { "x": 8, "y": 0 }, { "x": 6, "y": 1 }, { "x": 8, "y": 1 }, { "x": 6, "y": 2 }, { "x": 8, "y": 2 }, { "x": 6, "y": 3 },
-            { "x": 8, "y": 3 }, { "x": 6, "y": 4 }, { "x": 8, "y": 4 }, { "x": 7, "y": 5 }
+            { "x": 4, "y": 0 }, { "x": 6, "y": 0 }, { "x": 4, "y": 1 }, { "x": 6, "y": 1 }, { "x": 7, "y": 1 }, { "x": 8, "y": 1 },
+            { "x": 5, "y": 3 }, { "x": 6, "y": 3 }, { "x": 7, "y": 3 }, { "x": 8, "y": 3 }, { "x": 3, "y": 4 }
           ],
           "white": [
-            { "x": 7, "y": 1 }, { "x": 7, "y": 2 }, { "x": 7, "y": 3 }, { "x": 7, "y": 4 }, { "x": 6, "y": 5 }, { "x": 6, "y": 6 },
-            { "x": 7, "y": 6 }
+            { "x": 5, "y": 0 }, { "x": 5, "y": 1 }, { "x": 5, "y": 2 }, { "x": 6, "y": 2 }, { "x": 7, "y": 2 }, { "x": 8, "y": 2 },
+            { "x": 2, "y": 4 }, { "x": 4, "y": 4 }, { "x": 3, "y": 5 }
           ]
         },
         "toPlay": "white",
         "objective": "vivir",
-        "difficulty": 3,
+        "difficulty": 2,
         "tree": {
-          "comment": "A la derecha, tus cuatro piedras, de (7,1) a (7,4), y las cinco negras del borde están en carrera, y tu cadena quedó en atari. Juegan blancas: salvala.",
+          "comment": "Arriba a la derecha, tus seis piedras y las cuatro negras del rincón están en carrera, y tu cadena quedó en atari. Más abajo, la piedra negra de (3,4) también está en atari. Juegan blancas.",
           "children": [
             {
-              "move": { "color": "white", "vertex": { "x": 8, "y": 5 } },
+              "move": { "color": "white", "vertex": { "x": 4, "y": 2 } },
               "correct": true,
-              "comment": "Capturás la piedra negra de (7,5), que separaba tu cadena de tus piedras de abajo. Tu cadena queda con dos libertades, (7,0) y (7,5), y Negro no puede ocupar (7,5), porque su piedra no tendría libertades. Además, tu piedra nueva le quitó una libertad a la cadena negra del borde, que queda en atari en (7,0).",
+              "comment": "Primero tu cadena: te extendés en (4,2) y pasa a tener dos libertades, (3,2) y (4,3), las dos hacia el lado abierto. Las cuatro negras del rincón siguen encerradas, con sus dos libertades adentro, y pierden la carrera. La piedra de (3,4) sigue en atari: la podés capturar después.",
               "children": []
             },
             {
-              "move": { "color": "white", "vertex": { "x": 7, "y": 0 } },
+              "move": { "color": "white", "vertex": { "x": 3, "y": 3 } },
               "correct": false,
-              "comment": "Salís por tu única libertad, pero extenderte no te suma libertades: tu cadena queda de cinco piedras con una sola, (6,0). La negra también quedó en atari, pero juega Negro: en (6,0) captura tus cinco piedras.",
+              "comment": "Capturás la piedra de (3,4), pero tu cadena seguía en atari: Negro juega en (4,2) y captura tus seis piedras. Capturar puede esperar; salvar la cadena en atari, no.",
               "children": []
             }
           ]
