@@ -39,6 +39,12 @@ Ver [`docs/TESTING.md`](docs/TESTING.md). En resumen: todo lo que **no** necesit
 UI vía componentes presentacionales) se testea en CI (Vitest, jsdom); el camino "motor en un navegador
 real" es un gate **manual** documentado, acotado por el requisito de WebGPU.
 
+## Apoyar el proyecto
+
+tengen es gratuito, sin publicidad y de código abierto (AGPL-3.0). Si te sirve para jugar o aprender Go
+y querés ayudar a sostenerlo, podés apoyarlo en
+[GitHub Sponsors](https://github.com/sponsors/edgargomero).
+
 ## Agradecimientos
 
 Gracias a la **Federación Iberoamericana de Go (FEDIBERGO)** por el material de enseñanza que publica

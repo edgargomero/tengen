@@ -363,6 +363,13 @@ function ModeMenu(_props: RoutableProps) {
         updateReady={sw.updateReady}
         onCheck={sw.checkForUpdate}
       />
+      <p class="hint">
+        tengen es gratuito y de código abierto.{' '}
+        <a href="https://github.com/sponsors/edgargomero" target="_blank" rel="noopener noreferrer">
+          Apóyalo en GitHub Sponsors
+        </a>
+        .
+      </p>
     </main>
   )
 }
